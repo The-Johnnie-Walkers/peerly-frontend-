@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Calendar } from 'lucide-react';
+import { ArrowLeft, Send, Calendar, Phone, Video } from 'lucide-react';
 import { MOCK_CONNECTIONS, MOCK_CHAT_MESSAGES } from '@/data/mockData';
 import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 
@@ -70,13 +70,31 @@ const ChatsScreen = () => {
                 </p>
               </div>
             </button>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              className="p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Proponer plan"
-            >
-              <Calendar size={20} />
-            </motion.button>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="p-2 sm:p-2.5 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Llamada de voz"
+                onClick={() => console.log('Iniciar llamada de voz')}
+              >
+                <Phone size={20} />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="p-2 sm:p-2.5 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Videollamada"
+                onClick={() => console.log('Iniciar videollamada')}
+              >
+                <Video size={20} />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="p-2 sm:p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Proponer plan"
+              >
+                <Calendar size={20} />
+              </motion.button>
+            </div>
           </header>
 
           <div className="flex-1 overflow-y-auto min-h-0">

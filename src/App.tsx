@@ -26,7 +26,9 @@ const queryClient = new QueryClient();
 const AppLayout = () => {
   const location = useLocation();
   const hideBottomNavOn = ["/", "/forgot-password", "/register", "/splash", "/onboarding"];
-  const shouldShowBottomNav = !hideBottomNavOn.includes(location.pathname);
+  const hideBottomNavByPrefix = ["/activity/"];
+  const shouldHideByPrefix = hideBottomNavByPrefix.some((prefix) => location.pathname.startsWith(prefix));
+  const shouldShowBottomNav = !hideBottomNavOn.includes(location.pathname) && !shouldHideByPrefix;
 
   return (
     <div className="min-h-screen bg-background">

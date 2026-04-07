@@ -49,6 +49,16 @@ export type ChatMessage = {
   timestamp: string;
 };
 
+export type Notification = {
+  id: string;
+  type: 'connection' | 'activity' | 'message';
+  title: string;
+  description: string;
+  timestamp: string;
+  isRead: boolean;
+  avatar?: string;
+};
+
 /** Conversación/chat con un estudiante (conexión). */
 export type Connection = {
   id: string;
@@ -277,6 +287,36 @@ export const MOCK_CONNECTIONS: Connection[] = [
     lastMessage: '¿Cómo va el proyecto de arq?',
     lastMessageTime: '3 horas',
     unread: 0,
+  },
+];
+
+export const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n1',
+    type: 'connection',
+    title: 'Nueva conexión',
+    description: 'Valeria Gómez quiere conectar contigo.',
+    timestamp: 'Hace 5 min',
+    isRead: false,
+    avatar: 'https://picsum.photos/seed/peerly-student-1/100/100',
+  },
+  {
+    id: 'n2',
+    type: 'activity',
+    title: 'Actividad confirmada',
+    description: 'Te has unido a "Repaso Cálculo III".',
+    timestamp: 'Hace 1 hora',
+    isRead: false,
+    avatar: 'https://picsum.photos/seed/peerly-activity-a1/100/100',
+  },
+  {
+    id: 'n3',
+    type: 'message',
+    title: 'Nuevo mensaje',
+    description: 'Mateo Ruiz: ¡Parcero, el hackathon es este...',
+    timestamp: 'Hace 2 horas',
+    isRead: true,
+    avatar: 'https://picsum.photos/seed/peerly-student-2/100/100',
   },
 ];
 
