@@ -2,9 +2,11 @@ import { Mail, Lock, ArrowRight, LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { authService } from "@/services/auth.service";
+import { toast } from "sonner";
 
 type Bubble = {
   id: string;
@@ -203,11 +205,15 @@ const Field = ({
   label,
   type,
   placeholder,
+  value,
+  onChange,
 }: {
   icon: LucideIcon;
   label: string;
   type: string;
   placeholder: string;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) => (
   <div className="space-y-1.5">
     <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))]">{label}</label>
@@ -218,6 +224,8 @@ const Field = ({
       <Input
         type={type}
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
         className="pl-9 h-11 rounded-2xl bg-background/80 border-border text-sm"
       />
     </div>
@@ -226,6 +234,36 @@ const Field = ({
 
 const LandingPage = () => {
   const reduceMotion = useReducedMotion();
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+
+    setIsLoading(true);
+    try {
+      const response = await authService.login({ email, password });
+      
+      const userData = await fetch(`http://localhost:3000/users/${response.id}`, {
+        headers: { 'Authorization': `Bearer ${response.token}` }
+      }).then(res => res.json()).catch(() => null);
+      
+      if (userData) {
+        localStorage.setItem('user_data', JSON.stringify(userData));
+      }
+      
+      toast.success("¡Bienvenido de nuevo!");
+      navigate("/home");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Credenciales inválidas";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const container = {
     hidden: {},
@@ -362,25 +400,35 @@ const LandingPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <Field
-                icon={Mail}
-                label="Correo universitario"
-                type="email"
-                placeholder="tucorreo@universidad.edu"
-              />
-              <Field
-                icon={Lock}
-                label="Contraseña"
-                type="password"
-                placeholder="••••••••"
-              />
-            </div>
+            <form onSubmit={handleLogin}>
+              <div className="space-y-4">
+                <Field
+                  icon={Mail}
+                  label="Correo universitario"
+                  type="email"
+                  placeholder="tucorreo@universidad.edu"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <Field
+                  icon={Lock}
+                  label="Contraseña"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
 
-            <Button className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm">
-              Iniciar sesión
-              <ArrowRight className="w-4 h-4" />
-            </Button>
+              <Button 
+                type="submit" 
+                disabled={isLoading || !email || !password}
+                className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm mt-6"
+              >
+                {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </form>
 
             <Button
               variant="outline"
