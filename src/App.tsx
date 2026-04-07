@@ -19,13 +19,16 @@ import CreateActivityScreen from "./pages/CreateActivityScreen";
 import ForgotPassword from "./pages/ForgotPassword";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import VirtualWorldScreen from "./pages/VirtualWorldScreen";
 
 const queryClient = new QueryClient();
 
 const AppLayout = () => {
   const location = useLocation();
   const hideBottomNavOn = ["/", "/forgot-password", "/register", "/splash", "/onboarding"];
-  const shouldShowBottomNav = !hideBottomNavOn.includes(location.pathname);
+  const hideBottomNavByPrefix = ["/activity/"];
+  const shouldHideByPrefix = hideBottomNavByPrefix.some((prefix) => location.pathname.startsWith(prefix));
+  const shouldShowBottomNav = !hideBottomNavOn.includes(location.pathname) && !shouldHideByPrefix;
 
   return (
     <div className="min-h-screen bg-background">
@@ -46,6 +49,7 @@ const AppLayout = () => {
             <Route path="/explore" element={<ExploreScreen />} />
             <Route path="/activity/:id" element={<ActivityDetailScreen />} />
             <Route path="/create-activity" element={<CreateActivityScreen />} />
+            <Route path="/virtual-world" element={<VirtualWorldScreen />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

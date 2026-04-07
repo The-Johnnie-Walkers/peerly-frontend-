@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import { Student, INTERESTS } from '@/data/mockData';
+import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 
 interface StudentCardProps {
   student: Student;
@@ -16,7 +17,11 @@ export const StudentCard = ({ student, onClick, compact = false }: StudentCardPr
         onClick={onClick}
         className="min-w-[150px] bg-card rounded-3xl p-3 shadow-card border border-border cursor-pointer"
       >
-        <img src={student.photo} alt={student.name} className="w-full aspect-square object-cover rounded-2xl mb-3" />
+        <SafeRemoteImage
+          src={student.photo}
+          alt={student.name}
+          className="w-full aspect-square object-cover rounded-2xl mb-3"
+        />
         <p className="font-display font-bold text-sm truncate">{student.name}</p>
         <p className="text-[10px] text-muted-foreground mb-2 truncate">{student.career}</p>
         <div className="flex items-center gap-1 text-success font-mono font-bold text-[10px]">
@@ -33,7 +38,11 @@ export const StudentCard = ({ student, onClick, compact = false }: StudentCardPr
       className="bg-card rounded-3xl overflow-hidden shadow-card border border-border cursor-pointer"
     >
       <div className="relative">
-        <img src={student.photo} alt={student.name} className="w-full h-48 object-cover" />
+        <SafeRemoteImage
+          src={student.photo}
+          alt={student.name}
+          className="w-full h-48 object-cover"
+        />
         <div className="absolute top-3 right-3 bg-success px-2.5 py-1 rounded-full text-[10px] font-mono font-bold text-success-foreground">
           {student.compatibility}% Compatible
         </div>

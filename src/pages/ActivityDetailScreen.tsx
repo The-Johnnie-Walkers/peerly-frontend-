@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, Clock, Users, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { MOCK_ACTIVITIES, MOCK_STUDENTS, CATEGORY_LABELS } from '@/data/mockData';
+import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 
 const ActivityDetailScreen = () => {
   const { id } = useParams();
@@ -23,58 +24,82 @@ const ActivityDetailScreen = () => {
   return (
     <div className="h-svh flex flex-col bg-background">
       {/* Cover */}
-      <div className="relative h-56 overflow-hidden">
-        <img src={activity.coverImage} alt={activity.title} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
+      <div className="relative h-56 sm:h-64 overflow-hidden">
+        <SafeRemoteImage
+          src={activity.coverImage}
+          alt={activity.title}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-foreground/65 via-foreground/25 to-transparent" />
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => navigate(-1)}
-          className="absolute top-6 left-6 p-2.5 bg-card/80 backdrop-blur rounded-xl"
+          className="absolute top-6 left-6 p-2.5 bg-card/85 backdrop-blur rounded-xl border border-border/70 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Volver"
         >
           <ArrowLeft size={18} />
         </motion.button>
-        <div className="absolute bottom-4 left-6">
-          <span className="px-2.5 py-1 bg-card/90 backdrop-blur rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider">
+        <div className="absolute bottom-5 left-6">
+          <span className="px-3 py-1.5 bg-card/90 backdrop-blur rounded-xl text-xs font-mono font-bold uppercase tracking-wide text-foreground">
             {CATEGORY_LABELS[activity.category]}
           </span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 pb-32 -mt-4 bg-background rounded-t-3xl relative">
-        <h1 className="text-2xl font-display font-extrabold mb-3">{activity.title}</h1>
+      <div className="flex-1 overflow-y-auto p-6 pb-8 -mt-5 bg-background rounded-t-3xl relative">
+        <h1 className="text-2xl sm:text-3xl font-display font-extrabold tracking-tight mb-4">{activity.title}</h1>
 
-        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-6">
-          <span className="flex items-center gap-1.5"><MapPin size={16} className="text-primary" /> {activity.location}</span>
-          <span className="flex items-center gap-1.5"><Clock size={16} className="text-primary" /> {activity.time}</span>
-          <span className="flex items-center gap-1.5"><Users size={16} className="text-primary" /> {activity.currentAttendees.length}/{activity.maxAttendees}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-6">
+          <span className="flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm text-muted-foreground">
+            <MapPin size={16} className="text-primary" />
+            <span className="truncate">{activity.location}</span>
+          </span>
+          <span className="flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm text-muted-foreground">
+            <Clock size={16} className="text-primary" />
+            <span className="truncate">{activity.time}</span>
+          </span>
+          <span className="flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm text-muted-foreground">
+            <Users size={16} className="text-primary" />
+            <span>{activity.currentAttendees.length}/{activity.maxAttendees} cupos</span>
+          </span>
         </div>
 
-        <p className="text-foreground/80 mb-8 leading-relaxed">{activity.description}</p>
+        <p className="text-foreground/85 text-base leading-relaxed mb-8">{activity.description}</p>
 
         {/* Attendees */}
-        <h3 className="font-display font-bold mb-3">Asistentes</h3>
-        <div className="flex gap-3 overflow-x-auto no-scrollbar mb-8">
+        <div className="mb-8">
+          <h3 className="font-display font-bold text-base mb-3">Asistentes</h3>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar">
           {attendees.map(student => student && (
             <motion.div
               key={student.id}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate(`/profile/${student.id}`)}
-              className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer"
+              className="flex flex-col items-center gap-1.5 min-w-[68px] cursor-pointer p-1 rounded-xl hover:bg-card/70 transition-colors"
             >
-              <img src={student.photo} alt={student.name} className="w-12 h-12 rounded-full object-cover border-2 border-border" />
-              <span className="text-[10px] font-medium text-center truncate w-full">{student.name.split(' ')[0]}</span>
+              <SafeRemoteImage
+                src={student.photo}
+                alt={student.name}
+                className="w-12 h-12 rounded-full object-cover border-2 border-border shadow-sm"
+              />
+              <span className="text-xs font-medium text-center truncate w-full">{student.name.split(' ')[0]}</span>
             </motion.div>
           ))}
+          </div>
         </div>
 
         {/* Comments */}
-        <h3 className="font-display font-bold mb-3">Comentarios</h3>
         <div className="space-y-3">
+          <h3 className="font-display font-bold text-base">Comentarios</h3>
           <div className="bg-card rounded-2xl p-4 border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <img src={MOCK_STUDENTS[0].photo} className="w-6 h-6 rounded-full object-cover" />
+              <SafeRemoteImage
+                src={MOCK_STUDENTS[0].photo}
+                alt={MOCK_STUDENTS[0].name}
+                className="w-6 h-6 rounded-full object-cover"
+              />
               <span className="text-xs font-display font-bold">{MOCK_STUDENTS[0].name}</span>
-              <span className="text-[10px] font-mono text-muted-foreground">hace 2h</span>
+              <span className="text-xs font-mono text-muted-foreground">hace 2h</span>
             </div>
             <p className="text-sm text-foreground/80">¡Yo llevo los ejercicios del parcial pasado! 📝</p>
           </div>
@@ -82,11 +107,12 @@ const ActivityDetailScreen = () => {
       </div>
 
       {/* RSVP button */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[450px] p-6 bg-card/90 backdrop-blur-xl border-t border-border">
+      <div className="w-full max-w-[450px] mx-auto p-4 sm:p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-card/92 backdrop-blur-xl border-t border-border shadow-[0_-8px_24px_-16px_hsl(30_20%_30%/0.4)]">
+        <p className="text-xs text-muted-foreground mb-2">Confirma tu asistencia para reservar tu cupo.</p>
         <motion.button
           whileTap={{ scale: 0.96 }}
           onClick={() => setIsAttending(!isAttending)}
-          className={`w-full p-4 rounded-2xl font-display font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+          className={`w-full h-12 rounded-2xl font-display font-bold text-base flex items-center justify-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
             isAttending
               ? 'bg-success text-success-foreground'
               : 'bg-primary text-primary-foreground shadow-glow'

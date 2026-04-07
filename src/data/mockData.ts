@@ -49,6 +49,16 @@ export type ChatMessage = {
   timestamp: string;
 };
 
+export type Notification = {
+  id: string;
+  type: 'connection' | 'activity' | 'message';
+  title: string;
+  description: string;
+  timestamp: string;
+  isRead: boolean;
+  avatar?: string;
+};
+
 /** Conversación/chat con un estudiante (conexión). */
 export type Connection = {
   id: string;
@@ -77,7 +87,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '1',
     name: 'Valeria Gómez',
-    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-1/400/400',
     career: 'Ingeniería de Diseño',
     semester: 6,
     interests: ['study', 'coffee', 'music', 'art'],
@@ -96,7 +106,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '2',
     name: 'Mateo Ruiz',
-    photo: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-2/400/400',
     career: 'Administración',
     semester: 4,
     interests: ['gaming', 'party', 'hiking', 'sports'],
@@ -113,7 +123,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '3',
     name: 'Isabella Torres',
-    photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-3/400/400',
     career: 'Psicología',
     semester: 7,
     interests: ['coffee', 'music', 'theater', 'art'],
@@ -129,7 +139,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '4',
     name: 'Santiago López',
-    photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-4/400/400',
     career: 'Ingeniería de Sistemas',
     semester: 5,
     interests: ['coding', 'gaming', 'coffee', 'music'],
@@ -146,7 +156,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '5',
     name: 'Camila Herrera',
-    photo: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-5/400/400',
     career: 'Comunicación Social',
     semester: 3,
     interests: ['photo', 'party', 'food', 'music'],
@@ -162,7 +172,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '6',
     name: 'Andrés Mejía',
-    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-6/400/400',
     career: 'Arquitectura',
     semester: 8,
     interests: ['art', 'hiking', 'photo', 'coffee'],
@@ -179,7 +189,7 @@ export const MOCK_STUDENTS: Student[] = [
   {
     id: '7',
     name: 'Laura Martínez',
-    photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=400',
+    photo: 'https://picsum.photos/seed/peerly-student-7/400/400',
     career: 'Medicina',
     semester: 9,
     interests: ['study', 'sports', 'food', 'hiking'],
@@ -199,7 +209,7 @@ export const MOCK_ACTIVITIES: Activity[] = [
     id: 'a1',
     title: 'Repaso Cálculo III',
     category: 'study',
-    coverImage: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=600',
+    coverImage: 'https://picsum.photos/seed/peerly-activity-a1/800/500',
     location: 'Biblioteca Norte, Sala 3',
     date: '2026-03-16',
     time: '14:00',
@@ -212,7 +222,7 @@ export const MOCK_ACTIVITIES: Activity[] = [
     id: 'a2',
     title: 'Torneo FIFA Campus',
     category: 'social',
-    coverImage: 'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?auto=format&fit=crop&q=80&w=600',
+    coverImage: 'https://picsum.photos/seed/peerly-activity-a2/800/500',
     location: 'Sala de Juegos, Bloque C',
     date: '2026-03-17',
     time: '16:00',
@@ -225,7 +235,7 @@ export const MOCK_ACTIVITIES: Activity[] = [
     id: 'a3',
     title: 'Café & Sketch',
     category: 'food',
-    coverImage: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=600',
+    coverImage: 'https://picsum.photos/seed/peerly-activity-a3/800/500',
     location: 'Cafetería Central',
     date: '2026-03-18',
     time: '10:00',
@@ -238,7 +248,7 @@ export const MOCK_ACTIVITIES: Activity[] = [
     id: 'a4',
     title: 'Caminata al cerro',
     category: 'sport',
-    coverImage: 'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=600',
+    coverImage: 'https://picsum.photos/seed/peerly-activity-a4/800/500',
     location: 'Punto de encuentro: Portería Sur',
     date: '2026-03-20',
     time: '07:00',
@@ -277,6 +287,36 @@ export const MOCK_CONNECTIONS: Connection[] = [
     lastMessage: '¿Cómo va el proyecto de arq?',
     lastMessageTime: '3 horas',
     unread: 0,
+  },
+];
+
+export const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n1',
+    type: 'connection',
+    title: 'Nueva conexión',
+    description: 'Valeria Gómez quiere conectar contigo.',
+    timestamp: 'Hace 5 min',
+    isRead: false,
+    avatar: 'https://picsum.photos/seed/peerly-student-1/100/100',
+  },
+  {
+    id: 'n2',
+    type: 'activity',
+    title: 'Actividad confirmada',
+    description: 'Te has unido a "Repaso Cálculo III".',
+    timestamp: 'Hace 1 hora',
+    isRead: false,
+    avatar: 'https://picsum.photos/seed/peerly-activity-a1/100/100',
+  },
+  {
+    id: 'n3',
+    type: 'message',
+    title: 'Nuevo mensaje',
+    description: 'Mateo Ruiz: ¡Parcero, el hackathon es este...',
+    timestamp: 'Hace 2 horas',
+    isRead: true,
+    avatar: 'https://picsum.photos/seed/peerly-student-2/100/100',
   },
 ];
 

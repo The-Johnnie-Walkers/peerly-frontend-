@@ -14,6 +14,8 @@
     --peerly-surface: 0 0% 100%;           /* Blanco puro #FFFFFF */
     --peerly-text-secondary: 0 0% 36%;     /* Café suave aprox #5C5C5C */
     --peerly-soft-accent: 146 53% 98%;
+    /* Naranja acento fuerte (badges, alertas de atención); complementa terracota */
+    --peerly-accent-strong: 24 95% 54%;
 
     /* Semantic tokens (used by Tailwind theme) */
     --background: 43 61% 88%;

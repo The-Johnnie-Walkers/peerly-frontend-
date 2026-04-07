@@ -2,12 +2,21 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronRight } from 'lucide-react';
-import { MOCK_STUDENTS, MOCK_ACTIVITIES } from '@/data/mockData';
 import { StudentCard } from '@/components/peerly/StudentCard';
 import { ActivityCard } from '@/components/peerly/ActivityCard';
+import { MOCK_STUDENTS, MOCK_ACTIVITIES, MOCK_NOTIFICATIONS, Notification } from '@/data/mockData';
+import { NotificationPanel } from '@/components/peerly/NotificationPanel';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col bg-background rounded-none lg:rounded-[32px] shadow-elevated overflow-hidden">
@@ -20,12 +29,23 @@ const HomeScreen = () => {
         <div className="flex gap-3 items-center">
           <motion.button
             whileTap={{ scale: 0.9 }}
+            onClick={() => setShowNotifications(!showNotifications)}
             className="p-2.5 bg-accent rounded-xl relative"
+            aria-label="Abrir notificaciones"
           >
             <Bell size={20} className="text-foreground" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-secondary rounded-full flex items-center justify-center text-[8px] font-mono font-bold text-secondary-foreground">3</div>
+            {unreadCount > 0 && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-secondary rounded-full flex items-center justify-center text-[8px] font-mono font-bold text-secondary-foreground shadow-sm">
+                {unreadCount}
+              </div>
+            )}
           </motion.button>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-secondary overflow-hidden" />
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => navigate('/profile')}
+            className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-secondary overflow-hidden flex-shrink-0"
+            aria-label="Ir a mi perfil"
+          />
         </div>
       </header>
 
@@ -96,6 +116,13 @@ const HomeScreen = () => {
           </div>
         </section>
       </div>
+
+      <NotificationPanel
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notifications}
+        onMarkAsRead={handleMarkAsRead}
+      />
     </div>
   );
 };
