@@ -59,6 +59,13 @@ export type Notification = {
   avatar?: string;
 };
 
+export type ConnectionRequest = {
+  id: string;
+  student: Student;
+  timestamp: string;
+  status: 'pending' | 'accepted' | 'declined';
+};
+
 /** Conversación/chat con un estudiante (conexión). */
 export type Connection = {
   id: string;
@@ -317,6 +324,21 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     timestamp: 'Hace 2 horas',
     isRead: true,
     avatar: 'https://picsum.photos/seed/peerly-student-2/100/100',
+  },
+];
+
+export const MOCK_CONNECTION_REQUESTS: ConnectionRequest[] = [
+  {
+    id: 'cr1',
+    student: MOCK_STUDENTS[4], // Camila Herrera
+    timestamp: 'Hace 2 horas',
+    status: 'pending',
+  },
+  {
+    id: 'cr2',
+    student: MOCK_STUDENTS[6], // Laura Martínez
+    timestamp: 'Ayer',
+    status: 'pending',
   },
 ];
 

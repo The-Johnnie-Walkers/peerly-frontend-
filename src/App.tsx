@@ -20,6 +20,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import VirtualWorldScreen from "./pages/VirtualWorldScreen";
+import ConnectionsScreen from "./pages/ConnectionsScreen";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const AppLayout = () => {
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/connect" element={<ConnectScreen />} />
+            <Route path="/social" element={<ConnectionsScreen />} />
             <Route path="/chats" element={<ChatsScreen />} />
             <Route path="/profile" element={<ProfileScreen />} />
             <Route path="/profile/edit" element={<EditProfileScreen />} />

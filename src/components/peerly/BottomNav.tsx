@@ -6,7 +6,8 @@ const NAV_ITEMS = [
   { path: '/home', icon: Search, label: 'Inicio' },
   { path: '/chats', icon: MessageCircle, label: 'Chats' },
   { path: '/create-activity', icon: Plus, label: 'Crear', isCenter: true },
-  { path: '/connect', icon: UserPlus, label: 'Conectar' },
+  { path: '/connect', icon: UserPlus, label: 'Descubrir' },
+  { path: '/social', icon: User, label: 'Social' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
 

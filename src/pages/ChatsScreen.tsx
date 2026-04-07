@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Calendar, Phone, Video } from 'lucide-react';
-import { MOCK_CONNECTIONS, MOCK_CHAT_MESSAGES } from '@/data/mockData';
+import { ArrowLeft, Send, Calendar, Phone, Video, MessageSquarePlus, Search, X, User } from 'lucide-react';
+import { MOCK_CONNECTIONS, MOCK_CHAT_MESSAGES, MOCK_STUDENTS, Student, Connection } from '@/data/mockData';
 import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
+import { cn } from '@/lib/utils';
+import { useLocation } from 'react-router-dom';
 
 const PREVIEW_MAX_CHARS = 52;
 
@@ -15,17 +17,55 @@ function truncatePreview(text: string, max = PREVIEW_MAX_CHARS) {
 
 const ChatsScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [isSelectingContact, setIsSelectingContact] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState(MOCK_CHAT_MESSAGES);
+  const [activeConnections, setActiveConnections] = useState<Connection[]>(MOCK_CONNECTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const connection = MOCK_CONNECTIONS.find(c => c.id === selectedConnectionId);
+  // Efecto para manejar navegación desde otras pantallas (ej: ConnectionsScreen)
+  useEffect(() => {
+    const state = location.state as { studentId?: string } | null;
+    if (state?.studentId) {
+      handleSelectStudent(state.studentId);
+    }
+  }, [location.state]);
+
+  const connection = activeConnections.find(c => c.id === selectedConnectionId);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => {
     if (selectedConnectionId) scrollToBottom();
   }, [selectedConnectionId, messages]);
+
+  const handleSelectStudent = (studentId: string) => {
+    const existingConn = activeConnections.find(c => c.student.id === studentId);
+    if (existingConn) {
+      setSelectedConnectionId(existingConn.id);
+    } else {
+      const student = MOCK_STUDENTS.find(s => s.id === studentId);
+      if (student) {
+        const newConn: Connection = {
+          id: `temp-${student.id}`,
+          student,
+          lastMessage: '',
+          lastMessageTime: 'Ahora',
+          unread: 0
+        };
+        setActiveConnections(prev => [newConn, ...prev]);
+        setSelectedConnectionId(newConn.id);
+      }
+    }
+    setIsSelectingContact(false);
+  };
+
+  const filteredStudents = MOCK_STUDENTS.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.career.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (selectedConnectionId && connection) {
     return (
@@ -174,18 +214,97 @@ const ChatsScreen = () => {
       style={{ backgroundColor: cream }}
     >
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        <header className="flex-shrink-0 px-5 sm:px-6 pt-5 pb-4 bg-peerly-background border-b border-border/80">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Mensajes
-          </h1>
-          <p className="text-sm font-normal text-muted-foreground mt-1.5 leading-relaxed">
-            Propón un plan, no muerdas 🐾
-          </p>
+        <header className="flex-shrink-0 px-5 sm:px-6 pt-5 pb-4 bg-peerly-background border-b border-border/80 flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Mensajes
+            </h1>
+            <p className="text-sm font-normal text-muted-foreground mt-1.5 leading-relaxed">
+              Propón un plan, no muerdas 🐾
+            </p>
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsSelectingContact(true)}
+            className="p-3 bg-primary text-primary-foreground rounded-2xl shadow-lg hover:bg-primary/95 transition-colors"
+            aria-label="Nueva conversación"
+          >
+            <MessageSquarePlus size={22} />
+          </motion.button>
         </header>
 
-        <div className="flex-1 overflow-y-auto pb-28 bg-peerly-background">
+        <div className="flex-1 overflow-y-auto pb-28 bg-peerly-background relative">
+          {/* Overlay de selección de contacto */}
+          {isSelectingContact && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute inset-0 z-50 bg-peerly-background flex flex-col"
+            >
+              <div className="p-4 border-b border-border/80 bg-peerly-surface/50 backdrop-blur-md sticky top-0">
+                <div className="flex items-center gap-3 mb-4">
+                  <button 
+                    onClick={() => setIsSelectingContact(false)}
+                    className="p-2 hover:bg-muted rounded-xl transition-colors"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="font-bold text-lg">Nueva conversación</h2>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Buscar amigo..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-muted/50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+                    autoFocus
+                  />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <div className="px-2 py-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-4 mb-2">Sugerencias</p>
+                  {filteredStudents.map((student) => (
+                    <motion.button
+                      key={student.id}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleSelectStudent(student.id)}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-peerly-surface/40 rounded-2xl transition-colors text-left"
+                    >
+                      <SafeRemoteImage
+                        src={student.photo}
+                        alt=""
+                        className="w-12 h-12 rounded-full border border-border/50"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm truncate">{student.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{student.career}</p>
+                      </div>
+                    </motion.button>
+                  ))}
+                  {filteredStudents.length === 0 && (
+                    <div className="py-12 text-center text-muted-foreground">
+                      <User size={40} className="mx-auto mb-3 opacity-20" />
+                      <p className="text-sm">No encontramos a nadie con ese nombre.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           <ul className="list-none m-0 p-0" role="list">
-            {MOCK_CONNECTIONS.map((c, i) => {
+            {activeConnections.map((c, i) => {
               const preview = truncatePreview(c.lastMessage);
               const hasUnread = c.unread > 0;
 
