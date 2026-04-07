@@ -28,6 +28,7 @@ export default {
           surface: "hsl(var(--peerly-surface))",
           textSecondary: "hsl(var(--peerly-text-secondary))",
           softAccent: "hsl(var(--peerly-soft-accent))",
+          accentStrong: "hsl(var(--peerly-accent-strong))",
         },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

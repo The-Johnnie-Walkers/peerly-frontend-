@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { MapPin, Clock, Users } from 'lucide-react';
 import { Activity, CATEGORY_LABELS, MOCK_STUDENTS } from '@/data/mockData';
+import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 
 interface ActivityCardProps {
   activity: Activity;
@@ -15,7 +16,11 @@ export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
       className="bg-card rounded-3xl overflow-hidden shadow-card border border-border cursor-pointer"
     >
       <div className="h-32 relative overflow-hidden">
-        <img src={activity.coverImage} alt={activity.title} className="w-full h-full object-cover" />
+        <SafeRemoteImage
+          src={activity.coverImage}
+          alt={activity.title}
+          className="w-full h-full object-cover"
+        />
         <div className="absolute top-3 left-3 bg-card/90 backdrop-blur px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider">
           {CATEGORY_LABELS[activity.category]}
         </div>
@@ -31,7 +36,12 @@ export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
             {activity.currentAttendees.slice(0, 3).map(id => {
               const s = MOCK_STUDENTS.find(st => st.id === id);
               return s ? (
-                <img key={id} src={s.photo} alt={s.name} className="w-7 h-7 rounded-full border-2 border-card object-cover" />
+                <SafeRemoteImage
+                  key={id}
+                  src={s.photo}
+                  alt={s.name}
+                  className="w-7 h-7 rounded-full border-2 border-card object-cover"
+                />
               ) : null;
             })}
             {activity.currentAttendees.length > 3 && (

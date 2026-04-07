@@ -3,6 +3,7 @@ import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-mo
 import { useNavigate } from 'react-router-dom';
 import { X, UserPlus } from 'lucide-react';
 import { MOCK_STUDENTS, INTERESTS, Student } from '@/data/mockData';
+import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 
 const SwipeCard = ({ student, onSwipe, isTop }: { student: Student; onSwipe: (dir: 'left' | 'right') => void; isTop: boolean }) => {
   const x = useMotionValue(0);
@@ -27,7 +28,11 @@ const SwipeCard = ({ student, onSwipe, isTop }: { student: Student; onSwipe: (di
       aria-label={`Perfil de ${student.name}`}
     >
       <div className="relative h-full w-full rounded-3xl overflow-hidden shadow-elevated bg-card border border-border">
-        <img src={student.photo} className="h-full w-full object-cover" alt="" />
+        <SafeRemoteImage
+          src={student.photo}
+          alt={student.name}
+          className="h-full w-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/85 via-foreground/20 to-transparent" />
 
         {/* Conectar / Pasar — feedback visual al arrastrar */}
@@ -95,7 +100,11 @@ const ConnectCelebration = ({ student, onClose }: { student: Student; onClose: (
     >
       <div className="flex -space-x-5 md:-space-x-6">
         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-primary-foreground overflow-hidden shadow-elevated">
-          <img src={student.photo} alt="" className="w-full h-full object-cover" />
+          <SafeRemoteImage
+            src={student.photo}
+            alt={student.name}
+            className="w-full h-full object-cover"
+          />
         </div>
         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-primary-foreground overflow-hidden shadow-elevated bg-gradient-to-tr from-primary to-secondary flex items-center justify-center">
           <UserPlus size={40} className="text-primary-foreground/80" />
@@ -103,10 +112,10 @@ const ConnectCelebration = ({ student, onClose }: { student: Student; onClose: (
       </div>
     </motion.div>
     <h2 id="connect-title" className="text-3xl md:text-4xl font-display font-extrabold mb-2">
-      ¡Podéis conectar! 🎉
+      ¡Puedes conectar! 🎉
     </h2>
     <p id="connect-desc" className="text-primary-foreground/85 mb-8 md:mb-12 text-sm md:text-base">
-      A {student.name.split(' ')[0]} también le interesa conectar. Escribid y organizad un plan. 🐾
+      A {student.name.split(' ')[0]} también le interesa conectar. Escribe y organiza un plan. 🐾
     </p>
     <div className="w-full max-w-sm space-y-3">
       <motion.button
@@ -158,6 +167,14 @@ const ConnectScreen = () => {
               {cards.length > 0 ? `${cards.length} perfiles restantes` : 'Sin perfiles por ahora'}
             </p>
           </div>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/virtual-world')}
+            className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-display font-bold text-xs flex items-center gap-2 hover:bg-emerald-100 transition-colors"
+          >
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            Mundo Virtual
+          </motion.button>
         </header>
 
         <div className="flex-1 relative mx-4 sm:mx-6 my-4 min-h-[420px] md:min-h-[480px]">

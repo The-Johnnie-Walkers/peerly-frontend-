@@ -2,12 +2,13 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Edit3 } from 'lucide-react';
 import { MOCK_STUDENTS, INTERESTS } from '@/data/mockData';
+import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 import { useCurrentUser } from '@/contexts/CurrentUserContext';
 
 const ME_FIXED = {
   id: 'me',
   name: 'Camilo Pérez',
-  photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400',
+  photo: 'https://picsum.photos/seed/peerly-me/400/400',
   career: 'Ingeniería de Sistemas',
   semester: 6,
   compatibility: 100,
@@ -64,7 +65,7 @@ const ProfileScreen = () => {
             <div className="h-44 md:h-52 bg-gradient-to-br from-primary to-secondary rounded-t-2xl md:rounded-2xl" />
             <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
               <div className="relative">
-                <img
+                <SafeRemoteImage
                   src={student.photo}
                   alt={student.name}
                   className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover border-4 border-background shadow-elevated"

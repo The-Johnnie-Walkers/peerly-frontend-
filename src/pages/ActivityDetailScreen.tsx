@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, Clock, Users, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { MOCK_ACTIVITIES, MOCK_STUDENTS, CATEGORY_LABELS } from '@/data/mockData';
+import { SafeRemoteImage } from '@/components/peerly/SafeRemoteImage';
 
 const ActivityDetailScreen = () => {
   const { id } = useParams();
@@ -24,7 +25,11 @@ const ActivityDetailScreen = () => {
     <div className="h-svh flex flex-col bg-background">
       {/* Cover */}
       <div className="relative h-56 overflow-hidden">
-        <img src={activity.coverImage} alt={activity.title} className="w-full h-full object-cover" />
+        <SafeRemoteImage
+          src={activity.coverImage}
+          alt={activity.title}
+          className="w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -61,7 +66,11 @@ const ActivityDetailScreen = () => {
               onClick={() => navigate(`/profile/${student.id}`)}
               className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer"
             >
-              <img src={student.photo} alt={student.name} className="w-12 h-12 rounded-full object-cover border-2 border-border" />
+              <SafeRemoteImage
+                src={student.photo}
+                alt={student.name}
+                className="w-12 h-12 rounded-full object-cover border-2 border-border"
+              />
               <span className="text-[10px] font-medium text-center truncate w-full">{student.name.split(' ')[0]}</span>
             </motion.div>
           ))}
@@ -72,7 +81,11 @@ const ActivityDetailScreen = () => {
         <div className="space-y-3">
           <div className="bg-card rounded-2xl p-4 border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <img src={MOCK_STUDENTS[0].photo} className="w-6 h-6 rounded-full object-cover" />
+              <SafeRemoteImage
+                src={MOCK_STUDENTS[0].photo}
+                alt={MOCK_STUDENTS[0].name}
+                className="w-6 h-6 rounded-full object-cover"
+              />
               <span className="text-xs font-display font-bold">{MOCK_STUDENTS[0].name}</span>
               <span className="text-[10px] font-mono text-muted-foreground">hace 2h</span>
             </div>
