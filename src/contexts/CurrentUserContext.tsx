@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { AvailabilityBlock } from '@/data/mockData';
+import { userService, type UserProfile } from '@/services/user.service';
 
 type CurrentUserProfile = {
   bio: string;
@@ -23,15 +24,50 @@ const defaultProfile: CurrentUserProfile = {
 const CurrentUserContext = createContext<{
   profile: CurrentUserProfile;
   updateProfile: (updates: Partial<CurrentUserProfile>) => void;
+  userData: UserProfile | null;
+  setUserData: (data: UserProfile | null) => void;
+  isLoading: boolean;
 } | null>(null);
 
 export function CurrentUserProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<CurrentUserProfile>(defaultProfile);
+  const [userData, setUserData] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const updateProfile = useCallback((updates: Partial<CurrentUserProfile>) => {
     setProfile(prev => ({ ...prev, ...updates }));
   }, []);
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      const userId = localStorage.getItem('user_id');
+      if (userId) {
+        try {
+          const user = await userService.getUserById(userId);
+          if (user) {
+            setUserData(user);
+            setProfile({
+              bio: user.description || '',
+              interests: user.interests?.map(i => i.id) || [],
+              availability: user.freeTimeSchedule?.map(f => ({
+                day: f.dayOfTheWeek,
+                start: f.startsAt.substring(11, 16),
+                end: f.endsAt.substring(11, 16),
+              })) || [],
+            });
+          }
+        } catch (error) {
+          console.error('Error loading user data:', error);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    loadUserData();
+  }, []);
+
   return (
-    <CurrentUserContext.Provider value={{ profile, updateProfile }}>
+    <CurrentUserContext.Provider value={{ profile, updateProfile, userData, setUserData, isLoading }}>
       {children}
     </CurrentUserContext.Provider>
   );

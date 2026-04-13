@@ -14,17 +14,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PeerlyChip } from "@/components/peerly/PeerlyChip";
 import { INTERESTS, DAY_LABELS, TIME_OPTIONS } from "@/data/mockData";
 import type { AvailabilityBlock } from "@/data/mockData";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { authService } from "@/services/auth.service";
+import { userApi } from "@/lib/api";
+import { toast } from "sonner";
 
 const careers = [
-  "Ingeniería de Sistemas",
-  "Ingeniería Industrial",
-  "Diseño",
-  "Administración de Empresas",
-  "Psicología",
-  "Comunicación Social",
-  "Medicina",
-  "Derecho",
+  { label: "Ingeniería de Sistemas", value: "SYSTEMS_ENGINEERING" },
+  { label: "Ingeniería Industrial", value: "INDUSTRIAL_ENGINEERING" },
+  { label: "Ingeniería Civil", value: "CIVIL_ENGINEERING" },
+  { label: "Ingeniería Mecánica", value: "MECHANICAL_ENGINEERING" },
+  { label: "Ingeniería Eléctrica", value: "ELECTRICAL_ENGINEERING" },
+  { label: "Ingeniería de Sistemas", value: "AI_ENGINEERING" },
+  { label: "Administración de Empresas", value: "ENTERPRISE_ADMINISTRATION" },
+  { label: "Economía", value: "ECONOMY" },
+  { label: "Matemáticas", value: "MATHEMATICS" },
 ];
 
 const semesters = Array.from({ length: 10 }, (_, i) => `${i + 1}`);
@@ -48,6 +52,8 @@ const Register = () => {
     { id: generateBlockId(), day: DAY_LABELS[0], start: "08:00", end: "10:00" },
   ]);
   const [acceptedRules, setAcceptedRules] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const emailIsValid = email.length === 0 || isInstitutionalEmail(email);
   const hasMinimumInterests = selectedInterests.length >= 3;
@@ -90,10 +96,48 @@ const Register = () => {
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    // Aquí iría la lógica real de registro (API).
+
+    setIsLoading(true);
+    try {
+      const username = email.split('@')[0];
+      const lastname = name.split(' ').slice(1).join(' ') || name;
+      
+      await authService.register({ name, email, password });
+
+      await userApi.request('users', {
+        method: 'POST',
+        body: {
+          username,
+          name,
+          lastname,
+          email,
+          birthDate: new Date('2000-01-01'),
+          semester: parseInt(semester),
+          interests: selectedInterests.map(id => ({ id, name: id })),
+          freeTimeSchedule: availabilityBlocks.map(b => ({
+            id: b.id,
+            dayOfTheWeek: b.day,
+            startsAt: new Date(`1970-01-01T${b.start}:00`),
+            endsAt: new Date(`1970-01-01T${b.end}:00`),
+          })),
+          status: 'ACTIVE',
+          programs: [career],
+          role: 'USER',
+          description: '',
+        },
+      });
+
+      toast.success("¡Cuenta creada! Por favor inicia sesión.");
+      navigate("/");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error al crear cuenta";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -186,8 +230,8 @@ const Register = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {careers.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -332,14 +376,14 @@ const Register = () => {
               <div className="space-y-3 pt-2">
                 <Button
                   type="submit"
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || isLoading}
                   className={`w-full h-11 rounded-2xl font-display font-semibold text-sm shadow-glow ${
-                    canSubmit
+                    canSubmit && !isLoading
                       ? "bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white"
                       : "bg-border text-muted-foreground cursor-not-allowed shadow-none"
                   }`}
                 >
-                  Crear cuenta
+                  {isLoading ? "Creando cuenta..." : "Crear cuenta"}
                 </Button>
                 <p className="text-[12px] text-center text-[color:hsl(var(--peerly-text-secondary))]">
                   ¿Ya tienes cuenta?{" "}
