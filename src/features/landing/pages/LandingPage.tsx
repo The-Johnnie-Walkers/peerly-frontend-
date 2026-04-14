@@ -5,6 +5,7 @@ import PeerlyLogo from '../../../assets/peerly-logo.png';
 import BenefitsCard from '../components/BenefitsCard';
 import TestimonialsSection from '../components/TestimonialsSection';
 import Aurora from '../../../shared/components/ui/aurora';
+import BubbleBackground from '@/shared/components/ui/bubble-background';
 
 const fadeUp = {
     hidden: { opacity: 0, y: 40 },
@@ -13,9 +14,10 @@ const fadeUp = {
 
 export default function LandingPage() {
     return (
-        <div className="">
+        <div className='scroll-smooth'>
             <NavBar/>
-            <div className="relative flex min-h-screen justify-center">
+            <div id="peerly" className="relative flex min-h-screen justify-center">
+                <BubbleBackground showGlow />
                 <div className="relative z-10 flex flex-col items-center mt-48">
                     <motion.img
                         className="w-65 h-60 object-contain"
@@ -46,7 +48,7 @@ export default function LandingPage() {
                     <ChevronDown size={20} className="animate-bounce" />
                 </motion.div>
             </div>
-            <section className="relative py-24 px-6 overflow-hidden">
+            <section id="what-is" className="relative py-24 px-6 overflow-hidden">
                 <Aurora className="absolute inset-0 z-0" />
                 <div className="relative z-10 max-w-3xl mx-auto">
                     <motion.div
@@ -90,8 +92,9 @@ export default function LandingPage() {
                     </motion.p>
                 </div>
             </section>
-            <section className="py-24 px-6">
+            <section id="benefits" className="relative overflow-hidden py-24 px-6">
                 <div className="max-w-5xl mx-auto">
+                    <BubbleBackground showGlow />
                     <motion.div
                         variants={fadeUp}
                         initial="hidden"
@@ -128,7 +131,10 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
-            <TestimonialsSection />
+            <div id="opinions">
+                <TestimonialsSection/>
+            </div>
+            
         </div>
     );
 }

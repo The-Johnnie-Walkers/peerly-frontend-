@@ -12,13 +12,13 @@ const testimonials = [
     },
     {
         name: 'Sebastián R.',
-        career: 'Administración · 4to semestre',
+        career: 'Economia · 4to semestre',
         initials: 'SR',
         text: 'Armé un grupo de estudio con gente de mi carrera en menos de un día. Antes me tocaba buscar en grupos de WhatsApp desorganizados.',
     },
     {
         name: 'Valeria T.',
-        career: 'Diseño Gráfico · 5to semestre',
+        career: 'Ing. Civil · 5to semestre',
         initials: 'VT',
         text: 'Lo que más me gusta es que todos son de la misma universidad. Uno siente más confianza para conectar y proponer planes.',
     },

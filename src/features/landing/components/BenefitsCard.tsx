@@ -13,7 +13,7 @@ const fadeUp = {
     visible: { opacity: 1, y: 0 },
 };
 
-export default function BenefitsCard({ title, content, icon: Icon, delay = 0 }: BenefitsCardProps) {
+export default function BenefitsCard({ title, content, icon: Icon, delay = 0}: BenefitsCardProps) {
     return (
         <motion.div
             className="bg-white rounded-xl shadow-md flex flex-col overflow-hidden border border-transparent hover:border-[#C87C65] hover:shadow-lg hover:-translate-y-1 transition-all duration-300"

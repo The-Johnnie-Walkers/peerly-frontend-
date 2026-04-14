@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
+const principal = { label: 'Peerly', href: '#peerly'}
 const navItems = [
-    { label: 'Que es?' },
-    { label: 'Beneficios' },
-    { label: 'Opiniones' },
-];
+    { label: 'Que es?', href: '#what-is'},
+    { label: 'Beneficios', href: '#benefits'},
+    { label: 'Opiniones', href: '#opinions'},
+]
 
 const navItemClass = "relative text-sm font-medium text-gray-700 hover:text-[#C87C65] transition-colors duration-200 after:absolute after:left-0 after:-bottom-1 after:h-0.5 after:w-0 after:bg-[#C87C65] after:transition-all after:duration-200 hover:after:w-full";
 
@@ -14,20 +15,21 @@ export default function NavBar() {
     return (
         <nav aria-label="Navegación principal" className="bg-transparent backdrop-blur-sm w-full sticky top-0 z-50 shadow-sm">
             <div className="flex items-center justify-between h-12 px-6">
-                <h1 className="font-bold text-2xl">Peerly</h1>
+                
+                <a href={principal.href} className="font-bold text-2xl">{principal.label}</a>
 
                 {/* Desktop menu */}
                 <ul className="hidden md:flex gap-20">
-                    {navItems.map(({ label }) => (
+                    {navItems.map(({ label, href }) => (
                         <li key={label}>
-                            <button className={navItemClass}>{label}</button>
+                            <a href={href} className={navItemClass}>{label}</a>
                         </li>
                     ))}
                 </ul>
 
-                <button className="hidden md:block bg-[#C87C65] rounded p-2 text-white hover:bg-[#b56b55] transition-colors duration-200">
+                <a href='/login' className="hidden md:block bg-[#C87C65] rounded p-2 text-white hover:bg-[#b56b55] transition-colors duration-200">
                     Empieza aqui
-                </button>
+                </a>
 
                 {/* Hamburger button (mobile only) */}
                 <button
@@ -45,18 +47,19 @@ export default function NavBar() {
             {/* Mobile dropdown menu */}
             {menuOpen && (
                 <div className="md:hidden flex flex-col items-start gap-4 px-6 pb-4 bg-white/95">
-                    {navItems.map(({ label }) => (
-                        <button
+                    {navItems.map(({ label, href }) => (
+                        <a
                             key={label}
+                            href={href}
                             className={navItemClass}
                             onClick={() => setMenuOpen(false)}
                         >
                             {label}
-                        </button>
+                        </a>
                     ))}
-                    <button className="bg-[#C87C65] rounded p-2 text-white w-full hover:bg-[#b56b55] transition-colors duration-200">
+                    <a href='/login' className="bg-[#C87C65] rounded p-2 text-white w-full hover:bg-[#b56b55] transition-colors duration-200">
                         Empieza aqui
-                    </button>
+                    </a>
                 </div>
             )}
         </nav>
