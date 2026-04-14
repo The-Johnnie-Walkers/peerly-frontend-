@@ -111,7 +111,7 @@ export default function EditProfileScreen() {
         birthDate: userData.birthDate ?? '2000-01-01',
         // Campos editables
         description: bio.trim(),
-        interests: selectedInterestIds.map(id => ({ id, name: '', category: '' })),
+        interests: selectedInterestIds,
         freeTimeSchedule: blocks.map(b => ({
           dayOfTheWeek: DAY_TO_BACKEND[b.day] ?? b.day,
           startsAt: new Date(`1970-01-01T${b.start}:00Z`).toISOString(),

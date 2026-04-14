@@ -2,6 +2,11 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSocket } from '@/shared/contexts/SocketContext';
 import { UserInMap, ChatMessage, Position } from '../types/realtime.types';
 import { toast } from '@/shared/components/ui/use-toast';
+import {
+  PadState,
+  CrownState,
+  DuelStartedPayload,
+} from '@/features/football-duel/types/football-duel.types';
 
 export const useRealtimeMap = () => {
   const { socket } = useSocket();
@@ -9,11 +14,19 @@ export const useRealtimeMap = () => {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   
+  // Football Duel state
+  const [padStates, setPadStates] = useState<PadState[]>([]);
+  const [crownState, setCrownState] = useState<CrownState | null>(null);
+  const [activeDuel, setActiveDuel] = useState<DuelStartedPayload | null>(null);
+
   // Ref para posiciones objetivo (para interpolación)
   const targetPositions = useRef<Record<string, Position>>({});
   // Ref para el último tiempo de actualización enviado
   const lastUpdateSent = useRef<number>(0);
   const THROTTLE_MS = 60;
+  // Throttle for checkDuelPads (200 ms)
+  const lastPadCheckSent = useRef<number>(0);
+  const PAD_CHECK_THROTTLE_MS = 200;
 
   useEffect(() => {
     if (!socket) {
@@ -94,6 +107,18 @@ export const useRealtimeMap = () => {
       setChatHistory(prev => [...prev.slice(-49), msg]);
     };
 
+    const onPadStateUpdate = (pads: PadState[]) => {
+      setPadStates(pads);
+    };
+
+    const onDuelStarted = (payload: DuelStartedPayload) => {
+      setActiveDuel(payload);
+    };
+
+    const onCrownUpdate = (state: CrownState) => {
+      setCrownState(state.winnerId ? state : null);
+    };
+
     const onError = (error: RealtimeError) => {
       console.error('[Realtime Error]:', error);
       toast({
@@ -116,6 +141,9 @@ export const useRealtimeMap = () => {
     socket.on('positionUpdate', onPositionUpdate);
     socket.on('chatMessage', onChatMessage);
     socket.on('error', onError);
+    socket.on('padStateUpdate', onPadStateUpdate);
+    socket.on('duelStarted', onDuelStarted);
+    socket.on('crownUpdate', onCrownUpdate);
 
     if (socket.connected) {
       console.log('[useRealtimeMap] socket already connected, calling onConnect immediately');
@@ -135,6 +163,9 @@ export const useRealtimeMap = () => {
       socket.off('positionUpdate', onPositionUpdate);
       socket.off('chatMessage', onChatMessage);
       socket.off('error', onError);
+      socket.off('padStateUpdate', onPadStateUpdate);
+      socket.off('duelStarted', onDuelStarted);
+      socket.off('crownUpdate', onCrownUpdate);
     };
   }, [socket]);
 
@@ -153,12 +184,30 @@ export const useRealtimeMap = () => {
     socket.emit('sendChat', { message });
   }, [socket]);
 
+  const checkDuelPads = useCallback((x: number, y: number) => {
+    if (!socket || !socket.connected) return;
+    const now = Date.now();
+    if (now - lastPadCheckSent.current > PAD_CHECK_THROTTLE_MS) {
+      socket.emit('checkDuelPads', { x, y });
+      lastPadCheckSent.current = now;
+    }
+  }, [socket]);
+
+  const clearActiveDuel = useCallback(() => {
+    setActiveDuel(null);
+  }, []);
+
   return {
     users,
     chatHistory,
     isConnected,
     targetPositions: targetPositions.current,
     move,
-    sendMessage
+    sendMessage,
+    padStates,
+    crownState,
+    activeDuel,
+    checkDuelPads,
+    clearActiveDuel,
   };
 };

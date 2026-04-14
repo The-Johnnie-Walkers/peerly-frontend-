@@ -22,6 +22,10 @@ export interface UserProfile {
   role: string;
 }
 
+export interface UserUpdatePayload extends Omit<Partial<UserProfile>, 'interests'> {
+  interests?: string[];
+}
+
 export const userService = {
   async getCurrentUser(): Promise<UserProfile | null> {
     const userId = localStorage.getItem('user_id');
@@ -50,7 +54,7 @@ export const userService = {
     }
   },
 
-  async updateUser(id: string, data: Partial<UserProfile>): Promise<UserProfile> {
+  async updateUser(id: string, data: UserUpdatePayload): Promise<UserProfile> {
     const token = authService.getToken();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
