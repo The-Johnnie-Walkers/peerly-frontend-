@@ -232,7 +232,7 @@ const Field = ({
   </div>
 );
 
-const LandingPage = () => {
+const Login = () => {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -457,5 +457,5 @@ const LandingPage = () => {
   );
 };
 
-export default LandingPage;
+export default Login;
 

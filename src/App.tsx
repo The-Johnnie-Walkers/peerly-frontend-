@@ -7,7 +7,6 @@ import { CurrentUserProvider } from "@/shared/contexts/CurrentUserContext";
 import { BottomNav } from "@/shared/components/layout/BottomNav";
 import SplashScreen from "./features/auth/pages/SplashScreen";
 import OnboardingScreen from "./features/auth/pages/OnboardingScreen";
-import LandingPage from "./features/auth/pages/LandingPage";
 import Register from "./features/auth/pages/Register";
 import ForgotPassword from "./features/auth/pages/ForgotPassword";
 import HomeScreen from "./features/home/pages/HomeScreen";
@@ -21,6 +20,8 @@ import ActivityDetailScreen from "./features/activities/pages/ActivityDetailScre
 import CreateActivityScreen from "./features/activities/pages/CreateActivityScreen";
 import VirtualWorldScreen from "./features/virtual-world/pages/VirtualWorldScreen";
 import NotFound from "./shared/pages/NotFound";
+import LandingPage from "./features/landing/pages/LandingPage";
+import Login from "./features/auth/pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -33,12 +34,12 @@ const AppLayout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-4 lg:py-8 relative">
         <div className="min-h-[calc(100vh-2rem)] lg:min-h-[calc(100vh-4rem)]">
           <Routes>
             <Route path="/splash" element={<SplashScreen />} />
             <Route path="/onboarding" element={<OnboardingScreen />} />
             <Route path="/" element={<LandingPage />} />
+            <Route path="login" element={<Login/>}/>
             <Route path="/home" element={<HomeScreen />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -54,9 +55,8 @@ const AppLayout = () => {
             <Route path="/virtual-world" element={<VirtualWorldScreen />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </div>
-        {shouldShowBottomNav && <BottomNav />}
       </div>
+      {shouldShowBottomNav && <BottomNav />}
     </div>
   );
 };
