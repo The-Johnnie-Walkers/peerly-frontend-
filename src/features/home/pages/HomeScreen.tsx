@@ -37,6 +37,12 @@ const HomeScreen = () => {
             career: u.programs?.[0] || 'Estudiante',
             semester: u.semester,
             interests: u.interests?.map(i => i.id) || [],
+            bio: u.description || '',
+            availability: u.freeTimeSchedule?.map(f => ({
+              day: f.dayOfTheWeek,
+              start: f.startsAt,
+              end: f.endsAt
+            })) || [],
             compatibility: Math.floor(Math.random() * 21) + 80, // Mock de compatibilidad por ahora
             isOnline: true, // Mock online status
           }));

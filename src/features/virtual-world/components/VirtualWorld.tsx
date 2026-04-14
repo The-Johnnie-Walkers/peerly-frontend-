@@ -4,21 +4,10 @@ import { useRealtimeMap } from '../hooks/useRealtimeMap';
 import { authService } from '@/features/auth/services/auth.service';
 import { api } from '@/shared/lib/api';
 import { toast } from '@/shared/components/ui/use-toast';
+import { UserInMap, ChatMessage } from '../types/realtime.types';
 
-interface UserInMap {
-  id: string;
-  name: string;
-  color: string;
-  x: number;
-  y: number;
-}
-
-interface ChatBubble {
-  id: string;
-  userId: string;
-  userName: string;
-  message: string;
-  timestamp: number;
+interface ChatBubble extends ChatMessage {
+  id: string; // Local bubble ID for cleanup
 }
 
 const CANVAS_THEME = {
@@ -59,7 +48,7 @@ const VirtualWorld: React.FC = () => {
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const bubblesRef = useRef<ChatBubble[]>([]);
 
-  const [renderedUsers, setRenderedUsers] = useState<UserInMap[]>([]);
+  // Ref para usuarios procesados y listos para dibujar (incluye interpolación)
   const renderedUsersRef = useRef<UserInMap[]>([]);
   
   const [nearbyUser, setNearbyUser] = useState<UserInMap | null>(null);
@@ -81,7 +70,7 @@ const VirtualWorld: React.FC = () => {
   useEffect(() => {
     if (chatHistory.length > 0) {
       const lastMsg = chatHistory[chatHistory.length - 1];
-      addBubble(lastMsg.userId, lastMsg.userName, lastMsg.message);
+      addBubble(lastMsg.userId, lastMsg.name, lastMsg.message);
     }
   }, [chatHistory]);
 
@@ -140,10 +129,15 @@ const VirtualWorld: React.FC = () => {
     let dy = 0;
 
     if (!isChatFocused) {
-      if (keysPressed.current.w || keysPressed.current.ArrowUp || keysPressed.current['btn-up']) dy -= MOVEMENT_SPEED;
-      if (keysPressed.current.s || keysPressed.current.ArrowDown || keysPressed.current['btn-down']) dy += MOVEMENT_SPEED;
-      if (keysPressed.current.a || keysPressed.current.ArrowLeft || keysPressed.current['btn-left']) dx -= MOVEMENT_SPEED;
-      if (keysPressed.current.d || keysPressed.current.ArrowRight || keysPressed.current['btn-right']) dx += MOVEMENT_SPEED;
+      const up = keysPressed.current.w || keysPressed.current.ArrowUp || keysPressed.current['btn-up'];
+      const down = keysPressed.current.s || keysPressed.current.ArrowDown || keysPressed.current['btn-down'];
+      const left = keysPressed.current.a || keysPressed.current.ArrowLeft || keysPressed.current['btn-left'];
+      const right = keysPressed.current.d || keysPressed.current.ArrowRight || keysPressed.current['btn-right'];
+
+      if (up) dy -= MOVEMENT_SPEED;
+      if (down) dy += MOVEMENT_SPEED;
+      if (left) dx -= MOVEMENT_SPEED;
+      if (right) dx += MOVEMENT_SPEED;
     }
 
     if (dx !== 0 || dy !== 0) {
@@ -159,24 +153,25 @@ const VirtualWorld: React.FC = () => {
     }
 
     // 2. Interpolar posiciones de otros usuarios
-    const updatedRenderedUsers = remoteUsers.filter(u => u.id !== currentUser?.id).map(user => {
-      const targetPos = targetPositions[user.id] || { x: user.x, y: user.y };
-      const currentRendered = renderedUsersRef.current.find(r => r.id === user.id);
+    const myId = currentUser?.id || '';
+    const updatedRenderedUsers = remoteUsers.filter(u => u.userId !== myId).map(user => {
+      const targetPos = targetPositions[user.userId] || { x: user.x, y: user.y };
+      const currentRendered = renderedUsersRef.current.find(r => r.userId === user.userId);
       
       const currentX = currentRendered ? currentRendered.x : user.x;
       const currentY = currentRendered ? currentRendered.y : user.y;
 
       return {
         ...user,
+        color: user.color || CANVAS_THEME.secondaryDeep,
         x: currentX + (targetPos.x - currentX) * LERP_FACTOR,
         y: currentY + (targetPos.y - currentY) * LERP_FACTOR,
       };
     });
 
     renderedUsersRef.current = updatedRenderedUsers;
-    setRenderedUsers(updatedRenderedUsers);
 
-    // 3. Proximidad
+    // 3. Proximidad (solo actualizar estado si cambia el usuario cercano)
     let closestUser: UserInMap | null = null;
     let minDistance = PROXIMITY_THRESHOLD;
 
@@ -187,7 +182,10 @@ const VirtualWorld: React.FC = () => {
         closestUser = user;
       }
     });
-    setNearbyUser(closestUser);
+    
+    if (nearbyUser?.userId !== closestUser?.userId) {
+      setNearbyUser(closestUser);
+    }
 
     draw();
     requestRef.current = requestAnimationFrame(update);
@@ -213,8 +211,8 @@ const VirtualWorld: React.FC = () => {
 
     // Otros usuarios
     renderedUsersRef.current.forEach(user => {
-      drawAvatar(ctx, user.x, user.y, user.color, user.name);
-      drawBubble(ctx, user.x, user.y, user.id);
+      drawAvatar(ctx, user.x, user.y, user.color || CANVAS_THEME.secondaryDeep, user.name);
+      drawBubble(ctx, user.x, user.y, user.userId);
     });
 
     // Jugador (local)
@@ -367,7 +365,7 @@ const VirtualWorld: React.FC = () => {
             >
               <button
                 type="button"
-                onClick={() => emitConnectAttempt(nearbyUser.id)}
+                onClick={() => emitConnectAttempt(nearbyUser.userId)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold shadow-md flex items-center gap-2 transition-colors border-2 border-card whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <UserPlus size={16} />
@@ -468,7 +466,7 @@ const VirtualWorld: React.FC = () => {
           ) : (
             chatHistory.map((chat, index) => (
               <div key={index} className={`flex flex-col ${chat.userId === currentUser?.id ? 'items-end' : 'items-start'}`}>
-                <span className="text-xs font-bold text-muted-foreground uppercase mb-0.5">{chat.userName}</span>
+                <span className="text-xs font-bold text-muted-foreground uppercase mb-0.5">{chat.name}</span>
                 <div
                   className={`px-3 py-2 rounded-2xl text-sm ${
                     chat.userId === currentUser?.id

@@ -16,9 +16,14 @@ export const useRealtimeMap = () => {
   const THROTTLE_MS = 60;
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('[useRealtimeMap] socket is null, skipping setup');
+      return;
+    }
+    console.log('[useRealtimeMap] setting up listeners, socket.connected:', socket.connected, 'id:', socket.id);
 
     const onConnect = () => {
+      console.log('[useRealtimeMap] onConnect fired, emitting joinMap');
       setIsConnected(true);
       socket.emit('joinMap');
     };
@@ -27,28 +32,61 @@ export const useRealtimeMap = () => {
       setIsConnected(false);
     };
 
-    const onInitialPositions = (initialUsers: UserInMap[]) => {
-      setUsers(initialUsers);
-      initialUsers.forEach(u => {
-        targetPositions.current[u.id] = { x: u.x, y: u.y };
+    const onInitialPositions = (initialUsers: AvatarPosition[]) => {
+      setUsers(prev => {
+        const newUsers = [...prev];
+        initialUsers.forEach(u => {
+          const existingIdx = newUsers.findIndex(user => user.userId === u.userId);
+          const newUserObj: UserInMap = {
+            userId: u.userId,
+            name: u.name,
+            color: u.color || '#6366f1',
+            x: u.x,
+            y: u.y
+          };
+          
+          if (existingIdx >= 0) {
+            newUsers[existingIdx] = newUserObj;
+          } else {
+            newUsers.push(newUserObj);
+          }
+          targetPositions.current[u.userId] = { x: u.x, y: u.y };
+        });
+        return newUsers;
       });
     };
 
-    const onUserJoined = (user: UserInMap) => {
-      setUsers(prev => [...prev.filter(u => u.id !== user.id), user]);
-      targetPositions.current[user.id] = { x: user.x, y: user.y };
+    const onUserJoined = (payload: { userId: string; name: string; email: string; timestamp: number }) => {
+      const newUser: UserInMap = {
+        userId: payload.userId,
+        name: payload.name,
+        email: payload.email,
+        color: '#6366f1',
+        x: 400,
+        y: 300,
+        timestamp: payload.timestamp
+      };
+      
+      setUsers(prev => {
+        const filtered = prev.filter(u => u.userId !== payload.userId);
+        return [...filtered, newUser];
+      });
+      
+      // Update target position for interpolation
+      targetPositions.current[payload.userId] = { x: newUser.x, y: newUser.y };
+      
       toast({
         title: "Nuevo usuario",
-        description: `${user.name} ha entrado al mapa`,
+        description: `${payload.name} ha entrado al mapa`,
       });
     };
 
-    const onUserLeft = (userId: string) => {
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      delete targetPositions.current[userId];
+    const onUserLeft = (payload: { userId: string; timestamp: number }) => {
+      setUsers(prev => prev.filter(u => u.userId !== payload.userId));
+      delete targetPositions.current[payload.userId];
     };
 
-    const onPositionUpdate = (update: { userId: string; x: number; y: number }) => {
+    const onPositionUpdate = (update: PositionUpdate) => {
       targetPositions.current[update.userId] = { x: update.x, y: update.y };
     };
 
@@ -56,13 +94,18 @@ export const useRealtimeMap = () => {
       setChatHistory(prev => [...prev.slice(-49), msg]);
     };
 
-    const onError = (errorMsg: string) => {
-      console.error('[Realtime Error]:', errorMsg);
+    const onError = (error: RealtimeError) => {
+      console.error('[Realtime Error]:', error);
       toast({
         variant: "destructive",
-        title: "Error en tiempo real",
-        description: errorMsg,
+        title: `Error: ${error.code}`,
+        description: error.message,
       });
+
+      if (error.code === 'AUTH_ERROR') {
+        // Podríamos redirigir al login o limpiar el token
+        console.warn('Authentication error detected. Please log in again.');
+      }
     };
 
     socket.on('connect', onConnect);
@@ -74,9 +117,16 @@ export const useRealtimeMap = () => {
     socket.on('chatMessage', onChatMessage);
     socket.on('error', onError);
 
-    if (socket.connected) onConnect();
+    if (socket.connected) {
+      console.log('[useRealtimeMap] socket already connected, calling onConnect immediately');
+      onConnect();
+    }
 
     return () => {
+      // Notify server we're leaving the map before removing listeners
+      if (socket.connected) {
+        socket.emit('leaveMap');
+      }
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('initialPositions', onInitialPositions);
