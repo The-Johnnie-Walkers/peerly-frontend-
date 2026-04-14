@@ -6,6 +6,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authService } from "@/features/auth/services/auth.service";
+import { userService } from "@/features/users/services/user.service";
+import { useCurrentUser } from "@/shared/contexts/CurrentUserContext";
 import { toast } from "sonner";
 
 type Bubble = {
@@ -238,26 +240,32 @@ const LandingPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { setUserData } = useCurrentUser();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
 
     setIsLoading(true);
+    console.log("[LandingPage] Attempting login for:", email);
     try {
       const response = await authService.login({ email, password });
+      console.log("[LandingPage] Login successful, received ID:", response.id);
       
-      const userData = await fetch(`http://localhost:3000/users/${response.id}`, {
-        headers: { 'Authorization': `Bearer ${response.token}` }
-      }).then(res => res.json()).catch(() => null);
+      localStorage.setItem('user_id', response.id);
+      localStorage.setItem('auth_token', response.token);
       
-      if (userData) {
-        localStorage.setItem('user_data', JSON.stringify(userData));
+      console.log("[LandingPage] Fetching profile data to sync context...");
+      const profileData = await userService.getUserById(response.id);
+      if (profileData) {
+        setUserData(profileData);
+        console.log("[LandingPage] Context synchronized with user:", profileData.name);
       }
       
       toast.success("¡Bienvenido de nuevo!");
       navigate("/home");
     } catch (error: unknown) {
+      console.error("[LandingPage] Login error:", error);
       const message = error instanceof Error ? error.message : "Credenciales inválidas";
       toast.error(message);
     } finally {
@@ -287,9 +295,7 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-[hsl(var(--peerly-background))] flex items-center justify-center px-4 py-8 relative overflow-hidden">
-      {/* Fondo moderno (sutil) */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        {/* Burbujas con rebote */}
         <BubbleBackground reduceMotion={reduceMotion} />
 
         <motion.div
@@ -317,7 +323,6 @@ const LandingPage = () => {
       </div>
 
       <div className="w-full max-w-5xl grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-center relative z-10">
-        {/* Hero */}
         <motion.div
           variants={container}
           initial={reduceMotion ? "show" : "hidden"}
@@ -384,7 +389,6 @@ const LandingPage = () => {
           </motion.p>
         </motion.div>
 
-        {/* Login card */}
         <motion.div
           variants={fadeInRight}
           initial={reduceMotion ? "show" : "hidden"}
@@ -458,4 +462,3 @@ const LandingPage = () => {
 };
 
 export default LandingPage;
-

@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, UserPlus, MessageSquare } from 'lucide-react';
+import { useRealtimeMap } from '../hooks/useRealtimeMap';
+import { authService } from '@/features/auth/services/auth.service';
+import { api } from '@/shared/lib/api';
+import { toast } from '@/shared/components/ui/use-toast';
 
-interface MockUser {
+interface UserInMap {
   id: string;
   name: string;
   color: string;
@@ -17,10 +21,6 @@ interface ChatBubble {
   timestamp: number;
 }
 
-/**
- * Colores para Canvas 2D alineados con :root en src/index.css
- * (el canvas no consume variables CSS directamente de forma fiable en todos los casos).
- */
 const CANVAS_THEME = {
   grid: 'hsl(43 35% 82%)',
   foreground: 'hsl(0 0% 31%)',
@@ -34,13 +34,6 @@ const CANVAS_THEME = {
   terracottaMuted: 'hsl(12 45% 48%)',
 } as const;
 
-const MOCK_USERS: MockUser[] = [
-  { id: '1', name: 'Ana', color: CANVAS_THEME.primary, x: 200, y: 200 },
-  { id: '2', name: 'Carlos', color: CANVAS_THEME.secondaryDeep, x: 400, y: 300 },
-  { id: '3', name: 'Laura', color: CANVAS_THEME.warmSand, x: 600, y: 450 },
-  { id: '4', name: 'Mateo', color: CANVAS_THEME.terracottaMuted, x: 350, y: 500 },
-];
-
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 const GRID_SIZE = 32;
@@ -48,28 +41,32 @@ const AVATAR_RADIUS = 20;
 const MOVEMENT_SPEED = 3;
 const PROXIMITY_THRESHOLD = 80;
 const BUBBLE_TIMEOUT = 3000;
+const LERP_FACTOR = 0.15; // Suavidad de movimiento
 
 const VirtualWorld: React.FC = () => {
+  const currentUser = authService.getCurrentUser();
+  const { users: remoteUsers, chatHistory, move, sendMessage, targetPositions } = useRealtimeMap();
+
   const [player, setPlayer] = useState({
-    x: 100,
-    y: 100,
-    name: 'Tú',
+    x: Math.random() * (CANVAS_WIDTH - 100) + 50,
+    y: Math.random() * (CANVAS_HEIGHT - 100) + 50,
+    name: currentUser?.name || 'Tú',
     color: CANVAS_THEME.primaryDark,
   });
   const playerRef = useRef(player);
 
   const [inputMessage, setInputMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<{ name: string; message: string }[]>([]);
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const bubblesRef = useRef<ChatBubble[]>([]);
 
-  const [nearbyUser, setNearbyUser] = useState<MockUser | null>(null);
-
+  const [renderedUsers, setRenderedUsers] = useState<UserInMap[]>([]);
+  const renderedUsersRef = useRef<UserInMap[]>([]);
+  
+  const [nearbyUser, setNearbyUser] = useState<UserInMap | null>(null);
   const [isChatFocused, setIsChatFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<number>();
   const keysPressed = useRef<{ [key: string]: boolean }>({});
 
@@ -80,18 +77,13 @@ const VirtualWorld: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const emitMove = useCallback((x: number, y: number) => {
-    console.log('[Mock] Enviar posición:', { x, y });
-  }, []);
-
-  const emitMessage = useCallback((message: string) => {
-    console.log('[Mock] Enviar mensaje:', message);
-  }, []);
-
-  const emitConnectAttempt = useCallback((targetUserId: string) => {
-    console.log('[Mock] Intentar conectar con usuario:', targetUserId);
-    alert(`Intentando conectar con usuario ID: ${targetUserId}`);
-  }, []);
+  // Sincronizar burbujas de chat desde el servidor
+  useEffect(() => {
+    if (chatHistory.length > 0) {
+      const lastMsg = chatHistory[chatHistory.length - 1];
+      addBubble(lastMsg.userId, lastMsg.userName, lastMsg.message);
+    }
+  }, [chatHistory]);
 
   const addBubble = useCallback((userId: string, userName: string, message: string) => {
     const newBubble: ChatBubble = {
@@ -101,9 +93,8 @@ const VirtualWorld: React.FC = () => {
       message,
       timestamp: Date.now(),
     };
-    setBubbles(prev => [...prev, newBubble]);
-    bubblesRef.current = [...bubblesRef.current, newBubble];
-    setChatHistory(prev => [...prev.slice(-19), { name: userName, message }]);
+    setBubbles(prev => [...prev.slice(-9), newBubble]);
+    bubblesRef.current = [...bubblesRef.current.slice(-9), newBubble];
 
     setTimeout(() => {
       setBubbles(prev => prev.filter(b => b.id !== newBubble.id));
@@ -115,24 +106,36 @@ const VirtualWorld: React.FC = () => {
     e?.preventDefault();
     if (!inputMessage.trim()) return;
 
-    addBubble('me', player.name, inputMessage);
-    emitMessage(inputMessage);
+    sendMessage(inputMessage);
     setInputMessage('');
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        const randomUser = MOCK_USERS[Math.floor(Math.random() * MOCK_USERS.length)];
-        const messages = ['¡Hola a todos!', '¿Alguien para una reunión?', '¿Vieron el nuevo diseño?', 'Trabajando duro...', 'Peerly es genial'];
-        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-        addBubble(randomUser.id, randomUser.name, randomMsg);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [addBubble]);
+  const emitConnectAttempt = useCallback(async (targetUserId: string) => {
+    if (!currentUser?.id) return;
+    
+    try {
+      await api.request('/connections', {
+        method: 'POST',
+        body: {
+          requesterId: currentUser.id,
+          receiverId: targetUserId
+        }
+      });
+      toast({
+        title: "Solicitud enviada",
+        description: "Se ha enviado una solicitud de conexión.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo enviar la solicitud de conexión."
+      });
+    }
+  }, [currentUser]);
 
   const update = useCallback(() => {
+    // 1. Actualizar posición propia
     let dx = 0;
     let dy = 0;
 
@@ -151,14 +154,33 @@ const VirtualWorld: React.FC = () => {
         const newState = { ...playerRef.current, x: newX, y: newY };
         playerRef.current = newState;
         setPlayer(newState);
-        emitMove(newX, newY);
+        move(newX, newY);
       }
     }
 
-    let closestUser: MockUser | null = null;
+    // 2. Interpolar posiciones de otros usuarios
+    const updatedRenderedUsers = remoteUsers.filter(u => u.id !== currentUser?.id).map(user => {
+      const targetPos = targetPositions[user.id] || { x: user.x, y: user.y };
+      const currentRendered = renderedUsersRef.current.find(r => r.id === user.id);
+      
+      const currentX = currentRendered ? currentRendered.x : user.x;
+      const currentY = currentRendered ? currentRendered.y : user.y;
+
+      return {
+        ...user,
+        x: currentX + (targetPos.x - currentX) * LERP_FACTOR,
+        y: currentY + (targetPos.y - currentY) * LERP_FACTOR,
+      };
+    });
+
+    renderedUsersRef.current = updatedRenderedUsers;
+    setRenderedUsers(updatedRenderedUsers);
+
+    // 3. Proximidad
+    let closestUser: UserInMap | null = null;
     let minDistance = PROXIMITY_THRESHOLD;
 
-    MOCK_USERS.forEach(user => {
+    updatedRenderedUsers.forEach(user => {
       const dist = Math.sqrt((user.x - playerRef.current.x) ** 2 + (user.y - playerRef.current.y) ** 2);
       if (dist < minDistance) {
         minDistance = dist;
@@ -169,7 +191,7 @@ const VirtualWorld: React.FC = () => {
 
     draw();
     requestRef.current = requestAnimationFrame(update);
-  }, [emitMove, isChatFocused]);
+  }, [move, isChatFocused, remoteUsers, targetPositions, currentUser]);
 
   const draw = () => {
     const canvas = canvasRef.current;
@@ -179,28 +201,25 @@ const VirtualWorld: React.FC = () => {
 
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+    // Grid
     ctx.strokeStyle = CANVAS_THEME.grid;
     ctx.lineWidth = 1;
     for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, CANVAS_HEIGHT);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_HEIGHT); ctx.stroke();
     }
     for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_SIZE) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(CANVAS_WIDTH, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_WIDTH, y); ctx.stroke();
     }
 
-    MOCK_USERS.forEach(user => {
+    // Otros usuarios
+    renderedUsersRef.current.forEach(user => {
       drawAvatar(ctx, user.x, user.y, user.color, user.name);
       drawBubble(ctx, user.x, user.y, user.id);
     });
 
+    // Jugador (local)
     drawAvatar(ctx, playerRef.current.x, playerRef.current.y, playerRef.current.color, playerRef.current.name, true);
-    drawBubble(ctx, playerRef.current.x, playerRef.current.y, 'me');
+    drawBubble(ctx, playerRef.current.x, playerRef.current.y, currentUser?.id || 'me');
   };
 
   const drawAvatar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, name: string, isMe = false) => {
@@ -304,16 +323,11 @@ const VirtualWorld: React.FC = () => {
   };
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressed.current[e.key] = true;
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current[e.key] = false;
-    };
+    const handleKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.key] = true; };
+    const handleKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
     requestRef.current = requestAnimationFrame(update);
 
     return () => {
@@ -336,7 +350,6 @@ const VirtualWorld: React.FC = () => {
         </div>
 
         <div
-          ref={containerRef}
           className="relative bg-card rounded-xl border border-border shadow-inner overflow-auto h-[400px] lg:h-[600px] custom-scrollbar focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 focus-within:ring-offset-background transition-all"
         >
           <canvas
@@ -350,10 +363,7 @@ const VirtualWorld: React.FC = () => {
           {nearbyUser && (
             <div
               className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full mb-4 animate-bounce"
-              style={{
-                left: nearbyUser.x,
-                top: nearbyUser.y,
-              }}
+              style={{ left: nearbyUser.x, top: nearbyUser.y }}
             >
               <button
                 type="button"
@@ -418,9 +428,7 @@ const VirtualWorld: React.FC = () => {
               </button>
             </div>
             <div className="text-xs text-muted-foreground font-bold uppercase tracking-tighter text-right leading-tight">
-              Controles
-              <br />
-              virtuales
+              Controles virtuales
             </div>
           </div>
         )}
@@ -435,12 +443,10 @@ const VirtualWorld: React.FC = () => {
               onChange={e => setInputMessage(e.target.value)}
               placeholder="Escribe un mensaje..."
               className="w-full pl-4 pr-12 py-3 bg-card rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all shadow-sm text-foreground placeholder:text-muted-foreground"
-              aria-label="Mensaje en mundo virtual"
             />
             <button
               type="submit"
               className="absolute right-2 top-1.5 p-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Enviar mensaje"
             >
               <Send size={18} />
             </button>
@@ -461,11 +467,11 @@ const VirtualWorld: React.FC = () => {
             </div>
           ) : (
             chatHistory.map((chat, index) => (
-              <div key={index} className={`flex flex-col ${chat.name === player.name ? 'items-end' : 'items-start'}`}>
-                <span className="text-xs font-bold text-muted-foreground uppercase mb-0.5">{chat.name}</span>
+              <div key={index} className={`flex flex-col ${chat.userId === currentUser?.id ? 'items-end' : 'items-start'}`}>
+                <span className="text-xs font-bold text-muted-foreground uppercase mb-0.5">{chat.userName}</span>
                 <div
                   className={`px-3 py-2 rounded-2xl text-sm ${
-                    chat.name === player.name
+                    chat.userId === currentUser?.id
                       ? 'bg-primary text-primary-foreground rounded-tr-none'
                       : 'bg-muted text-foreground rounded-tl-none'
                   }`}
@@ -476,7 +482,6 @@ const VirtualWorld: React.FC = () => {
             ))
           )}
         </div>
-        <div className="p-3 bg-muted/40 text-xs text-muted-foreground text-center flex-shrink-0 border-t border-border min-h-[2.5rem]" />
       </div>
     </div>
   );

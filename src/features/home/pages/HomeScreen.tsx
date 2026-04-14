@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronRight } from 'lucide-react';
+import { Bell, ChevronRight, Loader2 } from 'lucide-react';
 import { StudentCard } from '@/features/users/components/StudentCard';
 import { ActivityCard } from '@/features/activities/components/ActivityCard';
-import { MOCK_STUDENTS, MOCK_ACTIVITIES, MOCK_NOTIFICATIONS, Notification } from '@/shared/data/mockData';
+import { userService, UserProfile } from '@/features/users/services/user.service';
+import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
+import { MOCK_ACTIVITIES, MOCK_NOTIFICATIONS, Notification, Student } from '@/shared/data/mockData';
 import { NotificationPanel } from '@/shared/components/layout/NotificationPanel';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
+  const { userData } = useCurrentUser();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [nearbyUsers, setNearbyUsers] = useState<Student[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -18,13 +23,43 @@ const HomeScreen = () => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   };
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const users = await userService.getAllUsers();
+        // Filtrar al usuario actual y mapear al formato Student que espera el componente
+        const filteredUsers: Student[] = users
+          .filter(u => u.id !== userData?.id)
+          .map(u => ({
+            id: u.id,
+            name: `${u.name} ${u.lastname}`,
+            photo: u.profilePicURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}+${encodeURIComponent(u.lastname)}&background=random`,
+            career: u.programs?.[0] || 'Estudiante',
+            semester: u.semester,
+            interests: u.interests?.map(i => i.id) || [],
+            compatibility: Math.floor(Math.random() * 21) + 80, // Mock de compatibilidad por ahora
+            isOnline: true, // Mock online status
+          }));
+        setNearbyUsers(filteredUsers);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, [userData?.id]);
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col bg-background rounded-none lg:rounded-[32px] shadow-elevated overflow-hidden">
       {/* Header */}
       <header className="p-6 pb-4 flex justify-between items-center bg-card/80 backdrop-blur-md sticky top-0 z-10">
         <div>
           <p className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">Campus Central</p>
-          <h2 className="text-xl font-display font-extrabold">¡Hola, Camilo!</h2>
+          <h2 className="text-xl font-display font-extrabold">
+            ¡Hola, {userData?.name || 'Compañero'}!
+          </h2>
         </div>
         <div className="flex gap-3 items-center">
           <motion.button
@@ -45,7 +80,11 @@ const HomeScreen = () => {
             onClick={() => navigate('/profile')}
             className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-secondary overflow-hidden flex-shrink-0"
             aria-label="Ir a mi perfil"
-          />
+          >
+            {userData?.profilePicURL && (
+              <img src={userData.profilePicURL} alt="Mi perfil" className="w-full h-full object-cover" />
+            )}
+          </motion.button>
         </div>
       </header>
 
@@ -69,21 +108,29 @@ const HomeScreen = () => {
               Ver todos <ChevronRight size={16} />
             </motion.button>
           </div>
-          <div className="flex gap-3.5 overflow-x-auto px-6 pb-2 no-scrollbar">
-            {MOCK_STUDENTS.slice(0, 5).map((student, i) => (
-              <motion.div
-                key={student.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <StudentCard
-                  student={student}
-                  compact
-                  onClick={() => navigate(`/profile/${student.id}`)}
-                />
-              </motion.div>
-            ))}
+          <div className="flex gap-3.5 overflow-x-auto px-6 pb-2 no-scrollbar min-h-[180px]">
+            {isLoadingUsers ? (
+              <div className="flex items-center justify-center w-full">
+                <Loader2 className="animate-spin text-primary" size={24} />
+              </div>
+            ) : nearbyUsers.length > 0 ? (
+              nearbyUsers.slice(0, 10).map((student, i) => (
+                <motion.div
+                  key={student.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                >
+                  <StudentCard
+                    student={student}
+                    compact
+                    onClick={() => navigate(`/profile/${student.id}`)}
+                  />
+                </motion.div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground px-2">No hay usuarios disponibles.</p>
+            )}
           </div>
         </section>
 

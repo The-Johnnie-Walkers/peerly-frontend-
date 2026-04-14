@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { User, Mail, Lock, BookOpen, UserPlus, Clock, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Mail, Lock, BookOpen, UserPlus, Clock, Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -12,11 +12,12 @@ import {
 } from "@/shared/components/ui/select";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { PeerlyChip } from "@/shared/components/PeerlyChip";
-import { INTERESTS, DAY_LABELS, TIME_OPTIONS } from "@/shared/data/mockData";
+import { DAY_LABELS, TIME_OPTIONS } from "@/shared/data/mockData";
 import type { AvailabilityBlock } from "@/shared/data/mockData";
 import { Link, useNavigate } from "react-router-dom";
 import { authService } from "@/features/auth/services/auth.service";
 import { userApi } from "@/shared/lib/api";
+import { interestService, type BackendInterest } from "@/features/users/services/interest.service";
 import { toast } from "sonner";
 
 const careers = [
@@ -41,6 +42,16 @@ const isInstitutionalEmail = (email: string) => {
 
 const generateBlockId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const DAY_MAPPING: Record<string, string> = {
+  'Lun': 'MONDAY',
+  'Mar': 'TUESDAY',
+  'Mié': 'WEDNESDAY',
+  'Jue': 'THURSDAY',
+  'Vie': 'FRIDAY',
+  'Sáb': 'SATURDAY',
+  'Dom': 'SUNDAY',
+};
+
 const Register = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -48,6 +59,8 @@ const Register = () => {
   const [career, setCareer] = useState("");
   const [semester, setSemester] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [availableInterests, setAvailableInterests] = useState<BackendInterest[]>([]);
+  const [isLoadingInterests, setIsLoadingInterests] = useState(true);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([
     { id: generateBlockId(), day: DAY_LABELS[0], start: "08:00", end: "10:00" },
   ]);
@@ -55,8 +68,16 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Carga los intereses disponibles desde el backend
+  useEffect(() => {
+    interestService.getAllInterests().then(interests => {
+      setAvailableInterests(interests);
+      setIsLoadingInterests(false);
+    });
+  }, []);
+
   const emailIsValid = email.length === 0 || isInstitutionalEmail(email);
-  const hasMinimumInterests = selectedInterests.length >= 3;
+  const hasValidInterests = selectedInterests.length >= 3 && selectedInterests.length <= 5;
   const hasAtLeastOneBlock = availabilityBlocks.length > 0;
   const canSubmit =
     name.trim().length > 0 &&
@@ -64,14 +85,21 @@ const Register = () => {
     password.length >= 6 &&
     career &&
     semester &&
-    hasMinimumInterests &&
+    hasValidInterests &&
     hasAtLeastOneBlock &&
     acceptedRules;
 
   const toggleInterest = (id: string) => {
-    setSelectedInterests((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    );
+    setSelectedInterests((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((i) => i !== id);
+      }
+      if (prev.length >= 5) {
+        toast.error("Solo puedes seleccionar un máximo de 5 intereses");
+        return prev;
+      }
+      return [...prev, id];
+    });
   };
 
   const addAvailabilityBlock = () => {
@@ -101,38 +129,69 @@ const Register = () => {
     if (!canSubmit) return;
 
     setIsLoading(true);
+    console.log("[Register] Starting account creation process...");
     try {
       const username = email.split('@')[0];
       const lastname = name.split(' ').slice(1).join(' ') || name;
-      
-      await authService.register({ name, email, password });
+      const freeTimeSchedule = availabilityBlocks.map(b => ({
+        dayOfTheWeek: DAY_MAPPING[b.day] || 'MONDAY',
+        startsAt: new Date(`1970-01-01T${b.start}:00Z`).toISOString(),
+        endsAt: new Date(`1970-01-01T${b.end}:00Z`).toISOString(),
+      }));
 
+      // Paso 1: crear cuenta en auth-service
+      console.log("[Register] Calling authService.register...");
+      const authResponse = await authService.register({ name, email, password });
+      console.log("[Register] authService.register successful, received ID:", authResponse.id);
+
+      // Payload base reutilizable (PUT requiere todos los campos)
+      const userPayload = {
+        id: authResponse.id,
+        username,
+        name,
+        lastname,
+        email,
+        birthDate: "2000-01-01",
+        semester: parseInt(semester),
+        freeTimeSchedule,
+        status: 'ACTIVE',
+        programs: [career],
+        role: 'USER',
+        description: '',
+      };
+
+      // Paso 2: crear perfil en user-service
+      console.log("[Register] Creating user profile...");
       await userApi.request('users', {
         method: 'POST',
-        body: {
-          username,
-          name,
-          lastname,
-          email,
-          birthDate: new Date('2000-01-01'),
-          semester: parseInt(semester),
-          interests: selectedInterests.map(id => ({ id, name: id })),
-          freeTimeSchedule: availabilityBlocks.map(b => ({
-            id: b.id,
-            dayOfTheWeek: b.day,
-            startsAt: new Date(`1970-01-01T${b.start}:00`),
-            endsAt: new Date(`1970-01-01T${b.end}:00`),
-          })),
-          status: 'ACTIVE',
-          programs: [career],
-          role: 'USER',
-          description: '',
-        },
+        body: { ...userPayload, interests: [] },
       });
+      console.log("[Register] User profile creation successful");
+
+      // Paso 2: asignar intereses via PUT /users/:id (requiere todos los campos)
+      if (selectedInterests.length > 0) {
+        try {
+          console.log("[Register] Assigning interests via PUT...", selectedInterests);
+          await userApi.request(`users/${authResponse.id}`, {
+            method: 'PUT',
+            body: {
+              ...userPayload,
+              interests: selectedInterests.map(id => ({ id })),
+            },
+          });
+          console.log("[Register] Interests assigned successfully");
+        } catch (interestError) {
+          console.warn("[Register] Could not assign interests:", interestError);
+        }
+      }
+
+      // Guardar el ID para que el contexto lo reconozca si el usuario navega
+      localStorage.setItem('user_id', authResponse.id);
 
       toast.success("¡Cuenta creada! Por favor inicia sesión.");
       navigate("/");
     } catch (error: unknown) {
+      console.error("[Register] Error during registration:", error);
       const message = error instanceof Error ? error.message : "Error al crear cuenta";
       toast.error(message);
     } finally {
@@ -264,21 +323,27 @@ const Register = () => {
                   Intereses comunes
                 </h3>
                 <p className="text-[12px] text-[color:hsl(var(--peerly-text-secondary))]">
-                  Selecciona al menos 3 intereses para mejorar tus conexiones. Siempre podrás cambiarlos luego.
+                  Selecciona entre 3 y 5 intereses para mejorar tus conexiones. Siempre podrás cambiarlos luego.
                 </p>
-                <div className="flex flex-wrap gap-2.5">
-                  {INTERESTS.map((interest) => (
-                    <PeerlyChip
-                      key={interest.id}
-                      label={interest.label}
-                      iconName={interest.icon}
-                      active={selectedInterests.includes(interest.id)}
-                      onClick={() => toggleInterest(interest.id)}
-                    />
-                  ))}
-                </div>
+                {isLoadingInterests ? (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Cargando intereses...
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2.5">
+                    {availableInterests.map((interest) => (
+                      <PeerlyChip
+                        key={interest.id}
+                        label={interest.name}
+                        active={selectedInterests.includes(interest.id)}
+                        onClick={() => toggleInterest(interest.id)}
+                      />
+                    ))}
+                  </div>
+                )}
                 <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))] font-mono">
-                  {selectedInterests.length}/3 mínimo seleccionados
+                  {selectedInterests.length}/5 seleccionados (mínimo 3)
                 </p>
               </section>
 
