@@ -159,7 +159,7 @@ const Register = () => {
 
       // Paso 2: crear perfil en user-service
       console.log("[Register] Creating user profile...");
-      await userApi.request('users', {
+      const userResponse = await userApi.request<{ id: string }>('users', {
         method: 'POST',
         body: {
           username,
@@ -174,16 +174,32 @@ const Register = () => {
           description: '',
         },
       });
-      console.log("[Register] User profile creation successful");
+      console.log("[Register] User profile creation successful, user ID:", userResponse.id);
 
-      // Paso 2: asignar intereses via PUT /users/:id (requiere todos los campos)
+      // Guardar el ID del usuario de user-management (no el de auth)
+      localStorage.setItem('user_id', userResponse.id);
+      localStorage.setItem('user_name', name);
+      localStorage.setItem('user_email', email);
+
+      // Paso 3: asignar intereses via PUT /users/:id (requiere todos los campos)
       if (selectedInterests.length > 0) {
         try {
           console.log("[Register] Assigning interests via PUT...", selectedInterests);
-          await userApi.request(`users/${authResponse.id}`, {
+          await userApi.request(`users/${userResponse.id}`, {
             method: 'PUT',
             body: {
-              ...userPayload,
+              id: userResponse.id,
+              username,
+              name,
+              lastname,
+              email,
+              birthDate: "2000-01-01",
+              semester: parseInt(semester),
+              freeTimeSchedule,
+              status: 'ACTIVE',
+              programs: [career],
+              role: 'USER',
+              description: '',
               interests: selectedInterests.map(id => ({ id })),
             },
           });
@@ -192,9 +208,6 @@ const Register = () => {
           console.warn("[Register] Could not assign interests:", interestError);
         }
       }
-
-      // Guardar el ID para que el contexto lo reconozca si el usuario navega
-      localStorage.setItem('user_id', authResponse.id);
 
       toast.success("¡Cuenta creada! Por favor inicia sesión.");
       navigate("/");

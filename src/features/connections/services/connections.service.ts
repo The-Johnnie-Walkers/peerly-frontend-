@@ -1,4 +1,4 @@
-import { api } from '@/shared/lib/api';
+import { connectionsApi } from '@/shared/lib/api';
 import {
   Connection,
   Community,
@@ -8,12 +8,10 @@ import {
   CreateCommunityRequest,
 } from '../types';
 
-const CONNECTIONS_BASE = import.meta.env.VITE_CONNECTIONS_API_URL || 'http://localhost:3002';
-
 // Connections
 export const connectionsService = {
   async create(data: CreateConnectionRequest): Promise<Connection> {
-    return api.request<Connection>(`${CONNECTIONS_BASE}/connections`, {
+    return connectionsApi.request<Connection>('connections', {
       method: 'POST',
       body: data,
     });
@@ -24,22 +22,22 @@ export const connectionsService = {
     if (userId) params.append('userId', userId);
     if (status) params.append('status', status);
     const query = params.toString() ? `?${params.toString()}` : '';
-    return api.request<Connection[]>(`${CONNECTIONS_BASE}/connections${query}`);
+    return connectionsApi.request<Connection[]>(`connections${query}`);
   },
 
   async findById(id: string): Promise<Connection> {
-    return api.request<Connection>(`${CONNECTIONS_BASE}/connections/${id}`);
+    return connectionsApi.request<Connection>(`connections/${id}`);
   },
 
   async update(id: string, data: UpdateConnectionRequest): Promise<Connection> {
-    return api.request<Connection>(`${CONNECTIONS_BASE}/connections/${id}`, {
+    return connectionsApi.request<Connection>(`connections/${id}`, {
       method: 'PATCH',
       body: data,
     });
   },
 
   async remove(id: string): Promise<void> {
-    return api.request<void>(`${CONNECTIONS_BASE}/connections/${id}`, {
+    return connectionsApi.request<void>(`connections/${id}`, {
       method: 'DELETE',
     });
   },
@@ -48,7 +46,7 @@ export const connectionsService = {
 // Communities
 export const communitiesService = {
   async create(data: CreateCommunityRequest): Promise<Community> {
-    return api.request<Community>(`${CONNECTIONS_BASE}/communities`, {
+    return connectionsApi.request<Community>('communities', {
       method: 'POST',
       body: data,
     });
@@ -56,29 +54,29 @@ export const communitiesService = {
 
   async findAll(interest?: string): Promise<Community[]> {
     const query = interest ? `?interest=${encodeURIComponent(interest)}` : '';
-    return api.request<Community[]>(`${CONNECTIONS_BASE}/communities${query}`);
+    return connectionsApi.request<Community[]>(`communities${query}`);
   },
 
   async findById(id: string): Promise<Community> {
-    return api.request<Community>(`${CONNECTIONS_BASE}/communities/${id}`);
+    return connectionsApi.request<Community>(`communities/${id}`);
   },
 
   async join(communityId: string, userId: string): Promise<Community> {
-    return api.request<Community>(`${CONNECTIONS_BASE}/communities/${communityId}/join`, {
+    return connectionsApi.request<Community>(`communities/${communityId}/join`, {
       method: 'POST',
       body: { userId },
     });
   },
 
   async leave(communityId: string, userId: string): Promise<Community> {
-    return api.request<Community>(`${CONNECTIONS_BASE}/communities/${communityId}/leave`, {
+    return connectionsApi.request<Community>(`communities/${communityId}/leave`, {
       method: 'POST',
       body: { userId },
     });
   },
 
   async remove(id: string): Promise<void> {
-    return api.request<void>(`${CONNECTIONS_BASE}/communities/${id}`, {
+    return connectionsApi.request<void>(`communities/${id}`, {
       method: 'DELETE',
     });
   },

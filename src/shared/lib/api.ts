@@ -1,6 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const USER_MGMT_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:3001';
 const AUTH_MGMT_URL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3000';
+const CONNECTIONS_MGMT_URL = import.meta.env.VITE_CONNECTIONS_API_URL || 'http://localhost:3002';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -87,7 +88,8 @@ class ApiClient {
 
 export const api = new ApiClient(AUTH_MGMT_URL);
 export const userApi = new ApiClient(USER_MGMT_URL);
+export const authApi = new ApiClient(AUTH_MGMT_URL);
+export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
 export const INTERESTS_API_BASE = 'interests';
-export const authApi = new ApiClient(AUTH_MGMT_URL);

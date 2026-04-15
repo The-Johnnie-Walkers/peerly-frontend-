@@ -250,20 +250,24 @@ const LandingPage = () => {
     console.log("[LandingPage] Attempting login for:", email);
     try {
       const response = await authService.login({ email, password });
-      console.log("[LandingPage] Login successful, received ID:", response.id);
+      console.log("[LandingPage] Login successful, auth ID:", response.id);
       
-      localStorage.setItem('user_id', response.id);
-      localStorage.setItem('auth_token', response.token);
+      // Buscar el usuario en user-management por email para obtener el userId correcto
+      console.log("[LandingPage] Fetching user profile by email...");
+      const profileData = await userService.getUserByEmail(email);
       
-      console.log("[LandingPage] Fetching profile data to sync context...");
-      const profileData = await userService.getUserById(response.id);
       if (profileData) {
+        // Guardar el userId de user-management, no el authId
+        localStorage.setItem('user_id', profileData.id);
+        console.log("[LandingPage] Saved user_id to localStorage:", profileData.id);
+        console.log("[LandingPage] Verification - reading back from localStorage:", localStorage.getItem('user_id'));
         setUserData(profileData);
-        console.log("[LandingPage] Context synchronized with user:", profileData.name);
+        console.log("[LandingPage] Context synchronized with user:", profileData.name, "ID:", profileData.id);
+        toast.success("¡Bienvenido de nuevo!");
+        navigate("/home");
+      } else {
+        throw new Error("No se encontró el perfil del usuario");
       }
-      
-      toast.success("¡Bienvenido de nuevo!");
-      navigate("/home");
     } catch (error: unknown) {
       console.error("[LandingPage] Login error:", error);
       const message = error instanceof Error ? error.message : "Credenciales inválidas";

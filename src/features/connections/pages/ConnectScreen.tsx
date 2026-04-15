@@ -186,13 +186,36 @@ const ConnectScreen = () => {
 
   // Filtrar: excluir yo mismo, ya conectados y ya swipeados en esta sesión
   const cards = useMemo(
-    () =>
-      allUsers.filter(
-        (u) =>
-          u.id !== userId &&
-          !connectedUserIds.has(u.id) &&
-          !swipedIds.has(u.id),
-      ),
+    () => {
+      console.log('[ConnectScreen] Filtering users:', {
+        totalUsers: allUsers.length,
+        userId,
+        connectedUserIds: Array.from(connectedUserIds),
+        swipedIds: Array.from(swipedIds),
+      });
+      
+      const filtered = allUsers.filter(
+        (u) => {
+          const hasId = !!u.id;
+          const notMe = u.id !== userId;
+          const notConnected = !connectedUserIds.has(u.id);
+          const notSwiped = !swipedIds.has(u.id);
+          
+          console.log(`[ConnectScreen] User ${u.username}:`, {
+            hasId,
+            notMe,
+            notConnected,
+            notSwiped,
+            passes: hasId && notMe && notConnected && notSwiped,
+          });
+          
+          return hasId && notMe && notConnected && notSwiped;
+        },
+      );
+      
+      console.log('[ConnectScreen] Filtered cards:', filtered.length);
+      return filtered;
+    },
     [allUsers, userId, connectedUserIds, swipedIds],
   );
 

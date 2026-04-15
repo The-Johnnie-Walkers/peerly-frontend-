@@ -42,6 +42,15 @@ export const userService = {
     }
   },
 
+  async getUserByEmail(email: string): Promise<UserProfile | null> {
+    try {
+      const users = await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
+      return users.find(u => u.email === email) || null;
+    } catch {
+      return null;
+    }
+  },
+
   async getAllUsers(): Promise<UserProfile[]> {
     try {
       return await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
