@@ -22,6 +22,8 @@ import CreateActivityScreen from "./features/activities/pages/CreateActivityScre
 import VirtualWorldScreen from "./features/virtual-world/pages/VirtualWorldScreen";
 import NotFound from "./shared/pages/NotFound";
 
+import { SocketProvider } from "@/shared/contexts/SocketContext";
+
 const queryClient = new QueryClient();
 
 const AppLayout = () => {
@@ -68,7 +70,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <CurrentUserProvider>
-          <AppLayout />
+          <SocketProvider>
+            <AppLayout />
+          </SocketProvider>
         </CurrentUserProvider>
       </BrowserRouter>
     </TooltipProvider>
