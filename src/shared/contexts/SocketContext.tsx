@@ -32,20 +32,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!token) {
       // No token — disconnect any existing socket
       if (socket) {
+        console.log('[SocketProvider] No token, disconnecting socket');
         socket.disconnect();
         setSocket(null);
       }
       return;
     }
 
-    // Already have a socket with this token — nothing to do
-    if (socket && socket.connected) return;
+    // Already have a socket (connected or connecting) — nothing to do
+    if (socket) {
+      console.log('[SocketProvider] Socket already exists, skipping creation');
+      return;
+    }
 
     console.log('[SocketProvider] Creating socket connection to', `${SOCKET_BASE_URL}${SOCKET_NAMESPACE}`);
 
     const newSocket = io(`${SOCKET_BASE_URL}${SOCKET_NAMESPACE}`, {
       auth: { token },
       transports: ['websocket'],
+      autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -61,6 +66,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on('disconnect', (reason) => {
       console.log('[Socket] Disconnected:', reason);
+      // Clear socket from state so a new one can be created on next mount
+      setSocket(null);
     });
 
     newSocket.on('error', (err) => {
@@ -72,7 +79,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       console.log('[SocketProvider] Cleaning up socket');
       newSocket.disconnect();
-      setSocket(null);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);

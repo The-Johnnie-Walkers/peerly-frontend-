@@ -43,8 +43,8 @@ const HomeScreen = () => {
               start: f.startsAt,
               end: f.endsAt
             })) || [],
-            compatibility: Math.floor(Math.random() * 21) + 80, // Mock de compatibilidad por ahora
-            isOnline: true, // Mock online status
+            compatibility: Math.floor(Math.random() * 21) + 80,
+            isOnline: true,
           }));
         setNearbyUsers(filteredUsers);
       } catch (error) {

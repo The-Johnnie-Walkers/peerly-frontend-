@@ -9,27 +9,37 @@ export const useRealtimeMap = () => {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   
-  // Ref para posiciones objetivo (para interpolación)
   const targetPositions = useRef<Record<string, Position>>({});
-  // Ref para el último tiempo de actualización enviado
   const lastUpdateSent = useRef<number>(0);
   const THROTTLE_MS = 60;
+  const hasJoinedMap = useRef<boolean>(false);
 
   useEffect(() => {
     if (!socket) {
       console.log('[useRealtimeMap] socket is null, skipping setup');
+      hasJoinedMap.current = false;
       return;
     }
     console.log('[useRealtimeMap] setting up listeners, socket.connected:', socket.connected, 'id:', socket.id);
 
+    const emitJoinMap = () => {
+      if (!hasJoinedMap.current) {
+        console.log('[useRealtimeMap] emitting joinMap');
+        socket.emit('joinMap');
+        hasJoinedMap.current = true;
+      }
+    };
+
     const onConnect = () => {
-      console.log('[useRealtimeMap] onConnect fired, emitting joinMap');
+      console.log('[useRealtimeMap] onConnect fired, id:', socket.id);
       setIsConnected(true);
-      socket.emit('joinMap');
+      emitJoinMap();
     };
 
     const onDisconnect = () => {
+      console.log('[useRealtimeMap] onDisconnect fired');
       setIsConnected(false);
+      hasJoinedMap.current = false;
     };
 
     const onInitialPositions = (initialUsers: AvatarPosition[]) => {
@@ -117,13 +127,18 @@ export const useRealtimeMap = () => {
     socket.on('chatMessage', onChatMessage);
     socket.on('error', onError);
 
+    // If socket is already connected when this effect runs, join immediately
     if (socket.connected) {
-      console.log('[useRealtimeMap] socket already connected, calling onConnect immediately');
-      onConnect();
+      console.log('[useRealtimeMap] socket already connected on mount, joining now');
+      setIsConnected(true);
+      emitJoinMap();
+    } else {
+      // Socket exists but not yet connected — connect it now
+      console.log('[useRealtimeMap] socket not connected, calling connect()');
+      socket.connect();
     }
 
     return () => {
-      // Notify server we're leaving the map before removing listeners
       if (socket.connected) {
         socket.emit('leaveMap');
       }
@@ -135,6 +150,10 @@ export const useRealtimeMap = () => {
       socket.off('positionUpdate', onPositionUpdate);
       socket.off('chatMessage', onChatMessage);
       socket.off('error', onError);
+      
+      // Disconnect socket so next mount starts fresh
+      socket.disconnect();
+      hasJoinedMap.current = false;
     };
   }, [socket]);
 

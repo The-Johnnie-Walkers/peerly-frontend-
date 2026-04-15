@@ -53,7 +53,8 @@ const DAY_MAPPING: Record<string, string> = {
 };
 
 const Register = () => {
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [career, setCareer] = useState("");
@@ -68,7 +69,6 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Carga los intereses disponibles desde el backend
   useEffect(() => {
     interestService.getAllInterests().then(interests => {
       setAvailableInterests(interests);
@@ -80,7 +80,8 @@ const Register = () => {
   const hasValidInterests = selectedInterests.length >= 3 && selectedInterests.length <= 5;
   const hasAtLeastOneBlock = availabilityBlocks.length > 0;
   const canSubmit =
-    name.trim().length > 0 &&
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
     isInstitutionalEmail(email) &&
     password.length >= 6 &&
     career &&
@@ -94,7 +95,7 @@ const Register = () => {
       prev.includes(id)
         ? prev.filter((i) => i !== id)
         : prev.length >= 5
-          ? prev  // no agregar más de 5
+          ? prev
           : [...prev, id],
     );
   };
@@ -102,12 +103,7 @@ const Register = () => {
   const addAvailabilityBlock = () => {
     setAvailabilityBlocks((prev) => [
       ...prev,
-      {
-        id: generateBlockId(),
-        day: DAY_LABELS[0],
-        start: "08:00",
-        end: "10:00",
-      },
+      { id: generateBlockId(), day: DAY_LABELS[0], start: "08:00", end: "10:00" },
     ]);
   };
 
@@ -126,45 +122,24 @@ const Register = () => {
     if (!canSubmit) return;
 
     setIsLoading(true);
-    console.log("[Register] Starting account creation process...");
     try {
       const username = email.split('@')[0];
-      const lastname = name.split(' ').slice(1).join(' ') || name;
       const freeTimeSchedule = availabilityBlocks.map(b => ({
         dayOfTheWeek: DAY_MAPPING[b.day] || 'MONDAY',
-        startsAt: new Date(`1970-01-01T${b.start}:00Z`).toISOString(),
-        endsAt: new Date(`1970-01-01T${b.end}:00Z`).toISOString(),
+        startsAt: new Date(`1970-01-01T${b.start}:00Z`),
+        endsAt: new Date(`1970-01-01T${b.end}:00Z`),
       }));
 
       // Paso 1: crear cuenta en auth-service
-      console.log("[Register] Calling authService.register...");
-      const authResponse = await authService.register({ name, email, password });
-      console.log("[Register] authService.register successful, received ID:", authResponse.id);
-
-      // Payload base reutilizable (PUT requiere todos los campos)
-      const userPayload = {
-        id: authResponse.id,
-        username,
-        name,
-        lastname,
-        email,
-        birthDate: "2000-01-01",
-        semester: parseInt(semester),
-        freeTimeSchedule,
-        status: 'ACTIVE',
-        programs: [career],
-        role: 'USER',
-        description: '',
-      };
+      const authResponse = await authService.register({ name: `${firstName} ${lastName}`, email, password });
 
       // Paso 2: crear perfil en user-service
-      console.log("[Register] Creating user profile...");
       const userResponse = await userApi.request<{ id: string }>('users', {
         method: 'POST',
         body: {
           username,
-          name,
-          lastname,
+          name: firstName,
+          lastname: lastName,
           email,
           birthDate: new Date('2000-01-01'),
           semester: parseInt(semester),
@@ -172,47 +147,41 @@ const Register = () => {
           programs: [career],
           role: 'USER',
           description: '',
+          freeTimeSchedule,
         },
       });
-      console.log("[Register] User profile creation successful, user ID:", userResponse.id);
 
-      // Guardar el ID del usuario de user-management (no el de auth)
       localStorage.setItem('user_id', userResponse.id);
-      localStorage.setItem('user_name', name);
+      localStorage.setItem('user_name', firstName);
       localStorage.setItem('user_email', email);
 
-      // Paso 3: asignar intereses via PUT /users/:id (requiere todos los campos)
-      if (selectedInterests.length > 0) {
-        try {
-          console.log("[Register] Assigning interests via PUT...", selectedInterests);
-          await userApi.request(`users/${userResponse.id}`, {
-            method: 'PUT',
-            body: {
-              id: userResponse.id,
-              username,
-              name,
-              lastname,
-              email,
-              birthDate: "2000-01-01",
-              semester: parseInt(semester),
-              freeTimeSchedule,
-              status: 'ACTIVE',
-              programs: [career],
-              role: 'USER',
-              description: '',
-              interests: selectedInterests.map(id => ({ id })),
-            },
-          });
-          console.log("[Register] Interests assigned successfully");
-        } catch (interestError) {
-          console.warn("[Register] Could not assign interests:", interestError);
-        }
+      // Paso 3: asignar intereses e info completa via PUT
+      try {
+        await userApi.request(`users/${userResponse.id}`, {
+          method: 'PUT',
+          body: {
+            id: userResponse.id,
+            username,
+            name: firstName,
+            lastname: lastName,
+            email,
+            birthDate: new Date('2000-01-01'),
+            semester: parseInt(semester),
+            freeTimeSchedule,
+            status: 'ACTIVE',
+            programs: [career],
+            role: 'USER',
+            description: '',
+            interests: selectedInterests.map(id => ({ id })),
+          },
+        });
+      } catch (interestError) {
+        console.warn("[Register] Could not assign interests:", interestError);
       }
 
       toast.success("¡Cuenta creada! Por favor inicia sesión.");
       navigate("/");
     } catch (error: unknown) {
-      console.error("[Register] Error during registration:", error);
       const message = error instanceof Error ? error.message : "Error al crear cuenta";
       toast.error(message);
     } finally {
@@ -241,14 +210,25 @@ const Register = () => {
                   Datos básicos
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5 sm:col-span-2">
+                  <div className="space-y-1.5">
                     <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))]">
-                      Nombre completo
+                      Nombre
                     </label>
                     <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Tu nombre como aparece en la universidad"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Tu nombre"
+                      className="h-11 rounded-2xl bg-background/80 border-border text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))]">
+                      Apellido
+                    </label>
+                    <Input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Tu apellido"
                       className="h-11 rounded-2xl bg-background/80 border-border text-sm"
                     />
                   </div>
@@ -368,7 +348,7 @@ const Register = () => {
                 </p>
               </section>
 
-              {/* Disponibilidad por franjas (bloques) */}
+              {/* Disponibilidad */}
               <section className="space-y-3">
                 <h3 className="text-xs font-mono font-bold tracking-widest uppercase text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[color:hsl(var(--peerly-primary))]" />
@@ -490,4 +470,3 @@ const Register = () => {
 };
 
 export default Register;
-
