@@ -175,6 +175,8 @@ const ConnectScreen = () => {
   // Traer todas las conexiones del usuario para excluir a quienes ya tienen relación
   const { data: myConnections = [] } = useConnections(userId);
 
+  console.log('[ConnectScreen] My connections (all statuses):', myConnections);
+
   const connectedUserIds = useMemo(() => {
     const ids = new Set<string>();
     myConnections.forEach((c) => {
