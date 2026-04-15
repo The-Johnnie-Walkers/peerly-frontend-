@@ -1,15 +1,31 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, UserPlus } from 'lucide-react';
-import { MOCK_STUDENTS, INTERESTS, Student } from '@/shared/data/mockData';
+import { X, UserPlus, Loader2 } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
+import { authService } from '@/features/auth/services/auth.service';
+import { useQuery } from '@tanstack/react-query';
+import { userService, UserProfile } from '@/features/users/services/user.service';
+import { useCreateConnection } from '../hooks/useConnections';
+import { useConnections } from '../hooks/useConnections';
+import { ConnectionStatus } from '../types';
 
-const SwipeCard = ({ student, onSwipe, isTop }: { student: Student; onSwipe: (dir: 'left' | 'right') => void; isTop: boolean }) => {
+// Tarjeta de swipe
+const SwipeCard = ({
+  user,
+  onSwipe,
+  isTop,
+}: {
+  user: UserProfile;
+  onSwipe: (dir: 'left' | 'right') => void;
+  isTop: boolean;
+}) => {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
   const connectOpacity = useTransform(x, [0, 100], [0, 1]);
   const skipOpacity = useTransform(x, [-100, 0], [1, 0]);
+
+  const displayName = `${user.name} ${user.lastname}`.trim();
 
   return (
     <motion.div
@@ -25,17 +41,16 @@ const SwipeCard = ({ student, onSwipe, isTop }: { student: Student; onSwipe: (di
       animate={{ scale: isTop ? 1 : 0.95, opacity: isTop ? 1 : 0.7 }}
       exit={{ x: 300, opacity: 0, transition: { duration: 0.3 } }}
       className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none"
-      aria-label={`Perfil de ${student.name}`}
+      aria-label={`Perfil de ${displayName}`}
     >
       <div className="relative h-full w-full rounded-3xl overflow-hidden shadow-elevated bg-card border border-border">
         <SafeRemoteImage
-          src={student.photo}
-          alt={student.name}
+          src={user.profilePicURL}
+          alt={displayName}
           className="h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/85 via-foreground/20 to-transparent" />
 
-        {/* Conectar / Pasar — feedback visual al arrastrar */}
         {isTop && (
           <>
             <motion.div
@@ -58,96 +73,152 @@ const SwipeCard = ({ student, onSwipe, isTop }: { student: Student; onSwipe: (di
         <div className="absolute bottom-0 p-5 md:p-6 w-full">
           <div className="flex justify-between items-end gap-3 mb-2">
             <div className="min-w-0">
-              <h2 className="text-xl md:text-2xl font-display font-extrabold text-card drop-shadow-sm">{student.name}</h2>
-              <p className="text-card/90 text-sm font-medium truncate">{student.career} · {student.semester}° sem</p>
-            </div>
-            <div className="flex-shrink-0 bg-success px-3 py-1.5 rounded-full text-xs font-mono font-bold text-success-foreground shadow-sm">
-              {student.compatibility}%
+              <h2 className="text-xl md:text-2xl font-display font-extrabold text-card drop-shadow-sm">
+                {displayName}
+              </h2>
+              <p className="text-card/90 text-sm font-medium truncate">
+                {user.programs?.[0] ?? 'Universidad'} · {user.semester}° sem
+              </p>
             </div>
           </div>
-          <p className="text-card/80 text-sm mb-3 line-clamp-2">{student.bio}</p>
-          <div className="flex gap-2 flex-wrap">
-            {student.interests.slice(0, 4).map(id => (
-              <span
-                key={id}
-                className="px-2.5 py-1 bg-card/30 backdrop-blur-md rounded-lg text-[10px] uppercase tracking-wider font-mono font-bold text-card border border-card/50"
-              >
-                {INTERESTS.find(i => i.id === id)?.label}
-              </span>
-            ))}
-          </div>
+          {user.description && (
+            <p className="text-card/80 text-sm mb-3 line-clamp-2">{user.description}</p>
+          )}
+          {user.interests && user.interests.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {user.interests.slice(0, 4).map((interest) => (
+                <span
+                  key={interest.id}
+                  className="px-2.5 py-1 bg-card/30 backdrop-blur-md rounded-lg text-[10px] uppercase tracking-wider font-mono font-bold text-card border border-card/50"
+                >
+                  {interest.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
   );
 };
 
-const ConnectCelebration = ({ student, onClose }: { student: Student; onClose: () => void }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="absolute inset-0 z-50 bg-primary/95 flex flex-col items-center justify-center p-6 md:p-12 text-center text-primary-foreground"
-    role="dialog"
-    aria-labelledby="connect-title"
-    aria-describedby="connect-desc"
-  >
+// Pantalla de celebración al conectar
+const ConnectCelebration = ({
+  user,
+  onClose,
+}: {
+  user: UserProfile;
+  onClose: () => void;
+}) => {
+  const displayName = `${user.name} ${user.lastname}`.trim();
+  return (
     <motion.div
-      initial={{ scale: 0 }}
-      animate={{ scale: 1, rotate: [0, 10, -10, 0] }}
-      transition={{ type: 'spring', stiffness: 200 }}
-      className="mb-6 md:mb-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-50 bg-primary/95 flex flex-col items-center justify-center p-6 md:p-12 text-center text-primary-foreground"
+      role="dialog"
+      aria-labelledby="connect-title"
+      aria-describedby="connect-desc"
     >
-      <div className="flex -space-x-5 md:-space-x-6">
-        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-primary-foreground overflow-hidden shadow-elevated">
-          <SafeRemoteImage
-            src={student.photo}
-            alt={student.name}
-            className="w-full h-full object-cover"
-          />
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1, rotate: [0, 10, -10, 0] }}
+        transition={{ type: 'spring', stiffness: 200 }}
+        className="mb-6 md:mb-8"
+      >
+        <div className="flex -space-x-5 md:-space-x-6">
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-primary-foreground overflow-hidden shadow-elevated">
+            <SafeRemoteImage
+              src={user.profilePicURL}
+              alt={displayName}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-primary-foreground overflow-hidden shadow-elevated bg-gradient-to-tr from-primary to-secondary flex items-center justify-center">
+            <UserPlus size={40} className="text-primary-foreground/80" />
+          </div>
         </div>
-        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-primary-foreground overflow-hidden shadow-elevated bg-gradient-to-tr from-primary to-secondary flex items-center justify-center">
-          <UserPlus size={40} className="text-primary-foreground/80" />
-        </div>
+      </motion.div>
+      <h2 id="connect-title" className="text-3xl md:text-4xl font-display font-extrabold mb-2">
+        ¡Solicitud enviada! 🎉
+      </h2>
+      <p id="connect-desc" className="text-primary-foreground/85 mb-8 md:mb-12 text-sm md:text-base">
+        Le enviaste una solicitud a {displayName.split(' ')[0]}. Espera a que la acepte. 🐾
+      </p>
+      <div className="w-full max-w-sm space-y-3">
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={onClose}
+          className="w-full p-4 rounded-2xl bg-primary-foreground text-primary font-display font-bold shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+        >
+          Seguir descubriendo
+        </motion.button>
       </div>
     </motion.div>
-    <h2 id="connect-title" className="text-3xl md:text-4xl font-display font-extrabold mb-2">
-      ¡Puedes conectar! 🎉
-    </h2>
-    <p id="connect-desc" className="text-primary-foreground/85 mb-8 md:mb-12 text-sm md:text-base">
-      A {student.name.split(' ')[0]} también le interesa conectar. Escribe y organiza un plan. 🐾
-    </p>
-    <div className="w-full max-w-sm space-y-3">
-      <motion.button
-        whileTap={{ scale: 0.98 }}
-        onClick={onClose}
-        className="w-full p-4 rounded-2xl bg-primary-foreground text-primary font-display font-bold shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
-      >
-        Enviar mensaje 💬
-      </motion.button>
-      <button
-        type="button"
-        onClick={onClose}
-        className="block w-full py-2 text-primary-foreground/70 font-display font-bold text-sm hover:text-primary-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground rounded-lg"
-      >
-        Seguir descubriendo
-      </button>
-    </div>
-  </motion.div>
-);
+  );
+};
 
 const ConnectScreen = () => {
   const navigate = useNavigate();
-  const [cards, setCards] = useState(MOCK_STUDENTS.slice(0, 5));
-  const [connectedStudent, setConnectedStudent] = useState<Student | null>(null);
+  const [connectedUser, setConnectedUser] = useState<UserProfile | null>(null);
+  const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
+
+  const currentUser = authService.getCurrentUser();
+  const userId = currentUser?.id;
+
+  const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
+    queryKey: ['users', 'all'],
+    queryFn: () => userService.getAllUsers(),
+  });
+
+  // Traer todas las conexiones del usuario para excluir a quienes ya tienen relación
+  const { data: myConnections = [] } = useConnections(userId);
+
+  const connectedUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    myConnections.forEach((c) => {
+      ids.add(c.requesterId);
+      ids.add(c.receiverId);
+    });
+    return ids;
+  }, [myConnections]);
+
+  // Filtrar: excluir yo mismo, ya conectados y ya swipeados en esta sesión
+  const cards = useMemo(
+    () =>
+      allUsers.filter(
+        (u) =>
+          u.id !== userId &&
+          !connectedUserIds.has(u.id) &&
+          !swipedIds.has(u.id),
+      ),
+    [allUsers, userId, connectedUserIds, swipedIds],
+  );
+
+  const createConnection = useCreateConnection();
 
   const handleSwipe = (dir: 'left' | 'right') => {
     const current = cards[0];
-    if (dir === 'right' && current?.compatibility > 85) {
-      setConnectedStudent(current);
+    if (!current) return;
+
+    if (dir === 'right') {
+      setConnectedUser(current);
+      if (userId) {
+        createConnection.mutate({ requesterId: userId, receiverId: current.id });
+      }
     }
-    setCards(prev => prev.slice(1));
+
+    setSwipedIds((prev) => new Set(prev).add(current.id));
   };
+
+  if (loadingUsers) {
+    return (
+      <div className="min-h-svh flex items-center justify-center bg-background">
+        <Loader2 size={36} className="animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-svh flex flex-col bg-background">
@@ -187,8 +258,12 @@ const ConnectScreen = () => {
                 className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 rounded-3xl bg-card/50 border border-border"
               >
                 <span className="text-5xl md:text-6xl mb-4" aria-hidden>😴</span>
-                <h2 className="font-display font-bold text-xl md:text-2xl mb-2 text-foreground">Parece que todos están en clase</h2>
-                <p className="text-muted-foreground text-sm md:text-base mb-6">Vuelve en un rato para conocer más compañeros.</p>
+                <h2 className="font-display font-bold text-xl md:text-2xl mb-2 text-foreground">
+                  Parece que todos están en clase
+                </h2>
+                <p className="text-muted-foreground text-sm md:text-base mb-6">
+                  Vuelve en un rato para conocer más compañeros.
+                </p>
                 <motion.button
                   whileTap={{ scale: 0.98 }}
                   onClick={() => navigate('/home')}
@@ -198,14 +273,17 @@ const ConnectScreen = () => {
                 </motion.button>
               </motion.div>
             ) : (
-              cards.slice(0, 2).map((student, i) => (
-                <SwipeCard
-                  key={student.id}
-                  student={student}
-                  onSwipe={handleSwipe}
-                  isTop={i === 0}
-                />
-              )).reverse()
+              cards
+                .slice(0, 2)
+                .map((user, i) => (
+                  <SwipeCard
+                    key={user.id}
+                    user={user}
+                    onSwipe={handleSwipe}
+                    isTop={i === 0}
+                  />
+                ))
+                .reverse()
             )}
           </AnimatePresence>
         </div>
@@ -233,10 +311,10 @@ const ConnectScreen = () => {
       </div>
 
       <AnimatePresence>
-        {connectedStudent && (
+        {connectedUser && (
           <ConnectCelebration
-            student={connectedStudent}
-            onClose={() => setConnectedStudent(null)}
+            user={connectedUser}
+            onClose={() => setConnectedUser(null)}
           />
         )}
       </AnimatePresence>

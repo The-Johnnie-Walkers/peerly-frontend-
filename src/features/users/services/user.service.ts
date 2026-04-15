@@ -1,4 +1,4 @@
-import { userApi, USERS_API_BASE } from '@/shared/lib/api';
+import { api, userApi, USERS_API_BASE } from '@/shared/lib/api';
 import { authService } from '@/features/auth/services/auth.service';
 
 export interface UserProfile {
@@ -58,7 +58,6 @@ export const userService = {
     return await userApi.request<UserProfile>(`${USERS_API_BASE}/${id}`, {
       method: 'PUT',
       body: data,
-      headers,
     });
   },
 
@@ -69,7 +68,6 @@ export const userService = {
 
     await userApi.request(`${USERS_API_BASE}/${id}`, {
       method: 'DELETE',
-      headers,
     });
   },
 };

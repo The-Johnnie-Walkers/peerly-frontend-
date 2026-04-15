@@ -1,4 +1,4 @@
-import { api, AUTH_API_BASE } from '@/shared/lib/api';
+import { authApi, AUTH_API_BASE } from '@/shared/lib/api';
 
 export interface LoginRequest {
   email: string;
@@ -26,7 +26,7 @@ export interface RegisterResponse {
 
 export const authService = {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await api.request<LoginResponse>(`${AUTH_API_BASE}/login`, {
+    const response = await authApi.request<LoginResponse>(`${AUTH_API_BASE}/login`, {
       method: 'POST',
       body: credentials,
     });
@@ -42,7 +42,7 @@ export const authService = {
   },
 
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const response = await api.request<RegisterResponse>(`${AUTH_API_BASE}/register`, {
+    const response = await authApi.request<RegisterResponse>(`${AUTH_API_BASE}/register`, {
       method: 'POST',
       body: data,
     });

@@ -90,16 +90,13 @@ const Register = () => {
     acceptedRules;
 
   const toggleInterest = (id: string) => {
-    setSelectedInterests((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((i) => i !== id);
-      }
-      if (prev.length >= 5) {
-        toast.error("Solo puedes seleccionar un máximo de 5 intereses");
-        return prev;
-      }
-      return [...prev, id];
-    });
+    setSelectedInterests((prev) =>
+      prev.includes(id)
+        ? prev.filter((i) => i !== id)
+        : prev.length >= 5
+          ? prev  // no agregar más de 5
+          : [...prev, id],
+    );
   };
 
   const addAvailabilityBlock = () => {
@@ -164,7 +161,18 @@ const Register = () => {
       console.log("[Register] Creating user profile...");
       await userApi.request('users', {
         method: 'POST',
-        body: { ...userPayload, interests: [] },
+        body: {
+          username,
+          name,
+          lastname,
+          email,
+          birthDate: new Date('2000-01-01'),
+          semester: parseInt(semester),
+          status: 'ACTIVE',
+          programs: [career],
+          role: 'USER',
+          description: '',
+        },
       });
       console.log("[Register] User profile creation successful");
 
@@ -343,7 +351,7 @@ const Register = () => {
                   </div>
                 )}
                 <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))] font-mono">
-                  {selectedInterests.length}/5 seleccionados (mínimo 3)
+                  {selectedInterests.length}/5 máximo (mínimo 3)
                 </p>
               </section>
 
