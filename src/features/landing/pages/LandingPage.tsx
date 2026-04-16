@@ -135,7 +135,7 @@ export default function LandingPage() {
             <div id="opinions">
                 <TestimonialsSection/>
             </div>
-            <Footer />
+            <Footer/>
         </div>
     );
 }
