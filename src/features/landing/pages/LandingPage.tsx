@@ -4,6 +4,7 @@ import NavBar from '@/features/landing/components/NavBar';
 import PeerlyLogo from '../../../assets/peerly-logo.png';
 import BenefitsCard from '../components/BenefitsCard';
 import TestimonialsSection from '../components/TestimonialsSection';
+import Footer from '../components/Footer';
 import Aurora from '../../../shared/components/ui/aurora';
 import BubbleBackground from '@/shared/components/ui/bubble-background';
 
@@ -14,9 +15,9 @@ const fadeUp = {
 
 export default function LandingPage() {
     return (
-        <div className='scroll-smooth'>
+        <div className='scroll-smooth' id="peerly">
             <NavBar/>
-            <div id="peerly" className="relative flex min-h-screen justify-center">
+            <div className="relative flex min-h-screen justify-center">
                 <BubbleBackground showGlow />
                 <div className="relative z-10 flex flex-col items-center mt-48">
                     <motion.img
@@ -48,7 +49,7 @@ export default function LandingPage() {
                     <ChevronDown size={20} className="animate-bounce" />
                 </motion.div>
             </div>
-            <section id="what-is" className="relative py-24 px-6 overflow-hidden">
+            <section id="what-is" className="relative flex items-center overflow-hidden min-h-screen">
                 <Aurora className="absolute inset-0 z-0" />
                 <div className="relative z-10 max-w-3xl mx-auto">
                     <motion.div
@@ -92,7 +93,7 @@ export default function LandingPage() {
                     </motion.p>
                 </div>
             </section>
-            <section id="benefits" className="relative overflow-hidden py-24 px-6">
+            <section id="benefits" className="relative flex overflow-hidden items-center min-h-screen p-10">
                 <div className="max-w-5xl mx-auto">
                     <BubbleBackground showGlow />
                     <motion.div
@@ -134,7 +135,7 @@ export default function LandingPage() {
             <div id="opinions">
                 <TestimonialsSection/>
             </div>
-            
+            <Footer />
         </div>
     );
 }

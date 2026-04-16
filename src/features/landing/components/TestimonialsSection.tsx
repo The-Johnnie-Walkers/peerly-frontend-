@@ -61,7 +61,7 @@ export default function TestimonialsSection() {
     const current = testimonials[index];
 
     return (
-        <section className="relative py-24 px-6 overflow-hidden">
+        <section className="relative flex items-center overflow-hidden min-h-screen">
             <Aurora className="absolute inset-0 z-0" />
             <div className="relative z-10 max-w-2xl mx-auto">
                 <motion.div
