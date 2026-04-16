@@ -34,7 +34,7 @@ const LERP_FACTOR = 0.15; // Suavidad de movimiento
 
 const VirtualWorld: React.FC = () => {
   const currentUser = authService.getCurrentUser();
-  const { users: remoteUsers, chatHistory, move, sendMessage, targetPositions } = useRealtimeMap();
+  const { users: remoteUsers, chatHistory, move, sendMessage, targetPositions, myAuthId } = useRealtimeMap();
 
   const [player, setPlayer] = useState({
     x: Math.random() * (CANVAS_WIDTH - 100) + 50,
@@ -153,7 +153,8 @@ const VirtualWorld: React.FC = () => {
     }
 
     // 2. Interpolar posiciones de otros usuarios
-    const myId = currentUser?.id || '';
+    // Use myAuthId (JWT sub) to filter self — NOT currentUser.id (user-management ID)
+    const myId = myAuthId || '';
     const updatedRenderedUsers = remoteUsers.filter(u => u.userId !== myId).map(user => {
       const targetPos = targetPositions[user.userId] || { x: user.x, y: user.y };
       const currentRendered = renderedUsersRef.current.find(r => r.userId === user.userId);
@@ -169,6 +170,7 @@ const VirtualWorld: React.FC = () => {
       };
     });
 
+    // Sync renderedUsersRef: remove users that are no longer in remoteUsers
     renderedUsersRef.current = updatedRenderedUsers;
 
     // 3. Proximidad (solo actualizar estado si cambia el usuario cercano)

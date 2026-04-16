@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { authService } from '@/features/auth/services/auth.service';
 import { ClientToServerEvents, ServerToClientEvents } from '@/features/virtual-world/types/realtime.types';
@@ -16,71 +16,53 @@ const SOCKET_NAMESPACE = '/map';
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
-  // Track the token so we reconnect when the user logs in
   const [token, setToken] = useState<string | null>(() => authService.getToken());
+  const socketRef = useRef<Socket | null>(null);
 
-  // Poll for token changes (login/logout) every second
+  // Poll for token changes (login/logout/expiration) every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       const current = authService.getToken();
       setToken(prev => (prev !== current ? current : prev));
-    }, 1000);
+    }, 30_000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
+    // Tear down any existing socket when token changes
+    if (socketRef.current) {
+      console.log('[SocketProvider] Tearing down previous socket');
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      setSocket(null);
+    }
+
     if (!token) {
-      // No token — disconnect any existing socket
-      if (socket) {
-        console.log('[SocketProvider] No token, disconnecting socket');
-        socket.disconnect();
-        setSocket(null);
-      }
+      console.log('[SocketProvider] No token, skipping socket creation');
       return;
     }
 
-    // Already have a socket (connected or connecting) — nothing to do
-    if (socket) {
-      console.log('[SocketProvider] Socket already exists, skipping creation');
-      return;
-    }
-
-    console.log('[SocketProvider] Creating socket connection to', `${SOCKET_BASE_URL}${SOCKET_NAMESPACE}`);
+    console.log('[SocketProvider] Creating socket for', `${SOCKET_BASE_URL}${SOCKET_NAMESPACE}`);
 
     const newSocket = io(`${SOCKET_BASE_URL}${SOCKET_NAMESPACE}`, {
       auth: { token },
       transports: ['websocket'],
       autoConnect: false,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnection: false, // hook controls reconnection via re-mount
     });
 
-    newSocket.on('connect', () => {
-      console.log(`[Socket] Connected ✅ id=${newSocket.id}`);
-    });
+    newSocket.on('connect', () => console.log(`[Socket] Connected ✅ id=${newSocket.id}`));
+    newSocket.on('connect_error', (err) => console.error('[Socket] Connection error ❌:', err.message));
+    newSocket.on('disconnect', (reason) => console.log('[Socket] Disconnected:', reason));
 
-    newSocket.on('connect_error', (err) => {
-      console.error('[Socket] Connection error ❌:', err.message, err);
-    });
-
-    newSocket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
-      // Clear socket from state so a new one can be created on next mount
-      setSocket(null);
-    });
-
-    newSocket.on('error', (err) => {
-      console.error('[Socket] Server error event:', err);
-    });
-
+    socketRef.current = newSocket;
     setSocket(newSocket);
 
     return () => {
-      console.log('[SocketProvider] Cleaning up socket');
+      console.log('[SocketProvider] Cleanup — disconnecting socket');
       newSocket.disconnect();
+      socketRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return (
