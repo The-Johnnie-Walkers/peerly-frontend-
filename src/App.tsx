@@ -1,10 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes} from "react-router-dom";
 import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { CurrentUserProvider } from "@/shared/contexts/CurrentUserContext";
-import { BottomNav } from "@/shared/components/layout/BottomNav";
 import SplashScreen from "./features/auth/pages/SplashScreen";
 import OnboardingScreen from "./features/auth/pages/OnboardingScreen";
 import Register from "./features/auth/pages/Register";
@@ -26,12 +25,6 @@ import Login from "./features/auth/pages/Login";
 const queryClient = new QueryClient();
 
 const AppLayout = () => {
-  const location = useLocation();
-  const hideBottomNavOn = ["/", "/forgot-password", "/register", "/splash", "/onboarding"];
-  const hideBottomNavByPrefix = ["/activity/"];
-  const shouldHideByPrefix = hideBottomNavByPrefix.some((prefix) => location.pathname.startsWith(prefix));
-  const shouldShowBottomNav = !hideBottomNavOn.includes(location.pathname) && !shouldHideByPrefix;
-
   return (
     <div className="min-h-screen bg-background">
         <div className="min-h-[calc(100vh-2rem)] lg:min-h-[calc(100vh-4rem)]">
@@ -56,7 +49,6 @@ const AppLayout = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
       </div>
-      {shouldShowBottomNav && <BottomNav />}
     </div>
   );
 };

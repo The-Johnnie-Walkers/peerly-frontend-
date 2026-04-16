@@ -1,7 +1,7 @@
-import { Mail, Lock, ArrowRight, LucideIcon } from "lucide-react";
+import { Mail, Lock, ArrowRight, LucideIcon, ChevronLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { useState } from "react";
@@ -123,146 +123,109 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--peerly-background))] flex items-center justify-center px-4 py-8 relative overflow-hidden">
-      {/* Fondo moderno (sutil) */}
+    <div className="relative flex overflow-hidden min-h-screen bg-[hsl(var(--peerly-background))]">
       <BubbleBackground showGlow />
-
-      <div className="w-full max-w-5xl grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-center relative z-10">
-        {/* Hero */}
-        <motion.div
-          variants={container}
-          initial={reduceMotion ? "show" : "hidden"}
-          animate="show"
-          className="space-y-8"
-        >
+      <a href="/" className="group hover:text-gray-500 p-8 flex z-20 absolute top-0 left-0 transition delay-150 duration-300 ease-in-out">
+        <ChevronLeft className="transition duration-300 ease-in-out group-hover:-translate-x-1"/>
+        Volver
+      </a>
+      <div className="flex items-center justify-center px-4 pt-20 pb-8 min-h-screen w-full">
+        <div className="max-w-5xl grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-center relative z-10">
+          {/* Hero */}
           <motion.div
-            variants={fadeUp}
-            className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--peerly-soft-accent))] px-3 py-1 text-xs font-medium text-[color:hsl(var(--peerly-primary-dark))] border border-border/60 shadow-sm"
+            variants={container}
+            initial={reduceMotion ? "show" : "hidden"}
+            animate="show"
+            className="space-y-8 text-center lg:text-left"
           >
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--peerly-primary))] text-white text-[10px] font-bold shadow-sm">
-              P
-            </span>
-            Conecta con tu campus en segundos
-          </motion.div>
-
-          <div className="space-y-4">
-            <motion.h1
-              variants={fadeUp}
-              className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[color:hsl(var(--peerly-primary-dark))]"
-            >
-              Conecta con la gente,
-              <br />
-              conecta con <span className="bg-gradient-to-r from-[hsl(var(--peerly-primary))] to-[hsl(var(--peerly-secondary))] bg-clip-text text-transparent">Peerly</span>
-            </motion.h1>
-            <motion.p
-              variants={fadeUp}
-              className="text-sm sm:text-base max-w-md text-[color:hsl(var(--peerly-text-secondary))]"
-            >
-              Descubre estudiantes compatibles, únete a actividades en tu campus y construye una comunidad auténtica,
-              sin ruido ni estrés.
-            </motion.p>
-          </div>
-
-          <motion.div variants={fadeUp} className="grid grid-cols-2 gap-4 max-w-md">
-            <motion.div
-              whileHover={reduceMotion ? undefined : { y: -2, scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              className="rounded-3xl bg-white/95 shadow-card p-4 border border-border backdrop-blur-sm"
-            >
-              <p className="text-[10px] font-mono font-bold text-[color:hsl(var(--peerly-primary))] uppercase tracking-widest mb-1">
-                Conecta con quien encaja
-              </p>
-              <p className="text-sm font-medium text-foreground">
-                Conoce a compañeros por intereses, carrera y horarios. Tú decides cómo sigue.
-              </p>
-            </motion.div>
-            <motion.div
-              whileHover={reduceMotion ? undefined : { y: -2, scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              className="rounded-3xl bg-white/95 shadow-card p-4 border border-border backdrop-blur-sm"
-            >
-              <p className="text-[10px] font-mono font-bold text-[color:hsl(var(--peerly-secondary))] uppercase tracking-widest mb-1">
-                Actividades
-              </p>
-              <p className="text-sm font-medium text-foreground">
-                Encuentra planes, grupos de estudio y eventos creados por estudiantes.
-              </p>
-            </motion.div>
-          </motion.div>
-
-          <motion.p variants={fadeUp} className="text-xs text-[color:hsl(var(--peerly-text-secondary))]">
-            Disponible solo para correos universitarios. Tu campus, tu comunidad.
-          </motion.p>
-        </motion.div>
-
-        {/* Login card */}
-        <motion.div
-          variants={fadeInRight}
-          initial={reduceMotion ? "show" : "hidden"}
-          animate="show"
-        >
-          <Card className="rounded-3xl border-border/60 shadow-card bg-white/90 backdrop-blur">
-          <CardHeader className="space-y-1.5">
-            <CardTitle className="font-display text-xl text-[color:hsl(var(--peerly-primary-dark))]">
-              Inicia sesión
-            </CardTitle>
-            <CardDescription className="text-[13px]">
-              Entra con tu correo universitario para continuar donde lo dejaste.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <form onSubmit={handleLogin}>
-              <div className="space-y-4">
-                <Field
-                  icon={Mail}
-                  label="Correo universitario"
-                  type="email"
-                  placeholder="tucorreo@universidad.edu"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                <Field
-                  icon={Lock}
-                  label="Contraseña"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-
-              <Button 
-                type="submit" 
-                disabled={isLoading || !email || !password}
-                className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm mt-6"
+            <div className="space-y-4">
+              <motion.h1
+                variants={fadeUp}
+                className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[color:hsl(var(--peerly-primary-dark))]"
               >
-                {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </form>
-
-            <Button
-              variant="outline"
-              className="w-full h-11 rounded-2xl bg-white hover:bg-[hsl(var(--peerly-soft-accent))] text-foreground text-sm justify-center border-border"
-            >
-              <GoogleIcon className="w-4 h-4" />
-              <span>Continuar con Google</span>
-            </Button>
-
-            <div className="flex items-center justify-between text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">
-              <Link to="/forgot-password" className="hover:text-[hsl(var(--peerly-primary))] transition-colors">
-                ¿Olvidaste tu contraseña?
-              </Link>
-              <Link
-                to="/register"
-                className="hover:text-[hsl(var(--peerly-primary))] transition-colors font-medium"
+                Conecta con la gente,
+                <br />
+                conecta con <span className="bg-gradient-to-r from-[hsl(var(--peerly-primary))] to-[hsl(var(--peerly-secondary))] bg-clip-text text-transparent">Peerly</span>
+              </motion.h1>
+              <motion.p
+                variants={fadeUp}
+                className="text-sm sm:text-base max-w-md mx-auto lg:mx-0 text-[color:hsl(var(--peerly-text-secondary))]"
               >
-                ¿No tienes cuenta? <span className="font-semibold">Regístrate</span>
-              </Link>
+                Descubre estudiantes compatibles, únete a actividades en tu campus y construye una comunidad auténtica,
+                sin ruido ni estrés.
+              </motion.p>
             </div>
-          </CardContent>
-          </Card>
-        </motion.div>
+
+            <motion.p variants={fadeUp} className="text-xs text-[color:hsl(var(--peerly-text-secondary))]">
+              Disponible solo para correos universitarios. Tu campus, tu comunidad.
+            </motion.p>
+          </motion.div>
+
+          <motion.div
+            variants={fadeInRight}
+            initial={reduceMotion ? "show" : "hidden"}
+            animate="show"
+          >
+            <Card className="rounded-3xl border-border/60 shadow-card bg-white/90 backdrop-blur">
+            <CardHeader className="space-y-1.5">
+              <CardTitle className="font-display text-xl text-[color:hsl(var(--peerly-primary-dark))]">
+                Iniciar sesión
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form onSubmit={handleLogin}>
+                <div className="space-y-4">
+                  <Field
+                    icon={Mail}
+                    label="Correo universitario"
+                    type="email"
+                    placeholder="tucorreo@universidad.edu"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <Field
+                    icon={Lock}
+                    label="Contraseña"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+
+                <Button 
+                  type="submit" 
+                  disabled={isLoading || !email || !password}
+                  className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm mt-6"
+                >
+                  {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </form>
+
+              <Button
+                variant="outline"
+                className="w-full h-11 rounded-2xl bg-white hover:bg-[hsl(var(--peerly-soft-accent))] text-foreground text-sm justify-center border-border"
+              >
+                <GoogleIcon className="w-4 h-4" />
+                <span>Continuar con Google</span>
+              </Button>
+
+              <div className="flex items-center justify-between text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">
+                <Link to="/forgot-password" className="hover:text-[hsl(var(--peerly-primary))] transition-colors">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+                <Link
+                  to="/register"
+                  className="hover:text-[hsl(var(--peerly-primary))] transition-colors font-medium"
+                >
+                  ¿No tienes cuenta? <span className="font-semibold">Regístrate</span>
+                </Link>
+              </div>
+            </CardContent>
+            </Card>
+          </motion.div>
+        </div>
       </div>
     </div>
   );
