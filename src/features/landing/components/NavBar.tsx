@@ -27,7 +27,7 @@ export default function NavBar() {
                     ))}
                 </ul>
 
-                <a href='/login' className="hidden md:block bg-[#C87C65] rounded p-2 text-white hover:bg-[#b56b55] transition-colors duration-200">
+                <a href='/login' className="hidden md:block bg-[#C87C65] rounded p-1.5 text-white hover:bg-[#b56b55] transition-colors duration-200">
                     Empieza aqui
                 </a>
 
@@ -57,7 +57,7 @@ export default function NavBar() {
                             {label}
                         </a>
                     ))}
-                    <a href='/login' className="bg-[#C87C65] rounded p-2 text-white w-full hover:bg-[#b56b55] transition-colors duration-200">
+                    <a href='/login' className="bg-[#C87C65] rounded p-1.5 text-white w-full hover:bg-[#b56b55] transition-colors duration-200">
                         Empieza aqui
                     </a>
                 </div>
