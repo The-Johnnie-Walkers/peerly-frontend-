@@ -1,4 +1,4 @@
-import { userApi, USERS_API_BASE } from '@/shared/lib/api';
+import { api, userApi, USERS_API_BASE } from '@/shared/lib/api';
 import { authService } from '@/features/auth/services/auth.service';
 
 export interface UserProfile {
@@ -46,6 +46,15 @@ export const userService = {
     }
   },
 
+  async getUserByEmail(email: string): Promise<UserProfile | null> {
+    try {
+      const users = await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
+      return users.find(u => u.email === email) || null;
+    } catch {
+      return null;
+    }
+  },
+
   async getAllUsers(): Promise<UserProfile[]> {
     try {
       return await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
@@ -62,7 +71,6 @@ export const userService = {
     return await userApi.request<UserProfile>(`${USERS_API_BASE}/${id}`, {
       method: 'PUT',
       body: data,
-      headers,
     });
   },
 
@@ -73,7 +81,6 @@ export const userService = {
 
     await userApi.request(`${USERS_API_BASE}/${id}`, {
       method: 'DELETE',
-      headers,
     });
   },
 };

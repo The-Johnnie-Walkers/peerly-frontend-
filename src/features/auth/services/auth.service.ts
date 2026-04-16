@@ -1,4 +1,4 @@
-import { api, AUTH_API_BASE } from '@/shared/lib/api';
+import { authApi, AUTH_API_BASE } from '@/shared/lib/api';
 
 export interface LoginRequest {
   email: string;
@@ -26,14 +26,14 @@ export interface RegisterResponse {
 
 export const authService = {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await api.request<LoginResponse>(`${AUTH_API_BASE}/login`, {
+    const response = await authApi.request<LoginResponse>(`${AUTH_API_BASE}/login`, {
       method: 'POST',
       body: credentials,
     });
     
     if (response.token) {
       localStorage.setItem('auth_token', response.token);
-      localStorage.setItem('user_id', response.id);
+      // No guardar el authId aún, primero obtener el userId de user-management
       localStorage.setItem('user_name', response.name);
       localStorage.setItem('user_email', response.email);
     }
@@ -42,10 +42,17 @@ export const authService = {
   },
 
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const response = await api.request<RegisterResponse>(`${AUTH_API_BASE}/register`, {
+    const response = await authApi.request<RegisterResponse>(`${AUTH_API_BASE}/register`, {
       method: 'POST',
       body: data,
     });
+    
+    // Guardar el ID del usuario registrado
+    if (response.id) {
+      localStorage.setItem('user_id', response.id);
+      localStorage.setItem('user_name', response.name);
+      localStorage.setItem('user_email', response.email);
+    }
     
     return response;
   },
@@ -58,7 +65,28 @@ export const authService = {
   },
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
+    if (!token) return null;
+
+    // Decode payload and check expiration without a library
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const isExpired = payload.exp && Date.now() / 1000 > payload.exp;
+      if (isExpired) {
+        // Token expired — clear session and force re-login
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('user_name');
+        localStorage.removeItem('user_email');
+        return null;
+      }
+    } catch {
+      // Malformed token — discard it
+      localStorage.removeItem('auth_token');
+      return null;
+    }
+
+    return token;
   },
 
   isAuthenticated(): boolean {

@@ -36,13 +36,13 @@ const LERP_FACTOR = 0.15;
 
 const VirtualWorld: React.FC = () => {
   const currentUser = authService.getCurrentUser();
-
   const {
     users: remoteUsers,
     chatHistory,
     move,
     sendMessage,
     targetPositions,
+    myAuthId,
     padStates,
     crownState,
     activeDuel,
@@ -59,6 +59,7 @@ const VirtualWorld: React.FC = () => {
   const checkDuelPadsRef = useRef(checkDuelPads);
   const isChatFocusedRef = useRef(false);
   const activeDuelRef = useRef<DuelStartedPayload | null>(activeDuel);
+  const myAuthIdRef = useRef<string | null>(myAuthId);
 
   // Keep refs in sync with latest values every render (no re-render cost)
   useEffect(() => { remoteUsersRef.current = remoteUsers; }, [remoteUsers]);
@@ -68,6 +69,7 @@ const VirtualWorld: React.FC = () => {
   useEffect(() => { crownStateRef.current = crownState; }, [crownState]);
   useEffect(() => { checkDuelPadsRef.current = checkDuelPads; }, [checkDuelPads]);
   useEffect(() => { activeDuelRef.current = activeDuel; }, [activeDuel]);
+  useEffect(() => { myAuthIdRef.current = myAuthId; }, [myAuthId]);
 
   // ── React state (only for UI re-renders) ─────────────────────────────────
   const [player, setPlayer] = useState(() => ({
@@ -92,7 +94,6 @@ const VirtualWorld: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const keysPressed = useRef<Record<string, boolean>>({});
-  const nearbyUserRef = useRef<UserInMap | null>(null);
 
   // ── Mobile detection ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -105,8 +106,11 @@ const VirtualWorld: React.FC = () => {
   // ── Chat bubbles ──────────────────────────────────────────────────────────
   const addBubble = useCallback((userId: string, userName: string, message: string) => {
     const bubble: ChatBubble = {
-      id: Math.random().toString(36).substr(2, 9),
-      userId, userName, message, timestamp: Date.now(),
+      id: Math.random().toString(36).substring(2, 9),
+      userId,
+      name: userName,
+      message,
+      timestamp: Date.now(),
     };
     bubblesRef.current = [...bubblesRef.current.slice(-9), bubble];
     setTimeout(() => {
@@ -124,7 +128,8 @@ const VirtualWorld: React.FC = () => {
   // ── Duel transition ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeDuel) return;
-    const uid = authService.getCurrentUser()?.id;
+    // Use myAuthId (JWT sub) — same ID the server uses to identify players
+    const uid = myAuthIdRef.current;
     if (!uid) return;
     const isP1 = activeDuel.player1.userId === uid;
     setActiveMatch({
@@ -133,7 +138,7 @@ const VirtualWorld: React.FC = () => {
       opponent: isP1 ? activeDuel.player2 : activeDuel.player1,
     });
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
-  }, [activeDuel]); // only activeDuel — no currentUser object
+  }, [activeDuel]);
 
   // ── Main RAF loop (stable — no deps that change on every render) ──────────
   const update = useCallback(() => {
@@ -158,10 +163,8 @@ const VirtualWorld: React.FC = () => {
       }
     }
 
-    checkDuelPadsRef.current(playerRef.current.x, playerRef.current.y);
-
-    // Interpolate remote users
-    const myId = authService.getCurrentUser()?.id || '';
+    // Interpolate remote users — filter self using myAuthId (JWT sub)
+    const myId = myAuthIdRef.current || '';
     const updated = remoteUsersRef.current
       .filter(u => u.userId !== myId)
       .map(user => {
@@ -185,14 +188,16 @@ const VirtualWorld: React.FC = () => {
       const d = Math.hypot(u.x - playerRef.current.x, u.y - playerRef.current.y);
       if (d < minDist) { minDist = d; closest = u; }
     });
-    if (nearbyUserRef.current?.userId !== closest?.userId) {
-      nearbyUserRef.current = closest;
+    if (nearbyUser?.userId !== closest?.userId) {
       setNearbyUser(closest);
     }
 
+    // Check duel pad overlap
+    checkDuelPadsRef.current?.(playerRef.current.x, playerRef.current.y);
+
     draw();
     requestRef.current = requestAnimationFrame(update);
-  }, []); // ← empty deps: all data comes from refs
+  }, []); // stable — all data via refs
 
   // ── Canvas draw ───────────────────────────────────────────────────────────
   const draw = () => {
@@ -306,7 +311,7 @@ const VirtualWorld: React.FC = () => {
   };
 
   const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
-    let rad = Math.min(r, w / 2, h / 2);
+    const rad = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
     ctx.moveTo(x + rad, y);
     ctx.arcTo(x + w, y, x + w, y + h, rad);
@@ -328,11 +333,24 @@ const VirtualWorld: React.FC = () => {
       window.removeEventListener('keyup',   onKeyUp);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [update]); // update is now stable (empty deps)
+  }, [update]);
 
   const handleMobileControl = (key: string, pressed: boolean) => {
     keysPressed.current[key] = pressed;
   };
+
+  const emitConnectAttempt = useCallback(async (targetUserId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      await api.request('/connections', {
+        method: 'POST',
+        body: { requesterId: currentUser.id, receiverId: targetUserId },
+      });
+      toast({ title: 'Solicitud enviada', description: 'Se ha enviado una solicitud de conexión.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar la solicitud de conexión.' });
+    }
+  }, [currentUser]);
 
   const handleMatchEnd = useCallback((spawnX: number, spawnY: number) => {
     const next = { ...playerRef.current, x: spawnX, y: spawnY };
@@ -343,11 +361,12 @@ const VirtualWorld: React.FC = () => {
   }, [clearActiveDuel]);
 
   // ── Match screen ──────────────────────────────────────────────────────────
-  if (activeMatch && currentUser) {
+  if (activeMatch) {
+    const localName = currentUser?.name || 'Tú';
     return (
       <FootballDuelMatch
         matchId={activeMatch.matchId}
-        localPlayer={{ userId: currentUser.id, name: currentUser.name, role: activeMatch.role }}
+        localPlayer={{ userId: myAuthIdRef.current ?? '', name: localName, role: activeMatch.role }}
         opponent={activeMatch.opponent}
         onMatchEnd={handleMatchEnd}
       />
@@ -392,9 +411,9 @@ const VirtualWorld: React.FC = () => {
           <div className="flex justify-between items-center mt-4 px-2">
             <div className="grid grid-cols-3 gap-1 bg-card p-3 rounded-2xl border border-border shadow-sm">
               <div />
-              {(['btn-up','btn-left','btn-down','btn-right'] as const).map((key, i) => {
-                const labels = ['↑','←','↓','→'];
-                const ariaLabels = ['Mover arriba','Mover izquierda','Mover abajo','Mover derecha'];
+              {(['btn-up', 'btn-left', 'btn-down', 'btn-right'] as const).map((key, i) => {
+                const labels = ['↑', '←', '↓', '→'];
+                const ariaLabels = ['Mover arriba', 'Mover izquierda', 'Mover abajo', 'Mover derecha'];
                 return (
                   <button key={key} type="button"
                     className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
@@ -413,7 +432,10 @@ const VirtualWorld: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={(e) => { e.preventDefault(); if (inputMessage.trim()) { sendMessage(inputMessage); setInputMessage(''); } }} className="mt-4 flex gap-2">
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (inputMessage.trim()) { sendMessage(inputMessage); setInputMessage(''); } }}
+          className="mt-4 flex gap-2"
+        >
           <div className="relative flex-1">
             <input
               type="text"
@@ -456,21 +478,6 @@ const VirtualWorld: React.FC = () => {
       </div>
     </div>
   );
-};
-
-// Helper used in JSX above
-const emitConnectAttempt = async (targetUserId: string) => {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser?.id) return;
-  try {
-    await api.request('/connections', {
-      method: 'POST',
-      body: { requesterId: currentUser.id, receiverId: targetUserId },
-    });
-    toast({ title: 'Solicitud enviada', description: 'Se ha enviado una solicitud de conexión.' });
-  } catch {
-    toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar la solicitud de conexión.' });
-  }
 };
 
 export default VirtualWorld;
