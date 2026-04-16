@@ -1,14 +1,19 @@
-import { ArrowLeft, Mail } from "lucide-react";
+import { ChevronLeft, Mail } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import { Link } from "react-router-dom";
+import BubbleBackground from "@/shared/components/ui/bubble-background";
 
 const ForgotPassword = () => {
   return (
-    <div className="min-h-screen bg-[hsl(var(--peerly-background))] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <Card className="rounded-3xl border-border/60 bg-white/95 shadow-card">
+    <div className="min-h-screen bg-[hsl(var(--peerly-background))] relative flex overflow-hidden">
+      <BubbleBackground showGlow/>
+      <a href="/login" className="group hover:text-gray-500 p-8 flex z-20 absolute top-0 left-0 transition delay-150 duration-300 ease-in-out">
+        <ChevronLeft className="transition duration-300 ease-in-out group-hover:-translate-x-1"/>
+        Volver al inicio de sesión
+      </a>
+      <div className="flex items-center justify-center w-full min-h-screen pt-20 pb-8 px-4">
+        <Card className="rounded-3xl border-border/60 bg-white/95 shadow-card w-full max-w-md">
           <CardHeader className="space-y-2 pb-4">
             <CardTitle className="font-display text-2xl text-[color:hsl(var(--peerly-primary-dark))]">
               Recuperar cuenta
@@ -37,16 +42,6 @@ const ForgotPassword = () => {
             <Button className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm">
               Enviar enlace
             </Button>
-
-            <div className="flex justify-center">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] hover:text-[hsl(var(--peerly-primary))] transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Volver al inicio de sesión
-              </Link>
-            </div>
           </CardContent>
         </Card>
       </div>
