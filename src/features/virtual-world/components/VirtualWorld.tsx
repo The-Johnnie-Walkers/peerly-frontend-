@@ -26,10 +26,16 @@ const CANVAS_THEME = {
   secondaryDeep: 'hsl(146 45% 52%)',
 } as const;
 
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 600;
+// World dimensions (2× the original map)
+const WORLD_WIDTH = 1600;
+const WORLD_HEIGHT = 1200;
+
+// Viewport dimensions (what the player sees — fixed canvas size)
+const VIEWPORT_WIDTH = 800;
+const VIEWPORT_HEIGHT = 600;
+
 const GRID_SIZE = 32;
-const AVATAR_RADIUS = 20;
+const AVATAR_RADIUS = 14;       // smaller avatars so the bigger map feels more open
 const MOVEMENT_SPEED = 3;
 const PROXIMITY_THRESHOLD = 80;
 const BUBBLE_TIMEOUT = 3000;
@@ -64,7 +70,6 @@ const VirtualWorld: React.FC = () => {
   const activeDuelRef = useRef<DuelStartedPayload | null>(activeDuel);
   const myAuthIdRef = useRef<string | null>(myAuthId);
 
-  // Keep refs in sync with latest values every render (no re-render cost)
   useEffect(() => { remoteUsersRef.current = remoteUsers; }, [remoteUsers]);
   useEffect(() => { targetPositionsRef.current = targetPositions; }, [targetPositions]);
   useEffect(() => { moveRef.current = move; }, [move]);
@@ -74,10 +79,10 @@ const VirtualWorld: React.FC = () => {
   useEffect(() => { activeDuelRef.current = activeDuel; }, [activeDuel]);
   useEffect(() => { myAuthIdRef.current = myAuthId; }, [myAuthId]);
 
-  // ── React state (only for UI re-renders) ─────────────────────────────────
+  // ── React state ───────────────────────────────────────────────────────────
   const [player, setPlayer] = useState(() => ({
-    x: Math.random() * (CANVAS_WIDTH - 100) + 50,
-    y: Math.random() * (CANVAS_HEIGHT - 100) + 50,
+    x: Math.random() * (WORLD_WIDTH - 200) + 100,
+    y: Math.random() * (WORLD_HEIGHT - 200) + 100,
     name: currentUser?.name || 'Tú',
     color: CANVAS_THEME.primaryDark,
   }));
@@ -97,6 +102,18 @@ const VirtualWorld: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const keysPressed = useRef<Record<string, boolean>>({});
+
+  // ── Camera offset (top-left world coordinate visible in viewport) ─────────
+  const cameraRef = useRef({ x: 0, y: 0 });
+
+  const updateCamera = (px: number, py: number) => {
+    const cx = px - VIEWPORT_WIDTH / 2;
+    const cy = py - VIEWPORT_HEIGHT / 2;
+    cameraRef.current = {
+      x: Math.max(0, Math.min(cx, WORLD_WIDTH - VIEWPORT_WIDTH)),
+      y: Math.max(0, Math.min(cy, WORLD_HEIGHT - VIEWPORT_HEIGHT)),
+    };
+  };
 
   // ── Mobile detection ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -131,7 +148,6 @@ const VirtualWorld: React.FC = () => {
   // ── Duel transition ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeDuel) return;
-    // Use myAuthId (JWT sub) — same ID the server uses to identify players
     const uid = myAuthIdRef.current;
     if (!uid) return;
     const isP1 = activeDuel.player1.userId === uid;
@@ -141,14 +157,10 @@ const VirtualWorld: React.FC = () => {
       opponent: isP1 ? activeDuel.player2 : activeDuel.player1,
     });
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    // Leave the map while in the duel so the avatar disappears for other users
-    // and the server cleans up presence. rejoinMap() will re-add on return.
-    if (socket?.connected) {
-      socket.emit('leaveMap');
-    }
+    if (socket?.connected) socket.emit('leaveMap');
   }, [activeDuel, socket]);
 
-  // ── Main RAF loop (stable — no deps that change on every render) ──────────
+  // ── Main RAF loop ─────────────────────────────────────────────────────────
   const update = useCallback(() => {
     let dx = 0, dy = 0;
 
@@ -161,8 +173,8 @@ const VirtualWorld: React.FC = () => {
     }
 
     if (dx !== 0 || dy !== 0) {
-      const nx = Math.max(AVATAR_RADIUS, Math.min(CANVAS_WIDTH  - AVATAR_RADIUS, playerRef.current.x + dx));
-      const ny = Math.max(AVATAR_RADIUS, Math.min(CANVAS_HEIGHT - AVATAR_RADIUS, playerRef.current.y + dy));
+      const nx = Math.max(AVATAR_RADIUS, Math.min(WORLD_WIDTH  - AVATAR_RADIUS, playerRef.current.x + dx));
+      const ny = Math.max(AVATAR_RADIUS, Math.min(WORLD_HEIGHT - AVATAR_RADIUS, playerRef.current.y + dy));
       if (nx !== playerRef.current.x || ny !== playerRef.current.y) {
         const next = { ...playerRef.current, x: nx, y: ny };
         playerRef.current = next;
@@ -171,7 +183,10 @@ const VirtualWorld: React.FC = () => {
       }
     }
 
-    // Interpolate remote users — filter self using myAuthId (JWT sub)
+    // Update camera to follow player
+    updateCamera(playerRef.current.x, playerRef.current.y);
+
+    // Interpolate remote users
     const myId = myAuthIdRef.current || '';
     const updated = remoteUsersRef.current
       .filter(u => u.userId !== myId)
@@ -196,16 +211,13 @@ const VirtualWorld: React.FC = () => {
       const d = Math.hypot(u.x - playerRef.current.x, u.y - playerRef.current.y);
       if (d < minDist) { minDist = d; closest = u; }
     });
-    if (nearbyUser?.userId !== closest?.userId) {
-      setNearbyUser(closest);
-    }
+    if (nearbyUser?.userId !== closest?.userId) setNearbyUser(closest);
 
-    // Check duel pad overlap
     checkDuelPadsRef.current?.(playerRef.current.x, playerRef.current.y);
 
     draw();
     requestRef.current = requestAnimationFrame(update);
-  }, []); // stable — all data via refs
+  }, []); // stable
 
   // ── Canvas draw ───────────────────────────────────────────────────────────
   const draw = () => {
@@ -214,21 +226,33 @@ const VirtualWorld: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const cam = cameraRef.current;
     const pads = padStatesRef.current;
     const crown = crownStateRef.current;
     const uid = authService.getCurrentUser()?.id;
 
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.clearRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
 
-    // Grid
+    // Apply camera transform — everything drawn after this is in world space
+    ctx.save();
+    ctx.translate(-cam.x, -cam.y);
+
+    // Grid (only draw visible portion for performance)
     ctx.strokeStyle = CANVAS_THEME.grid;
     ctx.lineWidth = 1;
-    for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_HEIGHT); ctx.stroke();
+    const startX = Math.floor(cam.x / GRID_SIZE) * GRID_SIZE;
+    const startY = Math.floor(cam.y / GRID_SIZE) * GRID_SIZE;
+    for (let x = startX; x <= cam.x + VIEWPORT_WIDTH; x += GRID_SIZE) {
+      ctx.beginPath(); ctx.moveTo(x, cam.y); ctx.lineTo(x, cam.y + VIEWPORT_HEIGHT); ctx.stroke();
     }
-    for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_WIDTH, y); ctx.stroke();
+    for (let y = startY; y <= cam.y + VIEWPORT_HEIGHT; y += GRID_SIZE) {
+      ctx.beginPath(); ctx.moveTo(cam.x, y); ctx.lineTo(cam.x + VIEWPORT_WIDTH, y); ctx.stroke();
     }
+
+    // World border
+    ctx.strokeStyle = 'hsl(43 35% 70%)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
     // Duel pads
     const padsToRender: PadState[] = pads.length > 0 ? pads : [
@@ -255,30 +279,32 @@ const VirtualWorld: React.FC = () => {
     drawAvatar(ctx, playerRef.current.x, playerRef.current.y, playerRef.current.color, playerRef.current.name, true);
     drawBubble(ctx, playerRef.current.x, playerRef.current.y, uid || 'me');
     if (crown?.winnerId === uid) drawCrown(ctx, playerRef.current.x, playerRef.current.y);
+
+    ctx.restore();
   };
 
   const drawAvatar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, name: string, isMe = false) => {
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 8;
     ctx.shadowColor = 'hsl(30 20% 30% / 0.12)';
-    ctx.shadowOffsetY = 4;
+    ctx.shadowOffsetY = 3;
     ctx.beginPath();
     ctx.arc(x, y, AVATAR_RADIUS, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
     ctx.strokeStyle = CANVAS_THEME.surface;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.fillStyle = CANVAS_THEME.foreground;
-    ctx.font = 'bold 12px "DM Sans", system-ui, sans-serif';
+    ctx.font = 'bold 10px "DM Sans", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, x, y - AVATAR_RADIUS - 10);
+    ctx.fillText(name, x, y - AVATAR_RADIUS - 6);
     if (isMe) {
       ctx.strokeStyle = CANVAS_THEME.primary;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, AVATAR_RADIUS + 5, 0, Math.PI * 2);
+      ctx.arc(x, y, AVATAR_RADIUS + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
   };
@@ -286,23 +312,23 @@ const VirtualWorld: React.FC = () => {
   const drawBubble = (ctx: CanvasRenderingContext2D, x: number, y: number, userId: string) => {
     const bubble = bubblesRef.current.find(b => b.userId === userId);
     if (!bubble) return;
-    const padding = 10, maxWidth = 150;
-    ctx.font = '12px "DM Sans", sans-serif';
+    const padding = 8, maxWidth = 140;
+    ctx.font = '11px "DM Sans", sans-serif';
     const lines = wrapText(ctx, bubble.message, maxWidth);
-    const bh = lines.length * 16 + padding * 2;
+    const bh = lines.length * 15 + padding * 2;
     const bw = Math.min(maxWidth, ctx.measureText(bubble.message).width + padding * 2);
-    const bx = x - bw / 2, by = y - AVATAR_RADIUS - 40 - bh;
+    const bx = x - bw / 2, by = y - AVATAR_RADIUS - 36 - bh;
     ctx.fillStyle = CANVAS_THEME.surface;
     ctx.strokeStyle = CANVAS_THEME.grid;
     ctx.lineWidth = 1;
-    roundRect(ctx, bx, by, bw, bh, 8);
+    roundRect(ctx, bx, by, bw, bh, 7);
     ctx.fill(); ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x - 5, by + bh); ctx.lineTo(x + 5, by + bh); ctx.lineTo(x, by + bh + 8);
+    ctx.moveTo(x - 4, by + bh); ctx.lineTo(x + 4, by + bh); ctx.lineTo(x, by + bh + 7);
     ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = CANVAS_THEME.mutedForeground;
     ctx.textAlign = 'left';
-    lines.forEach((line, i) => ctx.fillText(line, bx + padding, by + padding + 12 + i * 16));
+    lines.forEach((line, i) => ctx.fillText(line, bx + padding, by + padding + 11 + i * 15));
   };
 
   const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
@@ -335,6 +361,8 @@ const VirtualWorld: React.FC = () => {
     const onKeyUp   = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup',   onKeyUp);
+    // Initialise camera on mount
+    updateCamera(playerRef.current.x, playerRef.current.y);
     requestRef.current = requestAnimationFrame(update);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -364,17 +392,19 @@ const VirtualWorld: React.FC = () => {
     const next = { ...playerRef.current, x: spawnX, y: spawnY };
     playerRef.current = next;
     setPlayer(next);
+    updateCamera(spawnX, spawnY);
     setActiveMatch(null);
     clearActiveDuel();
     rejoinMap();
-    // Restart the RAF loop after React re-renders the canvas.
-    // setActiveMatch(null) is async — the canvas isn't in the DOM yet at this point,
-    // so we defer one tick with setTimeout to let React commit the new render.
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     setTimeout(() => {
       requestRef.current = requestAnimationFrame(update);
     }, 0);
   }, [clearActiveDuel, rejoinMap, update]);
+
+  // Nearby user button position in viewport space
+  const nearbyViewX = nearbyUser ? nearbyUser.x - cameraRef.current.x : 0;
+  const nearbyViewY = nearbyUser ? nearbyUser.y - cameraRef.current.y : 0;
 
   // ── Match screen ──────────────────────────────────────────────────────────
   if (activeMatch) {
@@ -398,18 +428,17 @@ const VirtualWorld: React.FC = () => {
           <span className="text-xs font-semibold text-foreground">Oficina Virtual Peerly</span>
         </div>
 
-        <div className="relative bg-card rounded-xl border border-border shadow-inner overflow-auto h-[400px] lg:h-[600px] custom-scrollbar">
+        <div className="relative bg-card rounded-xl border border-border shadow-inner overflow-hidden h-[400px] lg:h-[600px]">
           <canvas
             ref={canvasRef}
-            width={CANVAS_WIDTH}
-            height={CANVAS_HEIGHT}
-            className="cursor-crosshair bg-card"
-            style={{ imageRendering: 'pixelated', minWidth: CANVAS_WIDTH, minHeight: CANVAS_HEIGHT }}
+            width={VIEWPORT_WIDTH}
+            height={VIEWPORT_HEIGHT}
+            className="cursor-crosshair bg-card block w-full h-full"
           />
           {nearbyUser && (
             <div
-              className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full mb-4 animate-bounce"
-              style={{ left: nearbyUser.x, top: nearbyUser.y }}
+              className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full animate-bounce"
+              style={{ left: nearbyViewX, top: nearbyViewY }}
             >
               <button
                 type="button"
