@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, UserPlus, MessageSquare } from 'lucide-react';
 import { useRealtimeMap } from '../hooks/useRealtimeMap';
+import { useSocket } from '@/shared/contexts/SocketContext';
 import { authService } from '@/features/auth/services/auth.service';
 import { api } from '@/shared/lib/api';
 import { toast } from '@/shared/components/ui/use-toast';
@@ -36,6 +37,7 @@ const LERP_FACTOR = 0.15;
 
 const VirtualWorld: React.FC = () => {
   const currentUser = authService.getCurrentUser();
+  const { socket } = useSocket();
   const {
     users: remoteUsers,
     chatHistory,
@@ -48,6 +50,7 @@ const VirtualWorld: React.FC = () => {
     activeDuel,
     checkDuelPads,
     clearActiveDuel,
+    rejoinMap,
   } = useRealtimeMap();
 
   // ── All mutable state that the RAF loop reads goes into refs ──────────────
@@ -138,7 +141,12 @@ const VirtualWorld: React.FC = () => {
       opponent: isP1 ? activeDuel.player2 : activeDuel.player1,
     });
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
-  }, [activeDuel]);
+    // Leave the map while in the duel so the avatar disappears for other users
+    // and the server cleans up presence. rejoinMap() will re-add on return.
+    if (socket?.connected) {
+      socket.emit('leaveMap');
+    }
+  }, [activeDuel, socket]);
 
   // ── Main RAF loop (stable — no deps that change on every render) ──────────
   const update = useCallback(() => {
@@ -358,7 +366,15 @@ const VirtualWorld: React.FC = () => {
     setPlayer(next);
     setActiveMatch(null);
     clearActiveDuel();
-  }, [clearActiveDuel]);
+    rejoinMap();
+    // Restart the RAF loop after React re-renders the canvas.
+    // setActiveMatch(null) is async — the canvas isn't in the DOM yet at this point,
+    // so we defer one tick with setTimeout to let React commit the new render.
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    setTimeout(() => {
+      requestRef.current = requestAnimationFrame(update);
+    }, 0);
+  }, [clearActiveDuel, rejoinMap, update]);
 
   // ── Match screen ──────────────────────────────────────────────────────────
   if (activeMatch) {

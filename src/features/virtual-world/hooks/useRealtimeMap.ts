@@ -87,20 +87,19 @@ export const useRealtimeMap = () => {
   const lastPadCheckSent = useRef<number>(0);
   const PAD_CHECK_THROTTLE_MS = 200;
 
-  // ── Decode auth userId from JWT once ─────────────────────────────────────
-  const myAuthId = useRef<string | null>(null);
-  useEffect(() => {
+  // ── Decode auth userId from JWT synchronously ─────────────────────────────
+  const myAuthId = useRef<string | null>((() => {
     const token = authService.getToken();
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        myAuthId.current = payload.sub ?? null;
-        console.log('[useRealtimeMap] 🔑 Decoded myAuthId from JWT:', myAuthId.current);
-      } catch {
-        console.warn('[useRealtimeMap] ⚠️  Could not decode JWT payload');
-      }
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      console.log('[useRealtimeMap] 🔑 Decoded myAuthId from JWT (sync):', payload.sub ?? null);
+      return payload.sub ?? null;
+    } catch {
+      console.warn('[useRealtimeMap] ⚠️  Could not decode JWT payload');
+      return null;
     }
-  }, []);
+  })());
 
   // ── Mount / unmount cleanup ───────────────────────────────────────────────
   useEffect(() => {
@@ -267,19 +266,6 @@ export const useRealtimeMap = () => {
     };
   }, [socket, socketConnected]);
 
-  // ── Emit leaveMap on component unmount if connected ───────────────────────
-  const socketRef = useRef(socket);
-  useEffect(() => { socketRef.current = socket; }, [socket]);
-
-  useEffect(() => {
-    return () => {
-      if (socketRef.current?.connected) {
-        console.log('[useRealtimeMap] 🚪 Emitting leaveMap on unmount');
-        socketRef.current.emit('leaveMap');
-      }
-    };
-  }, []);
-
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const move = useCallback((x: number, y: number) => {
@@ -309,6 +295,16 @@ export const useRealtimeMap = () => {
     setActiveDuel(null);
   }, []);
 
+  const rejoinMap = useCallback(() => {
+    if (!socket?.connected) return;
+    setTimeout(() => {
+      hasJoinedMap.current = false;
+      socket.emit('joinMap');
+      hasJoinedMap.current = true;
+      console.log('[useRealtimeMap] 🔄 rejoinMap — emitted joinMap after duel transition');
+    }, 100);
+  }, [socket]);
+
   return {
     users: state.users,
     chatHistory: state.chatHistory,
@@ -322,5 +318,6 @@ export const useRealtimeMap = () => {
     activeDuel,
     checkDuelPads,
     clearActiveDuel,
+    rejoinMap,
   };
 };
