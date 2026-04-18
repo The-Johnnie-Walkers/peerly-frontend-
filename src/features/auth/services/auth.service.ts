@@ -30,14 +30,14 @@ export const authService = {
       method: 'POST',
       body: credentials,
     });
-    
+
     if (response.token) {
       localStorage.setItem('auth_token', response.token);
       localStorage.setItem('user_id', response.id);
       localStorage.setItem('user_name', response.name);
       localStorage.setItem('user_email', response.email);
     }
-    
+
     return response;
   },
 
@@ -46,7 +46,7 @@ export const authService = {
       method: 'POST',
       body: data,
     });
-    
+
     return response;
   },
 
@@ -76,11 +76,11 @@ export const authService = {
     return null;
   },
 
-  async forgotPassword(email: string): Promise<void>{
+  async forgotPassword(email: string): Promise<void> {
     const emailTrim = email.trim()
     await api.request(`${AUTH_API_BASE}/forgot-password`, {
       method: 'POST',
-      body: {email: emailTrim},
+      body: { email: emailTrim },
     });
   }
 };

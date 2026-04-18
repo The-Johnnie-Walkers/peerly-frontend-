@@ -83,15 +83,15 @@ const Login = () => {
     setIsLoading(true);
     try {
       const response = await authService.login({ email, password });
-      
+
       const userData = await fetch(`http://localhost:3000/users/${response.id}`, {
         headers: { 'Authorization': `Bearer ${response.token}` }
       }).then(res => res.json()).catch(() => null);
-      
+
       if (userData) {
         localStorage.setItem('user_data', JSON.stringify(userData));
       }
-      
+
       toast.success("¡Bienvenido de nuevo!");
       navigate("/home");
     } catch (error: unknown) {
@@ -126,7 +126,7 @@ const Login = () => {
     <div className="relative flex overflow-hidden min-h-screen bg-[hsl(var(--peerly-background))]">
       <BubbleBackground showGlow />
       <a href="/" className="group hover:text-[hsl(var(--peerly-primary))] p-8 flex z-20 absolute top-0 left-0 transition delay-150 duration-300 ease-in-out">
-        <ChevronLeft className="transition duration-300 ease-in-out group-hover:-translate-x-1"/>
+        <ChevronLeft className="transition duration-300 ease-in-out group-hover:-translate-x-1" />
         Volver
       </a>
       <div className="flex items-center justify-center px-4 pt-20 pb-8 min-h-screen w-full">
@@ -167,62 +167,62 @@ const Login = () => {
             animate="show"
           >
             <Card className="rounded-3xl border-border/60 shadow-card bg-white/90 backdrop-blur">
-            <CardHeader className="space-y-1.5">
-              <CardTitle className="font-display text-xl text-[color:hsl(var(--peerly-primary-dark))]">
-                Iniciar sesión
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <form onSubmit={handleLogin}>
-                <div className="space-y-4">
-                  <Field
-                    icon={Mail}
-                    label="Correo universitario"
-                    type="email"
-                    placeholder="tucorreo@universidad.edu"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  <Field
-                    icon={Lock}
-                    label="Contraseña"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
+              <CardHeader className="space-y-1.5">
+                <CardTitle className="font-display text-xl text-[color:hsl(var(--peerly-primary-dark))]">
+                  Iniciar sesión
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <form onSubmit={handleLogin}>
+                  <div className="space-y-4">
+                    <Field
+                      icon={Mail}
+                      label="Correo universitario"
+                      type="email"
+                      placeholder="tucorreo@universidad.edu"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                    <Field
+                      icon={Lock}
+                      label="Contraseña"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
 
-                <Button 
-                  type="submit" 
-                  disabled={isLoading || !email || !password}
-                  className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm mt-6"
+                  <Button
+                    type="submit"
+                    disabled={isLoading || !email || !password}
+                    className="w-full h-11 rounded-2xl bg-[hsl(var(--peerly-primary))] hover:bg-[hsl(var(--peerly-primary))]/90 text-white font-display font-semibold text-sm mt-6"
+                  >
+                    {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </form>
+
+                <Button
+                  variant="outline"
+                  className="w-full h-11 rounded-2xl bg-white hover:bg-[hsl(var(--peerly-soft-accent))] text-foreground text-sm justify-center border-border"
                 >
-                  {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-                  <ArrowRight className="w-4 h-4" />
+                  <GoogleIcon className="w-4 h-4" />
+                  <span>Continuar con Google</span>
                 </Button>
-              </form>
 
-              <Button
-                variant="outline"
-                className="w-full h-11 rounded-2xl bg-white hover:bg-[hsl(var(--peerly-soft-accent))] text-foreground text-sm justify-center border-border"
-              >
-                <GoogleIcon className="w-4 h-4" />
-                <span>Continuar con Google</span>
-              </Button>
-
-              <div className="flex items-center justify-between text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">
-                <Link to="/forgot-password" className="hover:text-[hsl(var(--peerly-primary))] transition-colors">
-                  ¿Olvidaste tu contraseña?
-                </Link>
-                <Link
-                  to="/register"
-                  className="hover:text-[hsl(var(--peerly-primary))] transition-colors font-medium"
-                >
-                  ¿No tienes cuenta? <span className="font-semibold">Regístrate</span>
-                </Link>
-              </div>
-            </CardContent>
+                <div className="flex items-center justify-between text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">
+                  <Link to="/forgot-password" className="hover:text-[hsl(var(--peerly-primary))] transition-colors">
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="hover:text-[hsl(var(--peerly-primary))] transition-colors font-medium"
+                  >
+                    ¿No tienes cuenta? <span className="font-semibold">Regístrate</span>
+                  </Link>
+                </div>
+              </CardContent>
             </Card>
           </motion.div>
         </div>
