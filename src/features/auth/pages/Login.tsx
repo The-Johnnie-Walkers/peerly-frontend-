@@ -125,7 +125,7 @@ const Login = () => {
   return (
     <div className="relative flex overflow-hidden min-h-screen bg-[hsl(var(--peerly-background))]">
       <BubbleBackground showGlow />
-      <a href="/" className="group hover:text-gray-500 p-8 flex z-20 absolute top-0 left-0 transition delay-150 duration-300 ease-in-out">
+      <a href="/" className="group hover:text-[hsl(var(--peerly-primary))] p-8 flex z-20 absolute top-0 left-0 transition delay-150 duration-300 ease-in-out">
         <ChevronLeft className="transition duration-300 ease-in-out group-hover:-translate-x-1"/>
         Volver
       </a>

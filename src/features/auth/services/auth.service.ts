@@ -75,4 +75,12 @@ export const authService = {
     }
     return null;
   },
+
+  async forgotPassword(email: string): Promise<void>{
+    const emailTrim = email.trim()
+    await api.request(`${AUTH_API_BASE}/forgot-password`, {
+      method: 'POST',
+      body: {email: emailTrim},
+    });
+  }
 };
