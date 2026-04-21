@@ -8,6 +8,8 @@ import { userService, UserProfile } from '@/features/users/services/user.service
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { MOCK_ACTIVITIES, MOCK_NOTIFICATIONS, Notification, Student } from '@/shared/data/mockData';
 import { NotificationPanel } from '@/shared/components/layout/NotificationPanel';
+import { connectionsService } from '@/features/connections/services/connections.service';
+import { ConnectionStatus } from '@/features/connections/types';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
@@ -24,37 +26,48 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchConnectedUsers = async () => {
+      if (!userData?.id) return;
       try {
-        const users = await userService.getAllUsers();
-        // Filtrar al usuario actual y mapear al formato Student que espera el componente
-        const filteredUsers: Student[] = users
-          .filter(u => u.id !== userData?.id)
-          .map(u => ({
+        // Solo traer conexiones aceptadas del usuario actual
+        const connections = await connectionsService.findAll(userData.id, ConnectionStatus.ACCEPTED);
+
+        // Obtener el ID del otro usuario en cada conexión
+        const otherUserIds = connections.map((c) =>
+          c.requesterId === userData.id ? c.receiverId : c.requesterId,
+        );
+
+        // Resolver los perfiles en paralelo
+        const profiles = await Promise.all(otherUserIds.map((id) => userService.getUserById(id)));
+
+        const students: Student[] = profiles
+          .filter((u): u is UserProfile => u !== null)
+          .map((u) => ({
             id: u.id,
             name: `${u.name} ${u.lastname}`,
             photo: u.profilePicURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}+${encodeURIComponent(u.lastname)}&background=random`,
             career: u.programs?.[0] || 'Estudiante',
             semester: u.semester,
-            interests: u.interests?.map(i => i.id) || [],
+            interests: u.interests?.map((i) => i.id) || [],
             bio: u.description || '',
-            availability: u.freeTimeSchedule?.map(f => ({
+            availability: u.freeTimeSchedule?.map((f) => ({
               day: f.dayOfTheWeek,
               start: f.startsAt,
-              end: f.endsAt
+              end: f.endsAt,
             })) || [],
             compatibility: Math.floor(Math.random() * 21) + 80,
             isOnline: true,
           }));
-        setNearbyUsers(filteredUsers);
+
+        setNearbyUsers(students);
       } catch (error) {
-        console.error('Error fetching users:', error);
+        console.error('Error fetching connected users:', error);
       } finally {
         setIsLoadingUsers(false);
       }
     };
 
-    fetchUsers();
+    fetchConnectedUsers();
   }, [userData?.id]);
 
   return (
@@ -98,14 +111,14 @@ const HomeScreen = () => {
         {/* Hero prompt */}
         <div className="px-6 py-4">
           <p className="text-lg font-display font-bold text-foreground/80">
-            ¿A quién quieres conocer hoy? 🐾
+            Tus conexiones 🐾
           </p>
         </div>
 
-        {/* Quick Connect */}
+        {/* Connected users */}
         <section className="mb-8">
           <div className="flex justify-between items-center px-6 mb-4">
-            <h3 className="font-display font-bold text-lg">Conecta ahora</h3>
+            <h3 className="font-display font-bold text-lg">Conectados contigo</h3>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/connect')}
@@ -135,7 +148,7 @@ const HomeScreen = () => {
                 </motion.div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground px-2">No hay usuarios disponibles.</p>
+              <p className="text-sm text-muted-foreground px-2">Aún no tienes conexiones. ¡Ve a <span className="text-primary font-bold cursor-pointer" onClick={() => navigate('/connect')}>Descubrir</span> para conectar con alguien!</p>
             )}
           </div>
         </section>

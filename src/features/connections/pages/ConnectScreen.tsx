@@ -15,10 +15,12 @@ const SwipeCard = ({
   user,
   onSwipe,
   isTop,
+  onCardClick,
 }: {
   user: UserProfile;
   onSwipe: (dir: 'left' | 'right') => void;
   isTop: boolean;
+  onCardClick: (userId: string) => void;
 }) => {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
@@ -35,6 +37,13 @@ const SwipeCard = ({
       onDragEnd={(_, info) => {
         if (Math.abs(info.offset.x) > 100) {
           onSwipe(info.offset.x > 0 ? 'right' : 'left');
+        }
+      }}
+      onClick={(e) => {
+        // Solo abrir perfil si no fue un drag (offset pequeño)
+        if (Math.abs(x.get()) < 5 && isTop) {
+          e.stopPropagation();
+          onCardClick(user.id);
         }
       }}
       initial={{ scale: isTop ? 1 : 0.95, opacity: isTop ? 1 : 0.5 }}
@@ -306,6 +315,7 @@ const ConnectScreen = () => {
                     user={user}
                     onSwipe={handleSwipe}
                     isTop={i === 0}
+                    onCardClick={(id) => navigate(`/profile/${id}?from=connect`)}
                   />
                 ))
                 .reverse()

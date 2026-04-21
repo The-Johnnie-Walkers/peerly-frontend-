@@ -85,7 +85,7 @@ const RequestCard = ({
     >
       <div
         className="relative flex-shrink-0 cursor-pointer"
-        onClick={() => navigate(`/profile/${request.requesterId}`)}
+        onClick={() => navigate(`/profile/${request.requesterId}?from=request&connectionId=${request.id}`)}
       >
         <SafeRemoteImage
           src={requester?.profilePicURL}
@@ -98,7 +98,7 @@ const RequestCard = ({
         <div className="mb-2">
           <h3
             className="font-bold text-foreground truncate cursor-pointer hover:underline"
-            onClick={() => navigate(`/profile/${request.requesterId}`)}
+            onClick={() => navigate(`/profile/${request.requesterId}?from=request&connectionId=${request.id}`)}
           >
             {displayName}
           </h3>

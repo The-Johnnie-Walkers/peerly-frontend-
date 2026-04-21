@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Loader2 } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Edit3, Loader2, UserCheck, UserX } from 'lucide-react';
 import { userService } from '@/features/users/services/user.service';
 import type { BackendInterest } from '@/features/users/services/interest.service';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
+import { connectionsService } from '@/features/connections/services/connections.service';
+import { ConnectionStatus } from '@/features/connections/types';
+import { useCreateConnection, useUpdateConnection } from '@/features/connections/hooks/useConnections';
 
 // Tipo local del perfil mostrado en pantalla
 type ProfileStudent = {
@@ -106,9 +109,17 @@ const parseTime = (raw: string | undefined): string => {
 const ProfileScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromConnect = searchParams.get('from') === 'connect';
+  const fromRequest = searchParams.get('from') === 'request';
+  const connectionId = searchParams.get('connectionId');
   const { userData: currentAuthUser, isLoading: isContextLoading } = useCurrentUser();
   const [student, setStudent] = useState<ProfileStudent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionSent, setConnectionSent] = useState(false);
+  const createConnection = useCreateConnection();
+  const updateConnection = useUpdateConnection();
   const isOwnProfile = !id || id === currentAuthUser?.id;
 
   console.log("[ProfileScreen] Render State:", { 
@@ -171,6 +182,15 @@ const ProfileScreen = () => {
           };
           console.log("[ProfileScreen] Mapped Student Object:", mappedStudent);
           setStudent(mappedStudent);
+
+          // Verificar si ya existe una conexión aceptada con este usuario
+          if (!isOwnProfile && currentAuthUser?.id) {
+            const connections = await connectionsService.findAll(currentAuthUser.id, ConnectionStatus.ACCEPTED);
+            const alreadyConnected = connections.some(
+              (c) => c.requesterId === data.id || c.receiverId === data.id,
+            );
+            setIsConnected(alreadyConnected);
+          }
         } else {
           console.warn("[ProfileScreen] API returned null for user ID:", userId);
         }
@@ -335,19 +355,94 @@ const ProfileScreen = () => {
               </motion.button>
             ) : (
               <div className="flex gap-3">
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => navigate('/chats')}
-                  className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold"
-                >
-                  Conectar 🤝
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
-                >
-                  Proponer plan
-                </motion.button>
+                {isConnected ? (
+                  // Ya son conexiones: solo Proponer plan
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
+                  >
+                    Proponer plan
+                  </motion.button>
+                ) : fromRequest && connectionId ? (
+                  // Viene de /social solicitudes: Aceptar y Rechazar
+                  <>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      disabled={updateConnection.isPending}
+                      onClick={() => {
+                        if (!currentAuthUser?.id) return;
+                        updateConnection.mutate(
+                          { id: connectionId, data: { status: ConnectionStatus.ACCEPTED, actorId: currentAuthUser.id } },
+                          { onSuccess: () => navigate('/social') },
+                        );
+                      }}
+                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {updateConnection.isPending ? <Loader2 size={18} className="animate-spin" /> : <><UserCheck size={18} /> Aceptar</>}
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      disabled={updateConnection.isPending}
+                      onClick={() => {
+                        if (!currentAuthUser?.id) return;
+                        updateConnection.mutate(
+                          { id: connectionId, data: { status: ConnectionStatus.REJECTED, actorId: currentAuthUser.id } },
+                          { onSuccess: () => navigate('/social') },
+                        );
+                      }}
+                      className="flex-1 p-4 rounded-2xl bg-card border-2 border-destructive text-destructive font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {updateConnection.isPending ? <Loader2 size={18} className="animate-spin" /> : <><UserX size={18} /> Rechazar</>}
+                    </motion.button>
+                  </>
+                ) : fromConnect ? (
+                  // Viene de /connect: Conectar funcional + Proponer plan
+                  <>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      disabled={connectionSent || createConnection.isPending}
+                      onClick={() => {
+                        if (!currentAuthUser?.id || !id) return;
+                        createConnection.mutate(
+                          { requesterId: currentAuthUser.id, receiverId: id },
+                          { onSuccess: () => setConnectionSent(true) },
+                        );
+                      }}
+                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {createConnection.isPending ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : connectionSent ? (
+                        '¡Solicitud enviada! 🎉'
+                      ) : (
+                        'Conectar 🤝'
+                      )}
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
+                    >
+                      Proponer plan
+                    </motion.button>
+                  </>
+                ) : (
+                  // Vista normal sin conexión
+                  <>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => navigate('/chats')}
+                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold"
+                    >
+                      Conectar 🤝
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
+                    >
+                      Proponer plan
+                    </motion.button>
+                  </>
+                )}
               </div>
             )}
           </div>
