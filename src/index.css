@@ -78,6 +78,13 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    overscroll-behavior: none;
+  }
+
   * {
     @apply border-border;
   }
