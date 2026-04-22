@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes} from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
+import { BottomNav } from "@/shared/components/layout/BottomNav";
+import { AppSidebar } from "@/shared/components/layout/AppSidebar";
 import { CurrentUserProvider } from "@/shared/contexts/CurrentUserContext";
 import SplashScreen from "./features/auth/pages/SplashScreen";
 import OnboardingScreen from "./features/auth/pages/OnboardingScreen";
@@ -25,31 +27,61 @@ import Login from "./features/auth/pages/Login";
 
 const queryClient = new QueryClient();
 
+const appShellMatchers = [
+  "/home",
+  "/connect",
+  "/social",
+  "/chats",
+  "/profile",
+  "/explore",
+  "/activity",
+  "/create-activity",
+  "/virtual-world",
+];
+
+const usesAppShell = (pathname: string) =>
+  appShellMatchers.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+
 const AppLayout = () => {
+  const location = useLocation();
+  const showSidebar = usesAppShell(location.pathname);
+
+  const appRoutes = (
+    <Routes>
+      <Route path="/splash" element={<SplashScreen />} />
+      <Route path="/onboarding" element={<OnboardingScreen />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="login" element={<Login/>}/>
+      <Route path="/home" element={<HomeScreen />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/connect" element={<ConnectScreen />} />
+      <Route path="/social" element={<ConnectionsScreen />} />
+      <Route path="/chats" element={<ChatsScreen />} />
+      <Route path="/profile" element={<ProfileScreen />} />
+      <Route path="/profile/edit" element={<EditProfileScreen />} />
+      <Route path="/profile/:id" element={<ProfileScreen />} />
+      <Route path="/explore" element={<ExploreScreen />} />
+      <Route path="/activity/:id" element={<ActivityDetailScreen />} />
+      <Route path="/create-activity" element={<CreateActivityScreen />} />
+      <Route path="/virtual-world" element={<VirtualWorldScreen />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+
+  if (!showSidebar) {
+    return <div className="min-h-screen bg-background">{appRoutes}</div>;
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-        <div className="min-h-[calc(100vh-2rem)] lg:min-h-[calc(100vh-4rem)]">
-          <Routes>
-            <Route path="/splash" element={<SplashScreen />} />
-            <Route path="/onboarding" element={<OnboardingScreen />} />
-            <Route path="/" element={<LandingPage />} />
-            <Route path="login" element={<Login/>}/>
-            <Route path="/home" element={<HomeScreen />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/connect" element={<ConnectScreen />} />
-            <Route path="/social" element={<ConnectionsScreen />} />
-            <Route path="/chats" element={<ChatsScreen />} />
-            <Route path="/profile" element={<ProfileScreen />} />
-            <Route path="/profile/edit" element={<EditProfileScreen />} />
-            <Route path="/profile/:id" element={<ProfileScreen />} />
-            <Route path="/explore" element={<ExploreScreen />} />
-            <Route path="/activity/:id" element={<ActivityDetailScreen />} />
-            <Route path="/create-activity" element={<CreateActivityScreen />} />
-            <Route path="/virtual-world" element={<VirtualWorldScreen />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+    <div className="min-h-screen bg-[hsl(var(--peerly-background))] md:flex">
+      <AppSidebar />
+      <div className="flex min-h-screen flex-1 flex-col">
+        <main className="flex-1 pb-24 md:pb-0">{appRoutes}</main>
+        <div className="md:hidden">
+          <BottomNav />
+        </div>
       </div>
     </div>
   );
