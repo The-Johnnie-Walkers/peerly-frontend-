@@ -1,16 +1,26 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, Clock, Users, MessageSquare, CheckCircle2 } from 'lucide-react';
-import { MOCK_ACTIVITIES, MOCK_STUDENTS, CATEGORY_LABELS } from '@/shared/data/mockData';
+import { MOCK_STUDENTS, CATEGORY_LABELS } from '@/shared/data/mockData';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
+import { activityService } from '@/features/activities/services/activity.service';
 
 const ActivityDetailScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isAttending, setIsAttending] = useState(false);
+  const { data: fetchedActivity } = useQuery({
+    queryKey: ['activities', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Missing activity id');
+      return activityService.getActivityById(id);
+    },
+    enabled: Boolean(id),
+  });
 
-  const activity = MOCK_ACTIVITIES.find(a => a.id === id);
+  const activity = fetchedActivity ?? (id ? activityService.getMockActivityById(id) : undefined);
   if (!activity) {
     return (
       <div className="h-svh flex items-center justify-center bg-background">
@@ -69,23 +79,31 @@ const ActivityDetailScreen = () => {
         {/* Attendees */}
         <div className="mb-8">
           <h3 className="font-display font-bold text-base mb-3">Asistentes</h3>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar">
-          {attendees.map(student => student && (
-            <motion.div
-              key={student.id}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate(`/profile/${student.id}`)}
-              className="flex flex-col items-center gap-1.5 min-w-[68px] cursor-pointer p-1 rounded-xl hover:bg-card/70 transition-colors"
-            >
-              <SafeRemoteImage
-                src={student.photo}
-                alt={student.name}
-                className="w-12 h-12 rounded-full object-cover border-2 border-border shadow-sm"
-              />
-              <span className="text-xs font-medium text-center truncate w-full">{student.name.split(' ')[0]}</span>
-            </motion.div>
-          ))}
-          </div>
+          {attendees.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto no-scrollbar">
+              {attendees.map(student => student && (
+                <motion.div
+                  key={student.id}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate(`/profile/${student.id}`)}
+                  className="flex flex-col items-center gap-1.5 min-w-[68px] cursor-pointer p-1 rounded-xl hover:bg-card/70 transition-colors"
+                >
+                  <SafeRemoteImage
+                    src={student.photo}
+                    alt={student.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-border shadow-sm"
+                  />
+                  <span className="text-xs font-medium text-center truncate w-full">{student.name.split(' ')[0]}</span>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+              {activity.currentAttendees.length > 0
+                ? `${activity.currentAttendees.length} personas confirmadas. El backend aún no expone el detalle de asistentes.`
+                : 'Aún no hay asistentes confirmados.'}
+            </div>
+          )}
         </div>
 
         {/* Comments */}

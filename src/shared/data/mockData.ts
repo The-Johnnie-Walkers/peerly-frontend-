@@ -40,6 +40,11 @@ export type Activity = {
   currentAttendees: string[];
   description: string;
   creatorId: string;
+  startsAtISO?: string;
+  endsAtISO?: string;
+  availablePlaces?: number;
+  status?: 'OPEN' | 'FULL' | 'IN_PROGRESS' | 'ENDED' | 'CANCELLED';
+  source?: 'mock' | 'api';
 };
 
 export type ChatMessage = {

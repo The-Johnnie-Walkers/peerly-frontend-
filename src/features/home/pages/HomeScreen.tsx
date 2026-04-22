@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { CalendarDays, ChevronRight, Clock3, MapPin, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
-import { MOCK_ACTIVITIES, MOCK_CONNECTIONS } from '@/shared/data/mockData';
+import { MOCK_CONNECTIONS } from '@/shared/data/mockData';
+import { activityService } from '@/features/activities/services/activity.service';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
@@ -12,6 +14,11 @@ const HomeScreen = () => {
     () => [...MOCK_CONNECTIONS].sort((a, b) => Number(b.student.isOnline) - Number(a.student.isOnline)),
     [],
   );
+  const { data: fetchedActivities } = useQuery({
+    queryKey: ['activities'],
+    queryFn: () => activityService.getAllActivities(),
+  });
+  const activities = fetchedActivities ?? activityService.getMockActivities();
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
@@ -109,7 +116,7 @@ const HomeScreen = () => {
             </div>
 
             <div className="flex gap-6 overflow-x-auto pb-3 pl-0.5 pr-2 no-scrollbar">
-              {MOCK_ACTIVITIES.map((activity, index) => (
+              {activities.map((activity, index) => (
                 <motion.button
                   key={activity.id}
                   type="button"
