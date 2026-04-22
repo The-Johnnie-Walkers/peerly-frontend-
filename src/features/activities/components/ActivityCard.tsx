@@ -13,7 +13,7 @@ export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
     <motion.div
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="bg-card rounded-3xl overflow-hidden shadow-card border border-border cursor-pointer"
+      className="cursor-pointer overflow-hidden rounded-[32px] border border-border bg-card shadow-card"
     >
       <div className="h-32 relative overflow-hidden">
         <SafeRemoteImage

@@ -8,7 +8,7 @@ import { cn } from "@/shared/lib/utils";
 const primaryLinks = [
   { to: "/home", label: "Inicio", icon: House },
   { to: "/connect", label: "Descubrir", icon: UserPlus },
-  { to: "/create-activity", label: "Actividades", icon: PlusSquare },
+  { to: "/explore", label: "Actividades", icon: PlusSquare },
   { to: "/social", label: "Red", icon: Users2 },
   { to: "/chats", label: "Chats", icon: MessageCircle },
   { to: "/virtual-world", label: "Mundo virtual", icon: Orbit },
