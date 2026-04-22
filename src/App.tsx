@@ -8,6 +8,7 @@ import SplashScreen from "./features/auth/pages/SplashScreen";
 import OnboardingScreen from "./features/auth/pages/OnboardingScreen";
 import Register from "./features/auth/pages/Register";
 import ForgotPassword from "./features/auth/pages/ForgotPassword";
+import ResetPassword from "./features/auth/pages/ResetPassword";
 import HomeScreen from "./features/home/pages/HomeScreen";
 import ConnectScreen from "./features/connections/pages/ConnectScreen";
 import ConnectionsScreen from "./features/connections/pages/ConnectionsScreen";
@@ -36,6 +37,7 @@ const AppLayout = () => {
             <Route path="/home" element={<HomeScreen />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/connect" element={<ConnectScreen />} />
             <Route path="/social" element={<ConnectionsScreen />} />
             <Route path="/chats" element={<ChatsScreen />} />
