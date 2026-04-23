@@ -40,6 +40,14 @@ export const userService = {
     } catch {
       return null;
     }
+  }, 
+
+  async getUserByEmail(email: string): Promise<UserProfile | null> {
+    try {
+      return await userApi.request<UserProfile>(`${USERS_API_BASE}/by-email/${email}`)
+    } catch {
+      return null;
+    }
   },
 
   async getAllUsers(): Promise<UserProfile[]> {

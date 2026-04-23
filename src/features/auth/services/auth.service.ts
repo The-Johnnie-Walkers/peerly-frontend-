@@ -33,7 +33,6 @@ export const authService = {
 
     if (response.token) {
       localStorage.setItem('auth_token', response.token);
-      localStorage.setItem('user_id', response.id);
       localStorage.setItem('user_name', response.name);
       localStorage.setItem('user_email', response.email);
     }

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { CalendarDays, Clock, MapPin, Users } from 'lucide-react';
-import { Activity, CATEGORY_LABELS } from '@/shared/data/mockData';
+import { Activity } from '@/shared/data/mockData';
 
 interface ActivityCardProps {
   activity: Activity;
@@ -33,31 +33,29 @@ export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
       onClick={onClick}
       className="cursor-pointer overflow-hidden rounded-[32px] border border-border bg-card shadow-card"
     >
-      <div className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(255,248,242,0.95),rgba(247,241,235,0.92))] px-4 py-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-full bg-card px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-primary shadow-sm">
-              {CATEGORY_LABELS[activity.category]}
-          </div>
+      <div className="flex border-b border-border/70 bg-[linear-gradient(135deg,rgba(255,248,242,0.95),rgba(247,241,235,0.92))] px-4 py-2 pb-4">
+        <h4 className="mt-3 font-display text-lg font-bold leading-snug text-foreground">{activity.title}</h4>
+        <div className="flex items-center gap-2 ml-auto pt-3">
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider ${statusStyle}`}>
             {statusLabel}
           </span>
         </div>
-        <h4 className="mt-3 font-display text-lg font-bold leading-snug text-foreground">{activity.title}</h4>
+        
       </div>
       <div className="p-4">
-        <p className="mb-4 line-clamp-3 text-sm leading-6 text-muted-foreground">{activity.description}</p>
+        <p className="mb-4 pl-2 overflow-hidden line-clamp-1 text-sm leading-6 text-muted-foreground">{activity.description}</p>
 
         <div className="mb-4 grid gap-2.5 text-xs text-muted-foreground">
-          <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-3 py-2">
+          <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-2 py-2">
             <MapPin size={14} className="text-primary" />
             <span className="truncate">{activity.location}</span>
           </span>
           <div className="grid gap-2 sm:grid-cols-2">
-            <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-3 py-2">
+            <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-2 py-2">
               <CalendarDays size={14} className="text-primary" />
               <span>{activity.date}</span>
             </span>
-            <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-3 py-2">
+            <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-2 py-2">
               <Clock size={14} className="text-primary" />
               <span>{activity.time}</span>
             </span>

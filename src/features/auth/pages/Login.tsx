@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { useState } from "react";
 import { authService } from "@/features/auth/services/auth.service";
+import { userService } from "@/features/users/services/user.service";
 import { toast } from "sonner";
 import BubbleBackground from "@/shared/components/ui/bubble-background";
 
@@ -83,14 +84,15 @@ const Login = () => {
     setIsLoading(true);
     try {
       const response = await authService.login({ email, password });
+      const userProfile = await userService.getUserByEmail(response.email);
 
-      const userData = await fetch(`http://localhost:3000/users/${response.id}`, {
-        headers: { 'Authorization': `Bearer ${response.token}` }
-      }).then(res => res.json()).catch(() => null);
-
-      if (userData) {
-        localStorage.setItem('user_data', JSON.stringify(userData));
+      if (!userProfile) {
+        authService.logout();
+        throw new Error("No se encontro el perfil del usuario");
       }
+
+      localStorage.setItem('user_id', userProfile.id);
+      localStorage.setItem('user_data', JSON.stringify(userProfile));
 
       toast.success("¡Bienvenido de nuevo!");
       navigate("/home");
@@ -232,4 +234,3 @@ const Login = () => {
 };
 
 export default Login;
-

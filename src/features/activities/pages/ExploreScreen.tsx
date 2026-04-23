@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { CalendarPlus2, Search } from 'lucide-react';
 import { ActivityCard } from '@/features/activities/components/ActivityCard';
 import { activityService } from '@/features/activities/services/activity.service';
+import { authService } from '@/features/auth/services/auth.service';
 
 const ExploreScreen = () => {
   const navigate = useNavigate();
@@ -14,7 +15,14 @@ const ExploreScreen = () => {
     queryFn: () => activityService.getAllActivities(),
   });
 
+  const userId = authService.getCurrentUser()?.id;
   const activities = fetchedActivities ?? activityService.getMockActivities();
+  const { data: userActivities = [] } = useQuery({
+    queryKey: ['user-activities', userId],
+    queryFn: () => activityService.getUserActivitiesById(userId!),
+    enabled: Boolean(userId),
+  });
+
   const filteredActivities = useMemo(
     () =>
       activities.filter((activity) => {
@@ -31,7 +39,7 @@ const ExploreScreen = () => {
   );
 
   return (
-    <div className="min-h-svh bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+    <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-2">
       <div className="min-h-full rounded-[28px] bg-background md:rounded-[32px] md:shadow-elevated">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-6 py-8 pb-24 sm:px-8 sm:py-9 lg:gap-10 lg:px-10 lg:py-10 xl:px-12 2xl:px-14">
           <header className="flex flex-col gap-5 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:px-8 sm:py-9 lg:flex-row lg:items-end lg:justify-between lg:px-10">
@@ -57,6 +65,38 @@ const ExploreScreen = () => {
               Crear actividad
             </motion.button>
           </header>
+
+          <section className="space-y-6">
+            <div className="flex-col gap-4 rounded-[30px] border border-white/70 bg-white/72 px-5 py-5 shadow-card sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
+              <h2 className="pb-8 pl-2 font-display text-2xl font-bold text-foreground">Tus Actividades</h2>
+              {userActivities.length === 0 ? (
+                <div className="rounded-[30px] border border-dashed border-primary/25 bg-white/70 px-6 py-12 text-center shadow-card">
+                  <h3 className="font-display text-xl font-bold text-foreground">No tienes actividades</h3>
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    Unete a una o crea una nueva actividad para empezar a mover la comunidad .
+                  </p>
+                </div>
+              ) : (
+                <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                  {userActivities.map((activity, index) => (
+                    <li key={activity.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: Math.min(index * 0.05, 0.25) }}
+                      >
+                        <ActivityCard
+                          activity={activity}
+                          onClick={() => navigate(`/activity/${activity.id}`)}
+                        />
+                      </motion.div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+
 
           <section className="space-y-6">
             <div className="flex flex-col gap-4 rounded-[30px] border border-white/70 bg-white/72 px-5 py-5 shadow-card sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">

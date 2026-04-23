@@ -1,4 +1,4 @@
-import { ACTIVITIES_API_BASE, activityApi } from '@/shared/lib/api';
+import { ACTIVITIES_API_BASE, activityApi, userApi } from '@/shared/lib/api';
 import { Activity, MOCK_ACTIVITIES } from '@/shared/data/mockData';
 
 type ActivityStatus = 'OPEN' | 'FULL' | 'IN_PROGRESS' | 'ENDED' | 'CANCELLED';
@@ -23,6 +23,11 @@ interface ActivityResponseDto {
   totalPlaces: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface JoinedActivitiesResponse {
+  userId: string;
+  activityIds: string[];
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -93,5 +98,18 @@ export const activityService = {
 
   getMockActivityById(id: string): Activity | undefined {
     return mockActivities.find((activity) => activity.id === id);
+  },
+  async getUserActivitiesById(id: string): Promise<Activity[]> {
+    if (!id) return [];
+
+    const { activityIds } = await userApi.request<JoinedActivitiesResponse>(`${ACTIVITIES_API_BASE}/joined/${id}`);
+
+    if (!activityIds.length) return [];
+
+    const activities = await Promise.all(
+      activityIds.map((activityId) => activityApi.request<ActivityResponseDto>(`${ACTIVITIES_API_BASE}/${activityId}`))
+    );
+
+    return sortActivitiesByStartDate(activities.map(mapActivityDtoToViewModel));
   },
 };
