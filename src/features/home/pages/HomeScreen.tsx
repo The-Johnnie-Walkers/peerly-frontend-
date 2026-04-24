@@ -18,7 +18,7 @@ const HomeScreen = () => {
     queryKey: ['activities'],
     queryFn: () => activityService.getAllActivities(),
   });
-  const activities = fetchedActivities ?? activityService.getMockActivities();
+  const activities = fetchedActivities ?? [];
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
@@ -135,9 +135,6 @@ const HomeScreen = () => {
                         {activity.title}
                       </h3>
                     </div>
-                    <span className="rounded-full bg-[hsl(var(--peerly-soft-accent))] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-[color:hsl(var(--peerly-primary-dark))]">
-                      {activity.category}
-                    </span>
                   </div>
 
                   <p className="mt-5 line-clamp-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
