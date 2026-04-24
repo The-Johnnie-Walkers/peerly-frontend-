@@ -1,236 +1,581 @@
-import { useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import {
+  ArrowLeft,
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  LoaderCircle,
+  LocateFixed,
+  MapPin,
+  Users,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Clock, Users, Image, Calendar } from 'lucide-react';
-import { CATEGORY_LABELS } from '@/shared/data/mockData';
+import { toast } from 'sonner';
+import { authService } from '@/features/auth/services/auth.service';
+import { activityService } from '@/features/activities/services/activity.service';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
+import { Textarea } from '@/shared/components/ui/textarea';
+
+type CreateActivityFormState = {
+  name: string;
+  description: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  totalPlaces: string;
+  latitude: string;
+  longitude: string;
+};
+
+const INITIAL_FORM: CreateActivityFormState = {
+  name: '',
+  description: '',
+  date: '',
+  startTime: '',
+  endTime: '',
+  address: '',
+  totalPlaces: '',
+  latitude: '',
+  longitude: '',
+};
+
+const DEFAULT_LOCATION_ACCURACY = 0;
+
+const formatDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+const buildLocalDateTime = (date: string, time: string) => {
+  if (!date || !time) return null;
+
+  const parsedDate = new Date(`${date}T${time}:00`);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const slugify = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const formatSchedulePreview = (startsAt: Date | null, endsAt: Date | null) => {
+  if (!startsAt || !endsAt) return 'Completa fecha y horario';
+
+  const formatter = new Intl.DateTimeFormat('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return `${formatter.format(startsAt)} - ${formatter.format(endsAt)}`;
+};
 
 const CreateActivityScreen = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    title: '',
-    category: '',
-    date: '',
-    time: '',
-    location: '',
-    maxAttendees: '',
-    description: '',
-    visibility: 'all',
+  const queryClient = useQueryClient();
+  const requesterUserId = authService.getCurrentUser()?.id ?? null;
+
+  const [form, setForm] = useState<CreateActivityFormState>(INITIAL_FORM);
+  const [showManualLocation, setShowManualLocation] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationAccuracy, setLocationAccuracy] = useState(DEFAULT_LOCATION_ACCURACY);
+  const [locationSource, setLocationSource] = useState<'none' | 'gps' | 'manual'>('none');
+
+  const today = formatDateInputValue(new Date());
+  const startsAt = buildLocalDateTime(form.date, form.startTime);
+  const endsAt = buildLocalDateTime(form.date, form.endTime);
+  const totalPlaces = Number(form.totalPlaces);
+  const latitude = Number(form.latitude);
+  const longitude = Number(form.longitude);
+  const hasValidCoordinates =
+    form.latitude.trim() !== '' &&
+    form.longitude.trim() !== '' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180;
+
+  const placeId = useMemo(() => {
+    const addressSlug = slugify(form.address);
+    const dateSlug = form.date ? form.date.replaceAll('-', '') : '';
+    return [addressSlug, dateSlug].filter(Boolean).join('-') || 'peerly-location';
+  }, [form.address, form.date]);
+
+  let scheduleError = '';
+  if (startsAt && startsAt.getTime() <= Date.now()) {
+    scheduleError = 'La actividad debe iniciar en el futuro.';
+  } else if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
+    scheduleError = 'La hora de finalizacion debe ser posterior al inicio.';
+  } else if (startsAt && endsAt && endsAt.getTime() - startsAt.getTime() < 30 * 60 * 1000) {
+    scheduleError = 'La duracion minima es de 30 minutos.';
+  } else if (startsAt && endsAt && endsAt.getTime() - startsAt.getTime() > 12 * 60 * 60 * 1000) {
+    scheduleError = 'La duracion maxima permitida es de 12 horas.';
+  }
+
+  const hasValidCapacity = form.totalPlaces.trim() !== '' && Number.isInteger(totalPlaces) && totalPlaces >= 2;
+  const isFormComplete =
+    Boolean(requesterUserId) &&
+    form.name.trim().length >= 3 &&
+    Boolean(startsAt) &&
+    Boolean(endsAt) &&
+    !scheduleError &&
+    form.address.trim().length > 0 &&
+    hasValidCapacity &&
+    hasValidCoordinates;
+
+  const createActivityMutation = useMutation({
+    mutationFn: async () => {
+      if (!requesterUserId || !startsAt || !endsAt || !hasValidCoordinates) {
+        throw new Error('Completa los datos obligatorios antes de publicar.');
+      }
+
+      return activityService.createActivity({
+        requesterUserId,
+        name: form.name.trim(),
+        description: form.description.trim(),
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        status: 'OPEN',
+        totalPlaces,
+        location: {
+          address: form.address.trim(),
+          placeId,
+          latitude,
+          longitude,
+          accuracy: locationAccuracy,
+        },
+      });
+    },
+    onSuccess: async (response) => {
+      const invalidations = [queryClient.invalidateQueries({ queryKey: ['activities'] })];
+
+      if (requesterUserId) {
+        invalidations.push(
+          queryClient.invalidateQueries({ queryKey: ['user-activities', requesterUserId] }),
+          queryClient.invalidateQueries({ queryKey: ['joined-activity-ids', requesterUserId] }),
+        );
+      }
+
+      await Promise.all(invalidations);
+      toast.success('La actividad se publico correctamente.');
+      navigate(`/activity/${response.activityId}`);
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'No fue posible crear la actividad.';
+      toast.error(message);
+    },
   });
 
-  const updateField = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+  const updateField = (field: keyof CreateActivityFormState, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+
+    if (field === 'latitude' || field === 'longitude') {
+      setLocationSource('manual');
+      setLocationAccuracy(DEFAULT_LOCATION_ACCURACY);
+    }
   };
 
-  const isValid = Boolean(form.title && form.category && form.date && form.time && form.location);
+  const handleUseCurrentLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error('Tu navegador no soporta ubicacion actual.');
+      setShowManualLocation(true);
+      return;
+    }
+
+    setIsLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updateField('latitude', position.coords.latitude.toString());
+        updateField('longitude', position.coords.longitude.toString());
+        setLocationAccuracy(position.coords.accuracy ?? DEFAULT_LOCATION_ACCURACY);
+        setLocationSource('gps');
+        setIsLocating(false);
+        toast.success('Ubicacion actual agregada.');
+      },
+      () => {
+        setIsLocating(false);
+        setShowManualLocation(true);
+        toast.error('No pudimos obtener tu ubicacion. Puedes ingresarla manualmente.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      },
+    );
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!requesterUserId) {
+      toast.error('Necesitas una sesion activa para crear actividades.');
+      return;
+    }
+
+    if (scheduleError) {
+      toast.error(scheduleError);
+      return;
+    }
+
+    if (!hasValidCoordinates) {
+      toast.error('Agrega la ubicacion actual o ingresa coordenadas manualmente.');
+      setShowManualLocation(true);
+      return;
+    }
+
+    if (!isFormComplete) {
+      toast.error('Completa los campos obligatorios del formulario.');
+      return;
+    }
+
+    void createActivityMutation.mutateAsync();
+  };
+
+  const locationStatus = hasValidCoordinates
+    ? locationSource === 'gps'
+      ? 'Ubicacion lista'
+      : 'Coordenadas listas'
+    : 'Ubicacion pendiente';
+  const schedulePreview = formatSchedulePreview(startsAt, endsAt);
+  const activitySummary = form.name.trim() || 'Tu actividad';
+  const addressSummary = form.address.trim() || 'Lugar pendiente';
+  const capacitySummary = hasValidCapacity ? `${totalPlaces} cupos` : 'Cupos pendientes';
+  const coordinatesSummary = hasValidCoordinates
+    ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    : 'Ubicacion pendiente';
 
   return (
-    <div className="min-h-svh flex flex-col bg-background">
-      <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        {/* Header — consistencia con otras pantallas */}
-        <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center gap-3 border-b border-border/60 bg-background">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate(-1)}
-            className="p-2.5 rounded-xl bg-accent hover:bg-accent/80 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Volver"
-          >
-            <ArrowLeft size={20} />
-          </motion.button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl font-display font-extrabold">Crear actividad</h1>
-            <p className="text-xs text-muted-foreground">Completa los datos para publicar</p>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-8">
-          {/* Portada — agrupación visual */}
-          <section className="mb-6" aria-labelledby="label-cover">
-            <label id="label-cover" className="sr-only">
-              Foto de portada
-            </label>
-            <motion.div
-              whileTap={{ scale: 0.99 }}
-              className="h-36 bg-muted/50 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-muted/70 transition-colors focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
-              tabIndex={0}
-              role="button"
-              onKeyDown={e => e.key === 'Enter' && (e.currentTarget as HTMLElement).click()}
-            >
-              <Image size={28} className="text-muted-foreground" aria-hidden />
-              <span className="text-sm font-medium text-muted-foreground">Agregar foto de portada</span>
-            </motion.div>
-          </section>
-
-          {/* Título y categoría — Nielsen: labels visibles, no solo placeholder */}
-          <div className="space-y-4 mb-6">
-            <div>
-              <label htmlFor="activity-title" className="block text-sm font-display font-bold text-foreground mb-1.5">
-                Nombre de la actividad <span className="text-destructive">*</span>
-              </label>
-              <input
-                id="activity-title"
-                value={form.title}
-                onChange={e => updateField('title', e.target.value)}
-                className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground placeholder:text-muted-foreground"
-                placeholder="Ej: Café para estudiar cálculo"
-                aria-required="true"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="activity-category" className="block text-sm font-display font-bold text-foreground mb-1.5">
-                Categoría <span className="text-destructive">*</span>
-              </label>
-              <select
-                id="activity-category"
-                value={form.category}
-                onChange={e => updateField('category', e.target.value)}
-                className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground appearance-none cursor-pointer"
-                aria-required="true"
+    <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+      <div className="min-h-full rounded-[28px] bg-background md:rounded-[32px] md:shadow-elevated">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 py-8 pb-24 sm:px-8 sm:py-9 lg:px-10 lg:py-10 xl:px-12">
+          <header className="rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.97),rgba(246,236,227,0.9))] px-6 py-7 shadow-card sm:px-8">
+            <div className="flex items-start gap-4">
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                onClick={() => navigate(-1)}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/90 text-foreground shadow-card transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Volver"
               >
-                <option value="">Elige una categoría</option>
-                {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+                <ArrowLeft className="h-5 w-5" />
+              </motion.button>
 
-          {/* Fecha y hora — agrupación (Ley de proximidad) */}
-          <section className="mb-6" aria-labelledby="label-datetime">
-            <h2 id="label-datetime" className="text-sm font-display font-bold text-foreground mb-3 flex items-center gap-2">
-              <Calendar size={16} className="text-muted-foreground" />
-              Fecha y hora
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="activity-date" className="sr-only">Fecha</label>
-                <input
-                  id="activity-date"
-                  type="date"
-                  value={form.date}
-                  onChange={e => updateField('date', e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground"
-                  aria-required="true"
-                />
-              </div>
-              <div>
-                <label htmlFor="activity-time" className="sr-only">Hora</label>
-                <input
-                  id="activity-time"
-                  type="time"
-                  value={form.time}
-                  onChange={e => updateField('time', e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground"
-                  aria-required="true"
-                />
+              <div className="min-w-0">
+                <p className="text-[11px] font-mono font-bold uppercase tracking-[0.22em] text-primary">
+                  Crear actividad
+                </p>
+                <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-[color:hsl(var(--peerly-primary-dark))]">
+                  Cuéntanos lo esencial
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                  Nombre, horario, lugar y cupos. Lo tecnico se completa en segundo plano o solo cuando haga falta.
+                </p>
               </div>
             </div>
-          </section>
+          </header>
 
-          {/* Ubicación y aforo */}
-          <section className="mb-6" aria-labelledby="label-place">
-            <h2 id="label-place" className="text-sm font-display font-bold text-foreground mb-3 flex items-center gap-2">
-              <MapPin size={16} className="text-muted-foreground" />
-              Lugar y aforo
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label htmlFor="activity-location" className="sr-only">Ubicación</label>
-                <input
-                  id="activity-location"
-                  value={form.location}
-                  onChange={e => updateField('location', e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground placeholder:text-muted-foreground"
-                  placeholder="Ubicación en el campus"
-                  aria-required="true"
-                />
+          <form onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="space-y-5">
+              <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+                <div className="mb-5">
+                  <h2 className="font-display text-2xl font-bold text-foreground">Actividad</h2>
+                  <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                    Usa un nombre claro y una descripcion corta para que se entienda rapido.
+                  </p>
+                </div>
+
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                  <div className="space-y-2">
+                    <Label htmlFor="activity-name">Nombre</Label>
+                    <Input
+                      id="activity-name"
+                      value={form.name}
+                      onChange={(event) => updateField('name', event.target.value)}
+                      placeholder="Ej: Repaso de algebra en biblioteca"
+                      maxLength={100}
+                      required
+                    />
+                    <p className="text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
+                      Es lo primero que vera la gente cuando explore actividades.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="activity-description">Descripcion</Label>
+                    <Textarea
+                      id="activity-description"
+                      value={form.description}
+                      onChange={(event) => updateField('description', event.target.value)}
+                      placeholder="Que van a hacer, para quien es y si deben llevar algo."
+                      maxLength={500}
+                      className="min-h-[146px]"
+                    />
+                    <div className="flex justify-between gap-3 text-xs text-[color:hsl(var(--peerly-text-secondary))]">
+                      <span>Opcional, pero ayuda a que la gente entienda el plan.</span>
+                      <span>{form.description.length}/500</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+                  <div className="mb-4">
+                    <h2 className="font-display text-2xl font-bold text-foreground">Cuando sera</h2>
+                    <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                      Elige una fecha y un horario simple en el mismo dia.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="activity-date" className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                        Fecha
+                      </Label>
+                      <Input
+                        id="activity-date"
+                        type="date"
+                        min={today}
+                        value={form.date}
+                        onChange={(event) => updateField('date', event.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="activity-start-time" className="flex items-center gap-2">
+                        <Clock3 className="h-4 w-4 text-primary" />
+                        Inicio
+                      </Label>
+                      <Input
+                        id="activity-start-time"
+                        type="time"
+                        value={form.startTime}
+                        onChange={(event) => updateField('startTime', event.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="activity-end-time" className="flex items-center gap-2">
+                        <Clock3 className="h-4 w-4 text-primary" />
+                        Fin
+                      </Label>
+                      <Input
+                        id="activity-end-time"
+                        type="time"
+                        value={form.endTime}
+                        onChange={(event) => updateField('endTime', event.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`mt-4 rounded-[22px] border px-4 py-3 ${scheduleError ? 'border-destructive/20 bg-destructive/5' : 'border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30'}`}>
+                    <p className="text-sm font-medium text-foreground">{scheduleError || schedulePreview}</p>
+                  </div>
+                </section>
+
+                <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+                  <div className="mb-4">
+                    <h2 className="font-display text-2xl font-bold text-foreground">Cupos</h2>
+                    <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                      Define cuantas personas pueden unirse.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="activity-total-places" className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      Cupos disponibles
+                    </Label>
+                    <Input
+                      id="activity-total-places"
+                      type="number"
+                      min={2}
+                      step={1}
+                      value={form.totalPlaces}
+                      onChange={(event) => updateField('totalPlaces', event.target.value)}
+                      placeholder="Ej: 8"
+                      required
+                    />
+                  </div>
+
+                  <div className="mt-4 rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-4">
+                    <p className="text-2xl font-display font-extrabold text-foreground">
+                      {hasValidCapacity ? totalPlaces : '--'}
+                    </p>
+                    <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                      {hasValidCapacity ? 'Cupos listos para publicar' : 'Minimo 2 cupos'}
+                    </p>
+                  </div>
+                </section>
               </div>
-              <div>
-                <label htmlFor="activity-max" className="block text-sm font-medium text-muted-foreground mb-1">
-                  Máximo de asistentes
-                </label>
-                <input
-                  id="activity-max"
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={form.maxAttendees}
-                  onChange={e => updateField('maxAttendees', e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground placeholder:text-muted-foreground"
-                  placeholder="Ej: 10"
-                />
+
+              <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+                <div className="mb-4">
+                  <h2 className="font-display text-2xl font-bold text-foreground">Donde sera</h2>
+                  <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                    Escribe el lugar y agrega tu ubicacion actual. Si prefieres, puedes poner coordenadas manualmente.
+                  </p>
+                </div>
+
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="activity-address" className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        Lugar o punto de encuentro
+                      </Label>
+                      <Input
+                        id="activity-address"
+                        value={form.address}
+                        onChange={(event) => updateField('address', event.target.value)}
+                        placeholder="Ej: Biblioteca Norte, sala 3"
+                        required
+                      />
+                    </div>
+
+                    <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">{locationStatus}</p>
+                      <p className="mt-1 text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
+                        `placeId` se genera automaticamente a partir del lugar escrito. La precision se toma del GPS cuando esta disponible.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-[24px] border border-border/70 bg-background/70 p-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleUseCurrentLocation}
+                      disabled={isLocating}
+                      className="h-11 w-full rounded-full border-border/80 bg-white px-4"
+                    >
+                      {isLocating ? (
+                        <>
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Buscando...
+                        </>
+                      ) : (
+                        <>
+                          <LocateFixed className="h-4 w-4" />
+                          Usar mi ubicacion actual
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setShowManualLocation((current) => !current)}
+                      className="h-11 w-full rounded-full px-4 text-primary hover:bg-primary/5 hover:text-primary"
+                    >
+                      {showManualLocation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      Coordenadas manuales
+                    </Button>
+                  </div>
+                </div>
+
+                {showManualLocation ? (
+                  <div className="mt-4 grid gap-4 rounded-[24px] border border-border/70 bg-background/70 p-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="activity-latitude">Latitud</Label>
+                      <Input
+                        id="activity-latitude"
+                        type="number"
+                        step="any"
+                        value={form.latitude}
+                        onChange={(event) => updateField('latitude', event.target.value)}
+                        placeholder="Ej: 4.6027"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="activity-longitude">Longitud</Label>
+                      <Input
+                        id="activity-longitude"
+                        type="number"
+                        step="any"
+                        value={form.longitude}
+                        onChange={(event) => updateField('longitude', event.target.value)}
+                        placeholder="Ej: -74.0652"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            </div>
+
+            <aside className="xl:sticky xl:top-6 xl:self-start">
+              <div className="rounded-[28px] border border-white/70 bg-white/88 p-5 shadow-card sm:p-6">
+                <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+                  Resumen
+                </p>
+                <h2 className="mt-2 font-display text-2xl font-bold text-foreground">{activitySummary}</h2>
+                <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                  Revisa rapido lo esencial antes de publicar.
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-4">
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">Horario</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{schedulePreview}</p>
+                  </div>
+
+                  <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-4">
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">Lugar</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{addressSummary}</p>
+                    <p className="mt-1 text-xs text-[color:hsl(var(--peerly-text-secondary))]">{coordinatesSummary}</p>
+                  </div>
+
+                  <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-4">
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">Cupos</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{capacitySummary}</p>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={!isFormComplete || createActivityMutation.isPending}
+                  className="mt-5 h-12 w-full rounded-2xl bg-[hsl(var(--peerly-primary))] px-6 text-white hover:bg-[hsl(var(--peerly-primary))]/90"
+                >
+                  {createActivityMutation.isPending ? (
+                    <>
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Publicando...
+                    </>
+                  ) : (
+                    'Publicar actividad'
+                  )}
+                </Button>
+
+                {!isFormComplete ? (
+                  <p className="mt-3 text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
+                    Completa nombre, horario, lugar, ubicacion y al menos 2 cupos para continuar.
+                  </p>
+                ) : null}
               </div>
-            </div>
-          </section>
-
-          {/* Descripción */}
-          <div className="mb-6">
-            <label htmlFor="activity-desc" className="block text-sm font-display font-bold text-foreground mb-1.5">
-              Descripción
-            </label>
-            <textarea
-              id="activity-desc"
-              value={form.description}
-              onChange={e => updateField('description', e.target.value)}
-              rows={3}
-              className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors font-body text-foreground placeholder:text-muted-foreground resize-none"
-              placeholder="Describe tu actividad..."
-              aria-describedby="desc-hint"
-            />
-            <p id="desc-hint" className="text-xs text-muted-foreground mt-1">Opcional. Ayuda a que más gente se anime.</p>
-          </div>
-
-          {/* Visibilidad — opciones claras (Hick: pocas opciones) */}
-          <fieldset className="mb-8">
-            <legend className="block text-sm font-display font-bold text-foreground mb-2">
-              Quién puede verla
-            </legend>
-            <div className="flex gap-3">
-              {[
-                { value: 'all', label: 'Todo el campus' },
-                { value: 'connections', label: 'Solo conexiones' },
-              ].map(opt => (
-                <label key={opt.value} className="flex-1 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    value={opt.value}
-                    checked={form.visibility === opt.value}
-                    onChange={() => updateField('visibility', opt.value)}
-                    className="sr-only peer"
-                  />
-                  <span className="block p-3 rounded-2xl border text-sm font-medium text-center transition-all peer-checked:bg-primary peer-checked:border-primary peer-checked:text-primary-foreground border-border hover:bg-accent/50">
-                    {opt.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* CTA en flujo — no superpuesto; espacio para bottom nav */}
-          <div className="pt-4 pb-24 md:pb-8">
-            <motion.button
-              type="button"
-              whileTap={isValid ? { scale: 0.98 } : {}}
-              disabled={!isValid}
-              onClick={() => isValid && navigate('/home')}
-              className={`w-full p-4 rounded-2xl font-display font-bold text-base transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                isValid
-                  ? 'bg-primary text-primary-foreground shadow-md hover:opacity-90 cursor-pointer'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
-              }`}
-              aria-disabled={!isValid}
-            >
-              Publicar actividad 🚀
-            </motion.button>
-            {!isValid && (
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                Completa título, categoría, fecha, hora y ubicación para publicar.
-              </p>
-            )}
-          </div>
+            </aside>
+          </form>
         </div>
       </div>
     </div>

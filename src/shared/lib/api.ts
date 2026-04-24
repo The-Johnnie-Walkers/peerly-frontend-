@@ -1,7 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-const USER_MGMT_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:3001';
-const AUTH_MGMT_URL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3000';
-const CONNECTIONS_MGMT_URL = import.meta.env.VITE_CONNECTIONS_API_URL || 'http://localhost:3002';
+const USER_MGMT_URL = 'http://localhost:3000';
+const AUTH_MGMT_URL = 'http://localhost:3002';
+const ACTIVITIES_MGMT_URL = 'http://localhost:3001';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -52,14 +51,9 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    console.log(`[API Request] ${method} ${url}`, { 
-      headers,
-      body: body ? (typeof body === 'string' ? JSON.parse(body) : body) : null 
-    });
     
     try {
       const response = await fetch(url, config);
-      console.log(`[API Response] ${method} ${url} | Status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -67,16 +61,50 @@ class ApiClient {
         throw new Error(errorData.message || `Request failed with status ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log(`[API Success] ${method} ${url}`, data);
-      return data;
+      const textResponse = await response.text();
+      return JSON.parse(textResponse) as T;
+      
     } catch (error) {
-      console.error(`[API Fetch Failure] ${method} ${url}:`, error);
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        console.error(`[API Debug Tip] 'Failed to fetch' usually means the server at ${baseUrl} is not reachable or there is a CORS issue.`);
-      }
       throw error;
     }
+  }
+
+  async requestVoid(endpoint: string, options: RequestOptions = {}): Promise<void> {
+    const { method = 'GET', body, headers = {}, baseUrl = this.baseUrl } = options;
+
+    const token = this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const config: RequestInit = {
+      method,
+      credentials: 'include',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+    };
+
+    if (body) {
+      config.body = JSON.stringify(body);
+    }
+
+    const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
+    
+    try {
+      const response = await fetch(url, config);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Request failed' }));
+        throw new Error(error.message || `Request failed with status ${response.status}`);
+      }
+      
+    } catch (error) {
+      throw error;
+    }
+
   }
 
   setTokenFromResponse(response: { token?: string }): void {
@@ -86,10 +114,9 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(AUTH_MGMT_URL);
-export const userApi = new ApiClient(USER_MGMT_URL);
-export const authApi = new ApiClient(AUTH_MGMT_URL);
-export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
-export const INTERESTS_API_BASE = 'interests';
+export const ACTIVITIES_API_BASE = 'activities';
+export const userApi = new ApiClient(USER_MGMT_URL);
+export const authApi = new ApiClient(AUTH_MGMT_URL);
+export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);

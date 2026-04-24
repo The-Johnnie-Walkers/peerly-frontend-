@@ -1,3 +1,4 @@
+import { userService } from '@/features/users/services/user.service';
 import { authApi, AUTH_API_BASE } from '@/shared/lib/api';
 
 export interface LoginRequest {
@@ -30,14 +31,23 @@ export const authService = {
       method: 'POST',
       body: credentials,
     });
-    
+
     if (response.token) {
       localStorage.setItem('auth_token', response.token);
-      // No guardar el authId aún, primero obtener el userId de user-management
       localStorage.setItem('user_name', response.name);
       localStorage.setItem('user_email', response.email);
     }
+
+    const userProfile = await userService.getUserByEmail(response.email);
     
+    if (!userProfile) {
+        authService.logout();
+        throw new Error("No se encontro el perfil del usuario");
+      }
+
+    localStorage.setItem('user_id', userProfile.id);
+    localStorage.setItem('user_data', JSON.stringify(userProfile));
+
     return response;
   },
 
@@ -46,14 +56,7 @@ export const authService = {
       method: 'POST',
       body: data,
     });
-    
-    // Guardar el ID del usuario registrado
-    if (response.id) {
-      localStorage.setItem('user_id', response.id);
-      localStorage.setItem('user_name', response.name);
-      localStorage.setItem('user_email', response.email);
-    }
-    
+
     return response;
   },
 
@@ -103,4 +106,20 @@ export const authService = {
     }
     return null;
   },
+
+  async forgotPassword(email: string): Promise<void> {
+    const emailTrim = email.trim()
+    await authApi.requestVoid(`${AUTH_API_BASE}/reset-request`, {
+      method: 'POST',
+      body: { email: emailTrim },
+    });
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const newPasswordTrim = newPassword.trim()
+    await authApi.requestVoid(`${AUTH_API_BASE}/reset-password`, {
+      method: 'POST',
+      body: { token: token, newPassword: newPasswordTrim },
+    });
+  }
 };
