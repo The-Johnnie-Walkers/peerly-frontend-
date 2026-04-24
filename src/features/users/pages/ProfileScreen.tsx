@@ -121,7 +121,6 @@ const ProfileScreen = () => {
   const createConnection = useCreateConnection();
   const updateConnection = useUpdateConnection();
   const isOwnProfile = !id || id === currentAuthUser?.id;
-
   console.log("[ProfileScreen] Render State:", { 
     urlParamId: id, 
     contextUserId: currentAuthUser?.id, 
@@ -129,47 +128,28 @@ const ProfileScreen = () => {
     isOwnProfile 
   });
 
+  // Cargar perfil
   useEffect(() => {
-    console.log("[ProfileScreen] Effect Triggered", { 
-      id, 
-      isContextLoading, 
-      currentAuthUserId: currentAuthUser?.id 
-    });
-
-    if (!id && isContextLoading) {
-      console.log("[ProfileScreen] Waiting for context to load...");
-      return;
-    }
+    if (!id && isContextLoading) return;
 
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
-        // Fallback to localStorage in case context hasn't populated yet (race condition after login)
         const userId = id || currentAuthUser?.id || localStorage.getItem('user_id');
-        console.log("[ProfileScreen] Attempting to fetch profile for ID:", userId);
-        
-        if (!userId) {
-          console.warn("[ProfileScreen] No ID found to fetch. Context may be empty.");
-          setIsLoading(false);
-          return;
-        }
+        if (!userId) { setIsLoading(false); return; }
 
         const data = await userService.getUserById(userId);
-        console.log("[ProfileScreen] API Response Data:", data);
-
         if (data) {
-          // Construye el nombre: si name y lastname son iguales (ej. "usuario5"), muestra solo uno
           const fullName = data.lastname && data.lastname !== data.name && data.lastname !== data.username
             ? `${data.name} ${data.lastname}`
             : data.name;
 
-          const mappedStudent: ProfileStudent = {
+          setStudent({
             id: data.id,
             name: fullName,
             photo: data.profilePicURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`,
             career: translateProgram(data.programs?.[0] || '') || 'Estudiante',
             semester: data.semester,
-            // Guardamos los intereses tal como vienen del backend
             interests: data.interests ?? [],
             bio: data.description || '',
             availability: data.freeTimeSchedule?.map(f => ({
@@ -179,20 +159,7 @@ const ProfileScreen = () => {
             })) || [],
             compatibility: isOwnProfile ? 100 : Math.floor(Math.random() * 21) + 80,
             isOnline: true,
-          };
-          console.log("[ProfileScreen] Mapped Student Object:", mappedStudent);
-          setStudent(mappedStudent);
-
-          // Verificar si ya existe una conexión aceptada con este usuario
-          if (!isOwnProfile && currentAuthUser?.id) {
-            const connections = await connectionsService.findAll(currentAuthUser.id, ConnectionStatus.ACCEPTED);
-            const alreadyConnected = connections.some(
-              (c) => c.requesterId === data.id || c.receiverId === data.id,
-            );
-            setIsConnected(alreadyConnected);
-          }
-        } else {
-          console.warn("[ProfileScreen] API returned null for user ID:", userId);
+          });
         }
       } catch (error) {
         console.error('[ProfileScreen] Error fetching profile:', error);
@@ -203,6 +170,22 @@ const ProfileScreen = () => {
 
     fetchProfile();
   }, [id, currentAuthUser?.id, isContextLoading, isOwnProfile]);
+
+  // Verificar conexión — useEffect separado para evitar race condition con currentAuthUser
+  useEffect(() => {
+    if (isOwnProfile || !id || !currentAuthUser?.id || fromRequest || fromConnect) return;
+
+    const checkConnection = async () => {
+      try {
+        const connections = await connectionsService.findAll(currentAuthUser.id, ConnectionStatus.ACCEPTED);
+        setIsConnected(connections.some(c => c.requesterId === id || c.receiverId === id));
+      } catch {
+        setIsConnected(false);
+      }
+    };
+
+    checkConnection();
+  }, [id, currentAuthUser?.id, isOwnProfile, fromRequest, fromConnect]);
 
   if (isContextLoading || isLoading) {
     return (
