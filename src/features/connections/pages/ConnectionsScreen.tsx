@@ -6,6 +6,131 @@ import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { authService } from '@/features/auth/services/auth.service';
 import { useConnections, useUpdateConnection } from '../hooks/useConnections';
 import { ConnectionStatus } from '../types';
+import { useUser } from '@/features/users/hooks/useUser';
+
+// Subcomponente para cada conexión aceptada — resuelve el nombre del otro usuario
+const ConnectionCard = ({
+  connection,
+  currentUserId,
+}: {
+  connection: { id: string; requesterId: string; receiverId: string };
+  currentUserId: string;
+}) => {
+  const navigate = useNavigate();
+  const otherId = connection.requesterId === currentUserId ? connection.receiverId : connection.requesterId;
+  const { data: otherUser } = useUser(otherId);
+
+  const displayName = otherUser
+    ? `${otherUser.name} ${otherUser.lastname}`.trim()
+    : otherId;
+
+  return (
+    <motion.div
+      layout
+      whileTap={{ scale: 0.98 }}
+      onClick={() => navigate(`/profile/${otherId}`)}
+      className="flex items-center gap-4 p-3 hover:bg-muted/40 rounded-2xl transition-colors cursor-pointer"
+    >
+      <SafeRemoteImage
+        src={otherUser?.profilePicURL}
+        alt={displayName}
+        fallback="pastel-icon"
+        className="w-12 h-12 rounded-full object-cover border border-border/50 shadow-sm"
+      />
+      <div className="flex-1 min-w-0">
+        <h3 className="font-bold text-foreground text-sm truncate">{displayName}</h3>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate('/chats', { state: { studentId: otherId } });
+          }}
+          className="p-2.5 rounded-xl bg-accent/10 text-secondary hover:bg-accent/20 transition-colors"
+          aria-label="Mensaje"
+        >
+          <MessageSquare size={18} />
+        </button>
+        <ChevronRight size={18} className="text-muted-foreground self-center" />
+      </div>
+    </motion.div>
+  );
+};
+
+// Subcomponente para cada solicitud — resuelve el nombre del solicitante
+const RequestCard = ({
+  request,
+  onAccept,
+  onDecline,
+  isPending,
+}: {
+  request: { id: string; requesterId: string; createdAt: Date };
+  onAccept: (id: string) => void;
+  onDecline: (id: string) => void;
+  isPending: boolean;
+}) => {
+  const navigate = useNavigate();
+  const { data: requester } = useUser(request.requesterId);
+
+  const displayName = requester
+    ? `${requester.name} ${requester.lastname}`.trim()
+    : request.requesterId;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-card border border-border shadow-sm rounded-3xl p-4 flex gap-4"
+    >
+      <div
+        className="relative flex-shrink-0 cursor-pointer"
+        onClick={() => navigate(`/profile/${request.requesterId}?from=request&connectionId=${request.id}`)}
+      >
+        <SafeRemoteImage
+          src={requester?.profilePicURL}
+          alt={displayName}
+          fallback="pastel-icon"
+          className="w-16 h-16 rounded-2xl object-cover"
+        />
+      </div>
+      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+        <div className="mb-2">
+          <h3
+            className="font-bold text-foreground truncate cursor-pointer hover:underline"
+            onClick={() => navigate(`/profile/${request.requesterId}?from=request&connectionId=${request.id}`)}
+          >
+            {displayName}
+          </h3>
+          <p className="text-[10px] text-primary font-bold uppercase mt-0.5">
+            {new Date(request.createdAt).toLocaleDateString('es-CO', {
+              day: 'numeric',
+              month: 'short',
+            })}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onAccept(request.id)}
+            disabled={isPending}
+            className="flex-1 py-2 px-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <UserCheck size={14} />
+            Aceptar
+          </button>
+          <button
+            onClick={() => onDecline(request.id)}
+            disabled={isPending}
+            className="py-2 px-3 bg-muted text-muted-foreground text-xs font-bold rounded-xl hover:bg-muted/80 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <UserX size={14} />
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 
 const ConnectionsScreen = () => {
   const navigate = useNavigate();
@@ -14,6 +139,10 @@ const ConnectionsScreen = () => {
 
   const currentUser = authService.getCurrentUser();
   const userId = currentUser?.id;
+
+  console.log('[ConnectionsScreen] Current user:', currentUser);
+  console.log('[ConnectionsScreen] userId:', userId);
+  console.log('[ConnectionsScreen] localStorage user_id:', localStorage.getItem('user_id'));
 
   // Solicitudes pendientes recibidas (receiverId = yo, status = PENDING)
   const { data: pendingConnections = [], isLoading: loadingPending } = useConnections(userId, ConnectionStatus.PENDING);
@@ -125,59 +254,13 @@ const ConnectionsScreen = () => {
                     </div>
                   ) : (
                     incomingRequests.map((request) => (
-                      <motion.div
+                      <RequestCard
                         key={request.id}
-                        layout
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-card border border-border shadow-sm rounded-3xl p-4 flex gap-4"
-                      >
-                        <div
-                          className="relative flex-shrink-0 cursor-pointer"
-                          onClick={() => navigate(`/profile/${request.requesterId}`)}
-                        >
-                          <SafeRemoteImage
-                            src={undefined}
-                            alt={request.requesterId}
-                            fallback="pastel-icon"
-                            className="w-16 h-16 rounded-2xl object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                          <div className="mb-2">
-                            <h3
-                              className="font-bold text-foreground truncate cursor-pointer hover:underline"
-                              onClick={() => navigate(`/profile/${request.requesterId}`)}
-                            >
-                              {request.requesterId}
-                            </h3>
-                            <p className="text-[10px] text-primary font-bold uppercase mt-0.5">
-                              {new Date(request.createdAt).toLocaleDateString('es-CO', {
-                                day: 'numeric',
-                                month: 'short',
-                              })}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleAccept(request.id)}
-                              disabled={updateConnection.isPending}
-                              className="flex-1 py-2 px-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 disabled:opacity-50"
-                            >
-                              <UserCheck size={14} />
-                              Aceptar
-                            </button>
-                            <button
-                              onClick={() => handleDecline(request.id)}
-                              disabled={updateConnection.isPending}
-                              className="py-2 px-3 bg-muted text-muted-foreground text-xs font-bold rounded-xl hover:bg-muted/80 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                            >
-                              <UserX size={14} />
-                              Eliminar
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
+                        request={request}
+                        onAccept={handleAccept}
+                        onDecline={handleDecline}
+                        isPending={updateConnection.isPending}
+                      />
                     ))
                   )}
                 </motion.div>
@@ -208,41 +291,13 @@ const ConnectionsScreen = () => {
                       <p className="text-sm">Aún no tienes conexiones.</p>
                     </div>
                   ) : (
-                    filteredConnections.map((connection) => {
-                      const otherId = getOtherUserId(connection);
-                      return (
-                        <motion.div
-                          key={connection.id}
-                          layout
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => navigate(`/profile/${otherId}`)}
-                          className="flex items-center gap-4 p-3 hover:bg-muted/40 rounded-2xl transition-colors cursor-pointer"
-                        >
-                          <SafeRemoteImage
-                            src={undefined}
-                            alt={otherId}
-                            fallback="pastel-icon"
-                            className="w-12 h-12 rounded-full object-cover border border-border/50 shadow-sm"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-foreground text-sm truncate">{otherId}</h3>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate('/chats', { state: { studentId: otherId } });
-                              }}
-                              className="p-2.5 rounded-xl bg-accent/10 text-secondary hover:bg-accent/20 transition-colors"
-                              aria-label="Mensaje"
-                            >
-                              <MessageSquare size={18} />
-                            </button>
-                            <ChevronRight size={18} className="text-muted-foreground self-center" />
-                          </div>
-                        </motion.div>
-                      );
-                    })
+                    filteredConnections.map((connection) => (
+                      <ConnectionCard
+                        key={connection.id}
+                        connection={connection}
+                        currentUserId={userId!}
+                      />
+                    ))
                   )}
                 </motion.div>
               )}

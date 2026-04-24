@@ -3,22 +3,69 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { CalendarDays, ChevronRight, Clock3, MapPin, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
-import { MOCK_CONNECTIONS } from '@/shared/data/mockData';
-import { activityService } from '@/features/activities/services/activity.service';
+import { Bell, ChevronRight, Loader2 } from 'lucide-react';
+import { StudentCard } from '@/features/users/components/StudentCard';
+import { ActivityCard } from '@/features/activities/components/ActivityCard';
+import { userService, UserProfile } from '@/features/users/services/user.service';
+import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
+import { MOCK_ACTIVITIES, MOCK_NOTIFICATIONS, Notification, Student } from '@/shared/data/mockData';
+import { NotificationPanel } from '@/shared/components/layout/NotificationPanel';
+import { connectionsService } from '@/features/connections/services/connections.service';
+import { ConnectionStatus } from '@/features/connections/types';
 
 const HomeScreen = () => {
   const navigate = useNavigate();
 
-  const friends = useMemo(
-    () => [...MOCK_CONNECTIONS].sort((a, b) => Number(b.student.isOnline) - Number(a.student.isOnline)),
-    [],
-  );
-  const { data: fetchedActivities } = useQuery({
-    queryKey: ['activities'],
-    queryFn: () => activityService.getAllActivities(),
-  });
-  const activities = fetchedActivities ?? [];
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
+
+  useEffect(() => {
+    const fetchConnectedUsers = async () => {
+      if (!userData?.id) return;
+      try {
+        // Solo traer conexiones aceptadas del usuario actual
+        const connections = await connectionsService.findAll(userData.id, ConnectionStatus.ACCEPTED);
+
+        // Obtener el ID del otro usuario en cada conexión
+        const otherUserIds = connections.map((c) =>
+          c.requesterId === userData.id ? c.receiverId : c.requesterId,
+        );
+
+        // Resolver los perfiles en paralelo
+        const profiles = await Promise.all(otherUserIds.map((id) => userService.getUserById(id)));
+
+        const students: Student[] = profiles
+          .filter((u): u is UserProfile => u !== null)
+          .map((u) => ({
+            id: u.id,
+            name: `${u.name} ${u.lastname}`,
+            photo: u.profilePicURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}+${encodeURIComponent(u.lastname)}&background=random`,
+            career: u.programs?.[0] || 'Estudiante',
+            semester: u.semester,
+            interests: u.interests?.map((i) => i.id) || [],
+            bio: u.description || '',
+            availability: u.freeTimeSchedule?.map((f) => ({
+              day: f.dayOfTheWeek,
+              start: f.startsAt,
+              end: f.endsAt,
+            })) || [],
+            compatibility: Math.floor(Math.random() * 21) + 80,
+            isOnline: true,
+          }));
+
+        setNearbyUsers(students);
+      } catch (error) {
+        console.error('Error fetching connected users:', error);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    fetchConnectedUsers();
+  }, [userData?.id]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
@@ -34,6 +81,18 @@ const HomeScreen = () => {
               </p>
             </div>
 
+      <div className="flex-1 overflow-y-auto pb-24">
+        {/* Hero prompt */}
+        <div className="px-6 py-4">
+          <p className="text-lg font-display font-bold text-foreground/80">
+            Tus conexiones 🐾
+          </p>
+        </div>
+
+        {/* Connected users */}
+        <section className="mb-8">
+          <div className="flex justify-between items-center px-6 mb-4">
+            <h3 className="font-display font-bold text-lg">Conectados contigo</h3>
             <motion.button
               type="button"
               whileTap={{ scale: 0.98 }}
@@ -63,23 +122,18 @@ const HomeScreen = () => {
                   onClick={() => navigate(`/profile/${student.id}`)}
                   className="group flex min-w-[88px] flex-col items-center gap-3 text-center sm:min-w-[96px]"
                 >
-                  <div className="relative">
-                    <div className="rounded-full bg-white p-1.5 shadow-card transition-transform group-hover:-translate-y-0.5">
-                      <SafeRemoteImage
-                        src={student.photo}
-                        alt={student.name}
-                        className="h-20 w-20 rounded-full object-cover"
-                      />
-                    </div>
-                    {student.isOnline && (
-                      <span className="absolute bottom-2 right-2 h-4 w-4 rounded-full border-2 border-white bg-success" />
-                    )}
-                  </div>
-                  <span className="max-w-[88px] truncate text-sm font-medium text-foreground sm:max-w-[96px]">
-                    {student.name.split(' ')[0]}
-                  </span>
-                </motion.button>
-              ))}
+                  <StudentCard
+                    student={student}
+                    compact
+                    onClick={() => navigate(`/profile/${student.id}`)}
+                  />
+                </motion.div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground px-2">Aún no tienes conexiones. ¡Ve a <span className="text-primary font-bold cursor-pointer" onClick={() => navigate('/connect')}>Descubrir</span> para conectar con alguien!</p>
+            )}
+          </div>
+        </section>
 
               <motion.button
                 type="button"
