@@ -28,20 +28,6 @@ export type Student = {
   isOnline: boolean;
 };
 
-export type Activity = {
-  id: string;
-  title: string;
-  category: 'study' | 'social' | 'sport' | 'food' | 'other';
-  coverImage: string;
-  location: string;
-  date: string;
-  time: string;
-  maxAttendees: number;
-  currentAttendees: string[];
-  description: string;
-  creatorId: string;
-};
-
 export type ChatMessage = {
   id: string;
   senderId: string;
@@ -208,61 +194,6 @@ export const MOCK_STUDENTS: Student[] = [
       { day: 'Vie', start: '18:00', end: '22:00' },
     ],
     isOnline: false,
-  },
-];
-
-export const MOCK_ACTIVITIES: Activity[] = [
-  {
-    id: 'a1',
-    title: 'Repaso Cálculo III',
-    category: 'study',
-    coverImage: 'https://picsum.photos/seed/peerly-activity-a1/800/500',
-    location: 'Biblioteca Norte, Sala 3',
-    date: '2026-03-16',
-    time: '14:00',
-    maxAttendees: 8,
-    currentAttendees: ['1', '4', '7'],
-    description: 'Sesión de repaso para el parcial del viernes. Traigan ejercicios resueltos para compartir.',
-    creatorId: '4',
-  },
-  {
-    id: 'a2',
-    title: 'Torneo FIFA Campus',
-    category: 'social',
-    coverImage: 'https://picsum.photos/seed/peerly-activity-a2/800/500',
-    location: 'Sala de Juegos, Bloque C',
-    date: '2026-03-17',
-    time: '16:00',
-    maxAttendees: 16,
-    currentAttendees: ['2', '4', '5'],
-    description: '¡Torneo de FIFA con premios! Inscríbete y demuestra quién es el mejor del campus.',
-    creatorId: '2',
-  },
-  {
-    id: 'a3',
-    title: 'Café & Sketch',
-    category: 'food',
-    coverImage: 'https://picsum.photos/seed/peerly-activity-a3/800/500',
-    location: 'Cafetería Central',
-    date: '2026-03-18',
-    time: '10:00',
-    maxAttendees: 12,
-    currentAttendees: ['1', '3', '6'],
-    description: 'Dibujamos mientras tomamos café. Todos los niveles bienvenidos. Trae tu sketchbook 🎨',
-    creatorId: '6',
-  },
-  {
-    id: 'a4',
-    title: 'Caminata al cerro',
-    category: 'sport',
-    coverImage: 'https://picsum.photos/seed/peerly-activity-a4/800/500',
-    location: 'Punto de encuentro: Portería Sur',
-    date: '2026-03-20',
-    time: '07:00',
-    maxAttendees: 20,
-    currentAttendees: ['2', '6', '7', '3'],
-    description: 'Caminata matutina de 2 horas. Nivel intermedio. ¡Lleva agua y snacks!',
-    creatorId: '6',
   },
 ];
 

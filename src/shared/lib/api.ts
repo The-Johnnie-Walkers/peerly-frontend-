@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const USER_MGMT_URL = 'http://localhost:3000';
+const AUTH_MGMT_URL = 'http://localhost:3002';
+const ACTIVITIES_MGMT_URL = 'http://localhost:3001';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -50,22 +51,59 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    console.log(`[API] ${method} ${url}`, { headers });
     
     try {
       const response = await fetch(url, config);
-      console.log(`[API] Response status: ${response.status}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
         throw new Error(error.message || `Request failed with status ${response.status}`);
       }
 
-      return response.json();
+      const textResponse = await response.text();
+      return JSON.parse(textResponse) as T;
+      
     } catch (error) {
-      console.error(`[API] Error:`, error);
       throw error;
     }
+  }
+
+  async requestVoid(endpoint: string, options: RequestOptions = {}): Promise<void> {
+    const { method = 'GET', body, headers = {}, baseUrl = this.baseUrl } = options;
+
+    const token = this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const config: RequestInit = {
+      method,
+      credentials: 'include',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+    };
+
+    if (body) {
+      config.body = JSON.stringify(body);
+    }
+
+    const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
+    
+    try {
+      const response = await fetch(url, config);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Request failed' }));
+        throw new Error(error.message || `Request failed with status ${response.status}`);
+      }
+      
+    } catch (error) {
+      throw error;
+    }
+
   }
 
   setTokenFromResponse(response: { token?: string }): void {
@@ -75,7 +113,9 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(API_BASE_URL);
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
+export const ACTIVITIES_API_BASE = 'activities';
 export const userApi = new ApiClient(USER_MGMT_URL);
+export const authApi = new ApiClient(AUTH_MGMT_URL);
+export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);

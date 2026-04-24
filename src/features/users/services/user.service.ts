@@ -1,4 +1,4 @@
-import { api, USERS_API_BASE } from '@/shared/lib/api';
+import { userApi, USERS_API_BASE } from '@/shared/lib/api';
 import { authService } from '@/features/auth/services/auth.service';
 
 export interface UserProfile {
@@ -28,7 +28,7 @@ export const userService = {
     if (!userId) return null;
 
     try {
-      return await api.request<UserProfile>(`${USERS_API_BASE}/${userId}`);
+      return await userApi.request<UserProfile>(`${USERS_API_BASE}/${userId}`);
     } catch {
       return null;
     }
@@ -36,7 +36,15 @@ export const userService = {
 
   async getUserById(id: string): Promise<UserProfile | null> {
     try {
-      return await api.request<UserProfile>(`${USERS_API_BASE}/${id}`);
+      return await userApi.request<UserProfile>(`${USERS_API_BASE}/${id}`);
+    } catch {
+      return null;
+    }
+  }, 
+
+  async getUserByEmail(email: string): Promise<UserProfile | null> {
+    try {
+      return await userApi.request<UserProfile>(`${USERS_API_BASE}/by-email/${email}`)
     } catch {
       return null;
     }
@@ -44,7 +52,7 @@ export const userService = {
 
   async getAllUsers(): Promise<UserProfile[]> {
     try {
-      return await api.request<UserProfile[]>(`${USERS_API_BASE}`);
+      return await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
     } catch {
       return [];
     }
@@ -55,7 +63,7 @@ export const userService = {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    return await api.request<UserProfile>(`${USERS_API_BASE}/${id}`, {
+    return await userApi.request<UserProfile>(`${USERS_API_BASE}/${id}`, {
       method: 'PUT',
       body: data,
       headers,
@@ -67,7 +75,7 @@ export const userService = {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    await api.request(`${USERS_API_BASE}/${id}`, {
+    await userApi.requestVoid(`${USERS_API_BASE}/${id}`, {
       method: 'DELETE',
       headers,
     });
