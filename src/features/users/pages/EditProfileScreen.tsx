@@ -1,37 +1,61 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Clock, Loader2 } from 'lucide-react';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
-import { INTERESTS, DAY_LABELS, TIME_OPTIONS } from '@/shared/data/mockData';
+import { DAY_LABELS, TIME_OPTIONS } from '@/shared/data/mockData';
 import type { AvailabilityBlock } from '@/shared/data/mockData';
 import { PeerlyChip } from '@/shared/components/PeerlyChip';
+import { interestService, type BackendInterest } from '@/features/users/services/interest.service';
+import { userService } from '@/features/users/services/user.service';
+import { toast } from 'sonner';
 
 const generateBlockId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function EditProfileScreen() {
   const navigate = useNavigate();
-  const { profile, updateProfile } = useCurrentUser();
+  const { profile, updateProfile, userData } = useCurrentUser();
   const [bio, setBio] = useState(profile.bio);
-  const [interests, setInterests] = useState<string[]>(profile.interests);
+  // IDs de intereses seleccionados por el usuario
+  const [selectedInterestIds, setSelectedInterestIds] = useState<string[]>(
+    userData?.interests?.map(i => i.id) ?? profile.interests
+  );
+  const [availableInterests, setAvailableInterests] = useState<BackendInterest[]>([]);
+  const [isLoadingInterests, setIsLoadingInterests] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [blocks, setBlocks] = useState<AvailabilityBlock[]>(
     profile.availability.length > 0
       ? profile.availability.map(b => ({ ...b, id: b.id ?? generateBlockId() }))
       : [{ id: generateBlockId(), day: DAY_LABELS[0], start: '08:00', end: '10:00' }]
   );
 
+  // Carga los intereses disponibles desde el backend
+  useEffect(() => {
+    const loadInterests = async () => {
+      setIsLoadingInterests(true);
+      try {
+        const interests = await interestService.getAllInterests();
+        setAvailableInterests(interests);
+      } catch (error) {
+        console.error('[EditProfile] Failed to load interests:', error);
+      } finally {
+        setIsLoadingInterests(false);
+      }
+    };
+    loadInterests();
+  }, []);
+
   useEffect(() => {
     setBio(profile.bio);
-    setInterests(profile.interests);
     setBlocks(
       profile.availability.length > 0
         ? profile.availability.map(b => ({ ...b, id: b.id ?? generateBlockId() }))
         : [{ id: generateBlockId(), day: DAY_LABELS[0], start: '08:00', end: '10:00' }]
     );
-  }, [profile.bio, profile.interests, profile.availability]);
+  }, [profile.bio, profile.availability]);
 
   const toggleInterest = (id: string) => {
-    setInterests(prev =>
+    setSelectedInterestIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -60,18 +84,61 @@ export default function EditProfileScreen() {
     );
   };
 
-  const handleSave = () => {
-    updateProfile({
-      bio: bio.trim(),
-      interests,
-      availability: blocks.map(({ id, ...rest }) => rest),
-    });
-    navigate('/profile');
+  // Mapeo de abreviaturas en español → nombres en inglés para el backend
+  const DAY_TO_BACKEND: Record<string, string> = {
+    'Lun': 'MONDAY', 'Mar': 'TUESDAY', 'Miér': 'WEDNESDAY',
+    'Jue': 'THURSDAY', 'Vie': 'FRIDAY', 'Sáb': 'SATURDAY', 'Dom': 'SUNDAY',
   };
 
-  const hasMinimumInterests = interests.length >= 3;
+  const handleSave = async () => {
+    if (!userData?.id) {
+      toast.error('No se pudo identificar el usuario.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      // PUT requiere todos los campos — usamos userData como base y sobreescribimos los editados
+      await userService.updateUser(userData.id, {
+        // Campos obligatorios del usuario actual
+        username: userData.username,
+        name: userData.name,
+        lastname: userData.lastname,
+        email: userData.email,
+        semester: userData.semester,
+        status: userData.status,
+        programs: userData.programs,
+        role: userData.role,
+        birthDate: userData.birthDate ?? '2000-01-01',
+        // Campos editables
+        description: bio.trim(),
+        interests: selectedInterestIds,
+        freeTimeSchedule: blocks.map(b => ({
+          dayOfTheWeek: DAY_TO_BACKEND[b.day] ?? b.day,
+          startsAt: new Date(`1970-01-01T${b.start}:00Z`).toISOString(),
+          endsAt: new Date(`1970-01-01T${b.end}:00Z`).toISOString(),
+        })),
+      });
+
+      // Actualiza el contexto local
+      updateProfile({
+        bio: bio.trim(),
+        interests: selectedInterestIds,
+        availability: blocks.map(({ id, ...rest }) => rest),
+      });
+
+      toast.success('Perfil actualizado correctamente');
+      navigate('/profile');
+    } catch (error) {
+      console.error('[EditProfile] Save error:', error);
+      toast.error('Error al guardar el perfil. Inténtalo de nuevo.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const hasMinimumInterests = selectedInterestIds.length >= 1;
   const hasAtLeastOneBlock = blocks.length > 0;
-  const canSave = bio.trim().length > 0 && hasMinimumInterests && hasAtLeastOneBlock;
+  const canSave = bio.trim().length > 0 && hasMinimumInterests && hasAtLeastOneBlock && !isSaving;
 
   return (
     <div className="min-h-svh flex flex-col bg-background">
@@ -111,27 +178,35 @@ export default function EditProfileScreen() {
             <p id="bio-hint" className="text-xs text-muted-foreground mt-1">{bio.length} caracteres</p>
           </section>
 
-          {/* Intereses — mínimo 3 (prevención de errores) */}
+          {/* Intereses — cargados desde el backend */}
           <section className="mb-6" aria-labelledby="label-interests">
             <h2 id="label-interests" className="block text-sm font-display font-bold text-foreground mb-1.5">
               Intereses
             </h2>
             <p className="text-xs text-muted-foreground mb-2">
-              Selecciona al menos 3. Así te encontrarán compañeros con gustos parecidos.
+              Selecciona al menos 1 para que otros puedan encontrarte.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {INTERESTS.map(interest => (
-                <PeerlyChip
-                  key={interest.id}
-                  label={interest.label}
-                  iconName={interest.icon}
-                  active={interests.includes(interest.id)}
-                  onClick={() => toggleInterest(interest.id)}
-                />
-              ))}
-            </div>
+            {isLoadingInterests ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                <Loader2 size={16} className="animate-spin" />
+                Cargando intereses...
+              </div>
+            ) : availableInterests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay intereses disponibles en este momento.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableInterests.map(interest => (
+                  <PeerlyChip
+                    key={interest.id}
+                    label={interest.name}
+                    active={selectedInterestIds.includes(interest.id)}
+                    onClick={() => toggleInterest(interest.id)}
+                  />
+                ))}
+              </div>
+            )}
             <p className={`text-xs mt-1.5 font-mono ${hasMinimumInterests ? 'text-success' : 'text-muted-foreground'}`}>
-              {interests.length}/3 mínimo seleccionados
+              {selectedInterestIds.length} seleccionado{selectedInterestIds.length !== 1 ? 's' : ''}
             </p>
           </section>
 
@@ -222,7 +297,11 @@ export default function EditProfileScreen() {
               }`}
               aria-disabled={!canSave}
             >
-              Guardar cambios
+              {isSaving ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 size={16} className="animate-spin" /> Guardando...
+                </span>
+              ) : 'Guardar cambios'}
             </motion.button>
             {!canSave && (
               <p className="text-xs text-muted-foreground text-center mt-2">

@@ -1,63 +1,226 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit3 } from 'lucide-react';
-import { MOCK_STUDENTS, INTERESTS } from '@/shared/data/mockData';
+import { ArrowLeft, Edit3, Loader2 } from 'lucide-react';
+import { userService } from '@/features/users/services/user.service';
+import type { BackendInterest } from '@/features/users/services/interest.service';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 
-const ME_FIXED = {
-  id: 'me',
-  name: 'Camilo Pérez',
-  photo: 'https://picsum.photos/seed/peerly-me/400/400',
-  career: 'Ingeniería de Sistemas',
-  semester: 6,
-  compatibility: 100,
-  isOnline: true,
-} as const;
+// Tipo local del perfil mostrado en pantalla
+type ProfileStudent = {
+  id: string;
+  name: string;
+  photo: string;
+  career: string;
+  semester: number;
+  interests: BackendInterest[];
+  compatibility: number;
+  bio: string;
+  availability: { day: string; start: string; end: string }[];
+  isOnline: boolean;
+};
+
+// Traducción de programas académicos del backend (inglés) al español
+const PROGRAM_TRANSLATIONS: Record<string, string> = {
+  SYSTEMS_ENGINEERING: 'Ingeniería de Sistemas',
+  ELECTRICAL_ENGINEERING: 'Ingeniería Eléctrica',
+  CIVIL_ENGINEERING: 'Ingeniería Civil',
+  MECHANICAL_ENGINEERING: 'Ingeniería Mecánica',
+  INDUSTRIAL_ENGINEERING: 'Ingeniería Industrial',
+  ELECTRONIC_ENGINEERING: 'Ingeniería Electrónica',
+  BIOMEDICAL_ENGINEERING: 'Ingeniería Biomédica',
+  COMPUTER_SCIENCE: 'Ciencias de la Computación',
+  MATHEMATICS: 'Matemáticas',
+  PHYSICS: 'Física',
+  CHEMISTRY: 'Química',
+  BIOLOGY: 'Biología',
+  MEDICINE: 'Medicina',
+  LAW: 'Derecho',
+  ECONOMICS: 'Economía',
+  BUSINESS_ADMINISTRATION: 'Administración de Empresas',
+  PSYCHOLOGY: 'Psicología',
+  SOCIOLOGY: 'Sociología',
+  ARCHITECTURE: 'Arquitectura',
+  DESIGN: 'Diseño',
+  COMMUNICATION: 'Comunicación Social',
+  EDUCATION: 'Educación',
+  PHILOSOPHY: 'Filosofía',
+  HISTORY: 'Historia',
+  LITERATURE: 'Literatura',
+  ARTS: 'Artes',
+  NURSING: 'Enfermería',
+  PHARMACY: 'Farmacia',
+  DENTISTRY: 'Odontología',
+  VETERINARY: 'Veterinaria',
+};
+
+// Traduce el código de programa o lo formatea si no está en el mapa
+const translateProgram = (program: string): string =>
+  PROGRAM_TRANSLATIONS[program] ??
+  program
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Traduce nombres de días del backend (inglés) a abreviaturas en español
+const DAY_TRANSLATIONS: Record<string, string> = {
+  MONDAY: 'Lun',
+  TUESDAY: 'Mar',
+  WEDNESDAY: 'Miér',
+  THURSDAY: 'Jue',
+  FRIDAY: 'Vie',
+  SATURDAY: 'Sáb',
+  SUNDAY: 'Dom',
+};
+
+const translateDay = (day: string): string =>
+  DAY_TRANSLATIONS[day?.toUpperCase()] ?? day;
+
+// Parsea un tiempo que puede venir como:
+// - "HH:mm:ss"          → substring(0,5)
+// - "HH:mm"             → substring(0,5)
+// - "1970-01-01T08:00:00.000Z" (ISO UTC) → extrae la hora UTC
+// - "2024-01-01T08:00:00" (ISO sin Z)   → extrae la hora local
+const parseTime = (raw: string | undefined): string => {
+  if (!raw) return '--:--';
+  if (raw.includes('T')) {
+    // ISO con timezone Z → parsear como UTC para no tener desfase
+    if (raw.endsWith('Z') || raw.includes('+')) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const hh = String(d.getUTCHours()).padStart(2, '0');
+        const mm = String(d.getUTCMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+      }
+    }
+    // ISO sin timezone → tomar substring
+    return raw.substring(11, 16);
+  }
+  // "HH:mm:ss" o "HH:mm"
+  return raw.substring(0, 5);
+};
+
+
 
 const ProfileScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { profile: currentUserProfile } = useCurrentUser();
-  const isOwnProfile = !id;
+  const { userData: currentAuthUser, isLoading: isContextLoading } = useCurrentUser();
+  const [student, setStudent] = useState<ProfileStudent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const isOwnProfile = !id || id === currentAuthUser?.id;
 
-  const student = id
-    ? MOCK_STUDENTS.find(s => s.id === id)
-    : {
-        ...ME_FIXED,
-        interests: currentUserProfile.interests,
-        bio: currentUserProfile.bio,
-        availability: currentUserProfile.availability,
-      };
+  console.log("[ProfileScreen] Render State:", { 
+    urlParamId: id, 
+    contextUserId: currentAuthUser?.id, 
+    isContextLoading, 
+    isOwnProfile 
+  });
 
-  if (!student) {
+  useEffect(() => {
+    console.log("[ProfileScreen] Effect Triggered", { 
+      id, 
+      isContextLoading, 
+      currentAuthUserId: currentAuthUser?.id 
+    });
+
+    if (!id && isContextLoading) {
+      console.log("[ProfileScreen] Waiting for context to load...");
+      return;
+    }
+
+    const fetchProfile = async () => {
+      setIsLoading(true);
+      try {
+        // Fallback to localStorage in case context hasn't populated yet (race condition after login)
+        const userId = id || currentAuthUser?.id || localStorage.getItem('user_id');
+        console.log("[ProfileScreen] Attempting to fetch profile for ID:", userId);
+        
+        if (!userId) {
+          console.warn("[ProfileScreen] No ID found to fetch. Context may be empty.");
+          setIsLoading(false);
+          return;
+        }
+
+        const data = await userService.getUserById(userId);
+        console.log("[ProfileScreen] API Response Data:", data);
+
+        if (data) {
+          // Construye el nombre: si name y lastname son iguales (ej. "usuario5"), muestra solo uno
+          const fullName = data.lastname && data.lastname !== data.name && data.lastname !== data.username
+            ? `${data.name} ${data.lastname}`
+            : data.name;
+
+          const mappedStudent: ProfileStudent = {
+            id: data.id,
+            name: fullName,
+            photo: data.profilePicURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`,
+            career: translateProgram(data.programs?.[0] || '') || 'Estudiante',
+            semester: data.semester,
+            // Guardamos los intereses tal como vienen del backend
+            interests: data.interests ?? [],
+            bio: data.description || '',
+            availability: data.freeTimeSchedule?.map(f => ({
+              day: translateDay(f.dayOfTheWeek),
+              start: parseTime(f.startsAt),
+              end: parseTime(f.endsAt),
+            })) || [],
+            compatibility: isOwnProfile ? 100 : Math.floor(Math.random() * 21) + 80,
+            isOnline: true,
+          };
+          console.log("[ProfileScreen] Mapped Student Object:", mappedStudent);
+          setStudent(mappedStudent);
+        } else {
+          console.warn("[ProfileScreen] API returned null for user ID:", userId);
+        }
+      } catch (error) {
+        console.error('[ProfileScreen] Error fetching profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [id, currentAuthUser?.id, isContextLoading, isOwnProfile]);
+
+  if (isContextLoading || isLoading) {
     return (
       <div className="h-svh flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Usuario no encontrado</p>
+        <Loader2 className="animate-spin text-primary" size={32} />
       </div>
     );
   }
 
-  // Shared interests for other profiles
-  const myInterests = ['coding', 'coffee', 'music', 'gaming'];
-  const sharedInterests = !isOwnProfile ? student.interests.filter(i => myInterests.includes(i)) : [];
+  if (!student) {
+    return (
+      <div className="h-svh flex items-center justify-center bg-background flex-col gap-4">
+        <p className="text-muted-foreground">Usuario no encontrado</p>
+        <button onClick={() => navigate(-1)} className="text-primary font-bold">Volver</button>
+      </div>
+    );
+  }
+
+  // Intereses compartidos con el usuario autenticado (solo para perfiles ajenos)
+  const myInterestIds = currentAuthUser?.interests?.map(i => i.id) || [];
+  const sharedInterestIds = !isOwnProfile
+    ? student.interests.filter(i => myInterestIds.includes(i.id)).map(i => i.id)
+    : [];
 
   return (
     <div className="min-h-svh flex flex-col bg-background">
       {/* Centered column on desktop, full width on mobile */}
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
         {/* Header */}
-        {!isOwnProfile && (
-          <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => navigate(-1)}
-              className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
-            >
-              <ArrowLeft size={18} />
-            </motion.button>
-          </header>
-        )}
+        <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => navigate(-1)}
+            className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
+          >
+            <ArrowLeft size={18} />
+          </motion.button>
+        </header>
 
         <div className="flex-1 overflow-y-auto pb-24 px-4 sm:px-6">
           {/* Cover + Avatar — no overflow-hidden so avatar is not clipped */}
@@ -84,17 +247,17 @@ const ProfileScreen = () => {
             {isOwnProfile && (
               <div className="flex items-center justify-center gap-6 md:gap-8 my-4">
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">24</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">0</p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Conexiones</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">8</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">0</p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Actividades</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">94%</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">100%</p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Perfil</p>
                 </div>
               </div>
@@ -108,7 +271,7 @@ const ProfileScreen = () => {
               </div>
             )}
 
-            <p className="text-foreground/80 text-sm md:text-base mb-6 leading-relaxed max-w-xl mx-auto">{student.bio}</p>
+            <p className="text-foreground/80 text-sm md:text-base mb-6 leading-relaxed max-w-xl mx-auto">{student.bio || 'Sin descripción aún.'}</p>
           </div>
 
           {/* Interests */}
@@ -116,24 +279,29 @@ const ProfileScreen = () => {
             <h3 className="font-display font-bold text-sm md:text-base mb-3">
               {isOwnProfile ? 'Tus intereses' : 'Intereses'}
             </h3>
-            <div className="flex flex-wrap gap-2">
-              {student.interests.map(id => {
-                const interest = INTERESTS.find(i => i.id === id);
-                const isShared = sharedInterests.includes(id);
-                return interest ? (
-                  <span
-                    key={id}
-                    className={`px-3 py-1.5 rounded-full text-xs md:text-sm font-medium border ${
-                      isShared
-                        ? 'bg-primary/10 border-primary/30 text-primary font-bold'
-                        : 'bg-accent border-border text-accent-foreground'
-                    }`}
-                  >
-                    {isShared && '✨ '}{interest.label}
-                  </span>
-                ) : null;
-              })}
-            </div>
+            {student.interests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {isOwnProfile ? 'Aún no has añadido intereses. ¡Edita tu perfil!' : 'Sin intereses definidos.'}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {student.interests.map(interest => {
+                  const isShared = sharedInterestIds.includes(interest.id);
+                  return (
+                    <span
+                      key={interest.id}
+                      className={`px-3 py-1.5 rounded-full text-xs md:text-sm font-medium border ${
+                        isShared
+                          ? 'bg-primary/10 border-primary/30 text-primary font-bold'
+                          : 'bg-accent border-border text-accent-foreground'
+                      }`}
+                    >
+                      {isShared && '✨ '}{interest.name}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Availability — bloques/franjas */}
@@ -145,7 +313,7 @@ const ProfileScreen = () => {
               <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
                 {student.availability.map((block, i) => (
                   <li
-                    key={block.id ?? i}
+                    key={i}
                     className="px-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-sm font-mono font-medium text-foreground"
                   >
                     {block.day} {block.start}–{block.end}
@@ -156,7 +324,7 @@ const ProfileScreen = () => {
           </div>
 
           {/* CTA — in flow, at bottom of page (not fixed) */}
-          <div className="pt-4 pb-2 md:px-0">
+          <div className="pt-4 pb-12 md:px-0">
             {isOwnProfile ? (
               <motion.button
                 whileTap={{ scale: 0.96 }}

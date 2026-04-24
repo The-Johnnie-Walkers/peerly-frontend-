@@ -3,7 +3,7 @@ import { InterestIcon } from './InterestIcon';
 
 interface PeerlyChipProps {
   label: string;
-  iconName: string;
+  iconName?: string;
   active: boolean;
   onClick: () => void;
 }
@@ -18,7 +18,7 @@ export const PeerlyChip = ({ label, iconName, active, onClick }: PeerlyChipProps
         : 'bg-accent border-border text-foreground hover:border-secondary/50'
     }`}
   >
-    <InterestIcon name={iconName} size={16} />
+    {iconName && <InterestIcon name={iconName} size={16} />}
     <span>{label}</span>
   </motion.button>
 );

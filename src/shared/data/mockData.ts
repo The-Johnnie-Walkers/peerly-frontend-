@@ -5,6 +5,7 @@ export type Interest = {
   id: string;
   label: string;
   icon: string; // lucide icon name
+  category: 'SPORTS' | 'VIDEOGAMES' | 'MUSIC' | 'MOVIES' | 'BOOKS' | 'TECHNOLOGY' | 'OTHER';
 };
 
 /** Franja disponible: un bloque de tiempo en un día (ej. Lun 08:00–10:00). */
@@ -62,18 +63,18 @@ export type Connection = {
 };
 
 export const INTERESTS: Interest[] = [
-  { id: 'study', label: 'Grupos de estudio', icon: 'BookOpen' },
-  { id: 'coffee', label: 'Cafecito', icon: 'Coffee' },
-  { id: 'music', label: 'Conciertos', icon: 'Music' },
-  { id: 'gaming', label: 'Gaming', icon: 'Gamepad2' },
-  { id: 'party', label: 'Fiestas', icon: 'PartyPopper' },
-  { id: 'hiking', label: 'Senderismo', icon: 'Mountain' },
-  { id: 'art', label: 'Arte', icon: 'Palette' },
-  { id: 'sports', label: 'Deportes', icon: 'Dumbbell' },
-  { id: 'photo', label: 'Fotografía', icon: 'Camera' },
-  { id: 'theater', label: 'Teatro', icon: 'Theater' },
-  { id: 'coding', label: 'Programación', icon: 'Code' },
-  { id: 'food', label: 'Gastronomía', icon: 'Utensils' },
+  { id: 'study', label: 'Grupos de estudio', icon: 'BookOpen', category: 'BOOKS' },
+  { id: 'coffee', label: 'Cafecito', icon: 'Coffee', category: 'OTHER' },
+  { id: 'music', label: 'Conciertos', icon: 'Music', category: 'MUSIC' },
+  { id: 'gaming', label: 'Gaming', icon: 'Gamepad2', category: 'VIDEOGAMES' },
+  { id: 'party', label: 'Fiestas', icon: 'PartyPopper', category: 'OTHER' },
+  { id: 'hiking', label: 'Senderismo', icon: 'Mountain', category: 'SPORTS' },
+  { id: 'art', label: 'Arte', icon: 'Palette', category: 'OTHER' },
+  { id: 'sports', label: 'Deportes', icon: 'Dumbbell', category: 'SPORTS' },
+  { id: 'photo', label: 'Fotografía', icon: 'Camera', category: 'TECHNOLOGY' },
+  { id: 'theater', label: 'Teatro', icon: 'Theater', category: 'MOVIES' },
+  { id: 'coding', label: 'Programación', icon: 'Code', category: 'TECHNOLOGY' },
+  { id: 'food', label: 'Gastronomía', icon: 'Utensils', category: 'OTHER' },
 ];
 
 export const MOCK_STUDENTS: Student[] = [
