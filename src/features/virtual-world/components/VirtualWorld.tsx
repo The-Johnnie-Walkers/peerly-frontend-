@@ -3,7 +3,7 @@ import { Send, UserPlus, MessageSquare } from 'lucide-react';
 import { useRealtimeMap } from '../hooks/useRealtimeMap';
 import { useSocket } from '@/shared/contexts/SocketContext';
 import { authService } from '@/features/auth/services/auth.service';
-import { api } from '@/shared/lib/api';
+import { connectionsApi } from '@/shared/lib/api';
 import { toast } from '@/shared/components/ui/use-toast';
 import { UserInMap, ChatMessage } from '../types/realtime.types';
 import { drawDuelPads } from '@/features/football-duel/components/DuelPads';
@@ -378,7 +378,7 @@ const VirtualWorld: React.FC = () => {
   const emitConnectAttempt = useCallback(async (targetUserId: string) => {
     if (!currentUser?.id) return;
     try {
-      await api.request('/connections', {
+      await connectionsApi.request('/connections', {
         method: 'POST',
         body: { requesterId: currentUser.id, receiverId: targetUserId },
       });
