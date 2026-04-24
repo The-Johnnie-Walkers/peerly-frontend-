@@ -48,6 +48,11 @@ export interface ServerToClientEvents {
   chatMessage: (payload: ChatMessage) => void;
   initialPositions: (users: AvatarPosition[]) => void;
   error: (payload: RealtimeError) => void;
+  // Football Duel events
+  padStateUpdate: (pads: import('@/features/football-duel/types/football-duel.types').PadState[]) => void;
+  duelStarted: (payload: import('@/features/football-duel/types/football-duel.types').DuelStartedPayload) => void;
+  crownUpdate: (state: import('@/features/football-duel/types/football-duel.types').CrownState) => void;
+  padBlocked: (payload: { padId: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -55,4 +60,6 @@ export interface ClientToServerEvents {
   leaveMap: () => void;
   updatePosition: (position: Position) => void;
   sendChat: (payload: { message: string }) => void;
+  // Football Duel events
+  checkDuelPads: (position: Position) => void;
 }

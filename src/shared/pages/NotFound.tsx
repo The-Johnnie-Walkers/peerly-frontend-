@@ -1,5 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import BubbleBackground from "../components/ui/bubble-background";
+import PeerlyLogo from "../../assets/peerly-logo.png";
 
 const NotFound = () => {
   const location = useLocation();
@@ -10,11 +12,14 @@ const NotFound = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
-        <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
+      <BubbleBackground showGlow/>
+      <div className="text-center bg-white/80 rounded-xl w-full p-10 max-w-md shadow-l">
+        <img src={PeerlyLogo} className="w-40 mx-auto pb-4"/>
+        <h1 className="mb-4 text-4xl font-bold ">404</h1>
+        <p className="mb-4 text-xl text-muted-foreground pb-2">Uy! Por aquí no es</p>
+
+        <a href="/" className="text-primary bg-primary text-white rounded-xl p-1.5 hover:bg-primary/90">
+          Volver al inicio
         </a>
       </div>
     </div>

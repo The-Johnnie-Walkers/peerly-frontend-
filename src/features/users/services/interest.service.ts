@@ -1,6 +1,8 @@
-import { userApi, api, INTERESTS_API_BASE, USERS_API_BASE } from '@/shared/lib/api';
+import { userApi, USERS_API_BASE } from '@/shared/lib/api';
 import { authService } from '@/features/auth/services/auth.service';
 import { INTERESTS as MOCK_INTERESTS } from '@/shared/data/mockData';
+
+const INTERESTS_API_BASE = 'interests';
 
 export interface BackendInterest {
   id: string;
@@ -23,33 +25,17 @@ export const interestService = {
    * Si ambos fallan, devuelve los intereses del mock local como fallback.
    */
   async getAllInterests(): Promise<BackendInterest[]> {
-    // Intento 1: user-service (puerto 3000)
     try {
-      console.log(`[InterestService] Fetching from user-service: /${INTERESTS_API_BASE}`);
       const result = await userApi.request<BackendInterest[]>(`/${INTERESTS_API_BASE}`);
       if (Array.isArray(result) && result.length > 0) {
-        console.log(`[InterestService] Got ${result.length} interests from user-service`);
         return result;
       }
-      console.warn('[InterestService] user-service returned empty array, trying auth-service...');
     } catch (error) {
       console.warn('[InterestService] user-service failed:', error);
     }
 
-    // Intento 2: auth-service (puerto 3001)
-    try {
-      console.log(`[InterestService] Fetching from auth-service: /${INTERESTS_API_BASE}`);
-      const result = await api.request<BackendInterest[]>(`/${INTERESTS_API_BASE}`);
-      if (Array.isArray(result) && result.length > 0) {
-        console.log(`[InterestService] Got ${result.length} interests from auth-service`);
-        return result;
-      }
-    } catch (error) {
-      console.warn('[InterestService] auth-service also failed:', error);
-    }
-
     // Fallback: mock local
-    console.warn('[InterestService] Both services failed. Using local mock interests as fallback.');
+    console.warn('[InterestService] Service failed. Using local mock interests as fallback.');
     return getMockFallback();
   },
 
@@ -70,7 +56,7 @@ export const interestService = {
 
     await userApi.request(`/${USERS_API_BASE}/${userId}`, {
       method: 'PUT',
-      body: { interests: interestIds.map(id => ({ id })) },
+      body: { interests: interestIds },
       headers,
     });
   },

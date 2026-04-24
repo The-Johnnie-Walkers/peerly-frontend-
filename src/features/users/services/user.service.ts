@@ -1,4 +1,4 @@
-import { api, userApi, USERS_API_BASE } from '@/shared/lib/api';
+import { userApi, USERS_API_BASE } from '@/shared/lib/api';
 import { authService } from '@/features/auth/services/auth.service';
 
 export interface UserProfile {
@@ -20,6 +20,10 @@ export interface UserProfile {
   status: string;
   programs: string[];
   role: string;
+}
+
+export interface UserUpdatePayload extends Omit<Partial<UserProfile>, 'interests'> {
+  interests?: string[];
 }
 
 export const userService = {
@@ -44,8 +48,7 @@ export const userService = {
 
   async getUserByEmail(email: string): Promise<UserProfile | null> {
     try {
-      const users = await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
-      return users.find(u => u.email === email) || null;
+      return await userApi.request<UserProfile>(`${USERS_API_BASE}/by-email/${email}`)
     } catch {
       return null;
     }
@@ -59,7 +62,7 @@ export const userService = {
     }
   },
 
-  async updateUser(id: string, data: Partial<UserProfile>): Promise<UserProfile> {
+  async updateUser(id: string, data: UserUpdatePayload): Promise<UserProfile> {
     const token = authService.getToken();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -75,7 +78,7 @@ export const userService = {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    await userApi.request(`${USERS_API_BASE}/${id}`, {
+    await userApi.requestVoid(`${USERS_API_BASE}/${id}`, {
       method: 'DELETE',
     });
   },

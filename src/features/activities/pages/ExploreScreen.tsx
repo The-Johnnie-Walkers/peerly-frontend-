@@ -1,140 +1,156 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
-import { MOCK_STUDENTS, MOCK_ACTIVITIES, INTERESTS } from '@/shared/data/mockData';
-import { StudentCard } from '@/features/users/components/StudentCard';
+import { CalendarPlus2, Search } from 'lucide-react';
 import { ActivityCard } from '@/features/activities/components/ActivityCard';
-
-const FILTERS = [
-  { id: 'all', label: 'Todos' },
-  { id: 'available', label: 'Disponibles ahora' },
-  { id: 'career', label: 'Mi carrera' },
-  { id: 'activities', label: 'Actividades' },
-];
+import { activityService } from '@/features/activities/services/activity.service';
+import { authService } from '@/features/auth/services/auth.service';
 
 const ExploreScreen = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const { data: fetchedActivities } = useQuery({
+    queryKey: ['activities'],
+    queryFn: () => activityService.getAllActivities(),
+  });
 
-  const filteredStudents = MOCK_STUDENTS.filter(
-    s =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.career.toLowerCase().includes(search.toLowerCase()) ||
-      s.interests.some(i =>
-        INTERESTS.find(int => int.id === i)?.label.toLowerCase().includes(search.toLowerCase())
-      )
+  const userId = authService.getCurrentUser()?.id;
+  const activities = fetchedActivities ?? [];
+  const { data: userActivities = [] } = useQuery({
+    queryKey: ['user-activities', userId],
+    queryFn: () => activityService.getUserActivitiesById(userId!),
+    enabled: Boolean(userId),
+  });
+
+  const userActivityIds = useMemo(() => new Set(userActivities.map((a) => a.id)), [userActivities]);
+
+  const filteredActivities = useMemo(
+    () =>
+      activities.filter((activity) => {
+        if (userActivityIds.has(activity.id)) return false;
+
+        const searchTerm = search.trim().toLowerCase();
+        if (!searchTerm) return true;
+
+        return (
+          activity.title.toLowerCase().includes(searchTerm) ||
+          activity.description.toLowerCase().includes(searchTerm) ||
+          activity.location.toLowerCase().includes(searchTerm)
+        );
+      }),
+    [activities, userActivityIds, search],
   );
 
-  const showActivities = activeFilter === 'all' || activeFilter === 'activities';
-  const showStudents = activeFilter !== 'activities';
-
   return (
-    <div className="min-h-svh flex flex-col bg-background">
-      <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        {/* Header — jerarquía clara, consistencia con otras pantallas */}
-        <header className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b border-border/60 bg-background">
-          <h1 className="text-2xl md:text-3xl font-display font-extrabold text-foreground mb-1">
-            Explorar
-          </h1>
-          <p className="text-sm text-muted-foreground mb-4">
-            Busca personas o actividades por interés, carrera o nombre.
-          </p>
+    <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-2">
+      <div className="min-h-full rounded-[28px] bg-background md:rounded-[32px] md:shadow-elevated">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-6 py-8 pb-24 sm:px-8 sm:py-9 lg:gap-10 lg:px-10 lg:py-10 xl:px-12 2xl:px-14">
+          <header className="flex flex-col gap-5 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:px-8 sm:py-9 lg:flex-row lg:items-end lg:justify-between lg:px-10">
+            <div className="max-w-3xl">
+              <p className="text-[11px] font-mono font-bold uppercase tracking-[0.22em] text-primary">
+                Actividades
+              </p>
+              <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-[color:hsl(var(--peerly-primary-dark))] sm:text-4xl">
+                Descubre planes dentro del campus
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))] sm:text-[15px]">
+                Revisa actividades disponibles, filtra por nombre o lugar y crea un nuevo plan cuando quieras mover a más personas.
+              </p>
+            </div>
 
-          {/* Búsqueda — Nielsen: reconocimiento (placeholder + label implícito) */}
-          <div className="relative">
-            <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-              size={20}
-              aria-hidden
-            />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full py-3.5 pl-12 pr-4 rounded-2xl bg-background border border-border outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors text-sm placeholder:text-muted-foreground"
-              placeholder="Personas, intereses, actividades..."
-              aria-label="Buscar"
-              type="search"
-              autoComplete="off"
-            />
-          </div>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/create-activity')}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[hsl(var(--peerly-primary))] px-4 text-sm font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90 sm:self-start lg:self-auto"
+            >
+              <CalendarPlus2 className="h-4 w-4" />
+              Crear actividad
+            </motion.button>
+          </header>
 
-          {/* Filtros — Hick: pocas opciones claras; feedback visual del estado activo */}
-          <div className="flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 scrollbar-none">
-            {FILTERS.map(f => (
-              <motion.button
-                key={f.id}
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setActiveFilter(f.id)}
-                className={`flex-shrink-0 px-4 py-2.5 rounded-full text-xs font-display font-bold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  activeFilter === f.id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-card border border-border text-foreground hover:bg-accent/50'
-                }`}
-                aria-pressed={activeFilter === f.id}
-                aria-label={`Filtrar: ${f.label}`}
-              >
-                {f.label}
-              </motion.button>
-            ))}
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-24 space-y-8">
-          {showStudents && (
-            <section aria-labelledby="section-students">
-              <h2
-                id="section-students"
-                className="font-display font-bold text-sm mb-3 text-muted-foreground uppercase tracking-wider"
-              >
-                Estudiantes
-                {filteredStudents.length > 0 && (
-                  <span className="font-mono font-normal ml-2">({filteredStudents.length})</span>
-                )}
-              </h2>
-              {filteredStudents.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">
-                  {search ? 'No hay resultados para tu búsqueda.' : 'No hay estudiantes para mostrar.'}
-                </p>
+          <section className="space-y-6">
+            <div className="flex-col gap-4 rounded-[30px] border border-white/70 bg-white/72 px-5 py-5 shadow-card sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
+              <h2 className="pb-8 pl-2 font-display text-2xl font-bold text-foreground">Tus Actividades</h2>
+              {userActivities.length === 0 ? (
+                <div className="rounded-[30px] border border-dashed border-primary/25 bg-white/70 px-6 py-12 text-center shadow-card">
+                  <h3 className="font-display text-xl font-bold text-foreground">No tienes actividades</h3>
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    Unete a una o crea una nueva actividad para empezar a mover la comunidad .
+                  </p>
+                </div>
               ) : (
-                <ul className="grid grid-cols-2 md:grid-cols-3 gap-3 list-none p-0 m-0">
-                  {filteredStudents.map((student, i) => (
-                    <li key={student.id}>
+                <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                  {userActivities.map((activity, index) => (
+                    <li key={activity.id}>
                       <motion.div
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(i * 0.04, 0.3) }}
+                        transition={{ delay: Math.min(index * 0.05, 0.25) }}
                       >
-                        <StudentCard
-                          student={student}
-                          compact
-                          onClick={() => navigate(`/profile/${student.id}`)}
+                        <ActivityCard
+                          activity={activity}
+                          onClick={() => navigate(`/activity/${activity.id}`)}
                         />
                       </motion.div>
                     </li>
                   ))}
                 </ul>
               )}
-            </section>
-          )}
+            </div>
+          </section>
 
-          {showActivities && (
-            <section aria-labelledby="section-activities">
-              <h2
-                id="section-activities"
-                className="font-display font-bold text-sm mb-3 text-muted-foreground uppercase tracking-wider"
-              >
-                Actividades trending
-              </h2>
-              <ul className="space-y-3 list-none p-0 m-0">
-                {MOCK_ACTIVITIES.map((activity, i) => (
+
+          <section className="space-y-6">
+            <div className="flex flex-col gap-4 rounded-[30px] border border-white/70 bg-white/72 px-5 py-5 shadow-card sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-foreground">Actividades disponibles</h2>
+                <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                  {filteredActivities.length} resultado{filteredActivities.length === 1 ? '' : 's'} para explorar.
+                </p>
+              </div>
+
+              <div className="relative w-full lg:max-w-md">
+                <Search
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="w-full rounded-2xl border border-border bg-background py-3.5 pl-11 pr-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  placeholder="Buscar por nombre, descripción o lugar"
+                  aria-label="Buscar actividades"
+                  type="search"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+
+            {filteredActivities.length === 0 ? (
+              <div className="rounded-[30px] border border-dashed border-primary/25 bg-white/70 px-6 py-12 text-center shadow-card">
+                <h3 className="font-display text-xl font-bold text-foreground">No encontramos actividades</h3>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                  Ajusta la búsqueda o crea una nueva actividad para empezar a mover la comunidad.
+                </p>
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate('/create-activity')}
+                  className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-[hsl(var(--peerly-primary))] px-4 text-sm font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90"
+                >
+                  Crear actividad
+                </motion.button>
+              </div>
+            ) : (
+              <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                {filteredActivities.map((activity, index) => (
                   <li key={activity.id}>
                     <motion.div
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 + i * 0.04 }}
+                      transition={{ delay: Math.min(index * 0.05, 0.25) }}
                     >
                       <ActivityCard
                         activity={activity}
@@ -144,8 +160,8 @@ const ExploreScreen = () => {
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
+            )}
+          </section>
         </div>
       </div>
     </div>
