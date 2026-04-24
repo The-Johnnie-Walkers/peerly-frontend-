@@ -28,6 +28,7 @@ export interface Activity {
 
 interface ActivityResponseDto {
   id: string;
+  requesterId: string;
   name: string;
   description: string;
   startsAt: string;
@@ -108,7 +109,7 @@ const mapActivityDtoToViewModel = (activity: ActivityResponseDto): Activity => {
       (_, index) => `activity-attendee-${activity.id}-${index + 1}`,
     ),
     description: activity.description,
-    creatorId: '',
+    creatorId: activity.requesterId,
     startsAtISO: activity.startsAt,
     endsAtISO: activity.endsAt,
     availablePlaces: activity.availablePlaces,
