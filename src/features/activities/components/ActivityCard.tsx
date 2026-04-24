@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { CalendarDays, Clock, MapPin, Users } from 'lucide-react';
-import { Activity } from '@/shared/data/mockData';
+import type { Activity } from '@/features/activities/services/activity.service';
 
 interface ActivityCardProps {
   activity: Activity;

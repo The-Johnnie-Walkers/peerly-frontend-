@@ -51,11 +51,9 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    console.log(`[API] ${method} ${url}`, { headers });
     
     try {
       const response = await fetch(url, config);
-      console.log(`[API] Response status: ${response.status}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
@@ -66,7 +64,6 @@ class ApiClient {
       return JSON.parse(textResponse) as T;
       
     } catch (error) {
-      console.error(`[API] Error:`, error);
       throw error;
     }
   }
@@ -94,11 +91,9 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    console.log(`[API] ${method} ${url}`, { headers });
     
     try {
       const response = await fetch(url, config);
-      console.log(`[API] Response status: ${response.status}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
@@ -106,7 +101,6 @@ class ApiClient {
       }
       
     } catch (error) {
-      console.error(`[API] Error:`, error);
       throw error;
     }
 

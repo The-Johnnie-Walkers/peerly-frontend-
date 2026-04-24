@@ -16,16 +16,20 @@ const ExploreScreen = () => {
   });
 
   const userId = authService.getCurrentUser()?.id;
-  const activities = fetchedActivities ?? activityService.getMockActivities();
+  const activities = fetchedActivities ?? [];
   const { data: userActivities = [] } = useQuery({
     queryKey: ['user-activities', userId],
     queryFn: () => activityService.getUserActivitiesById(userId!),
     enabled: Boolean(userId),
   });
 
+  const userActivityIds = useMemo(() => new Set(userActivities.map((a) => a.id)), [userActivities]);
+
   const filteredActivities = useMemo(
     () =>
       activities.filter((activity) => {
+        if (userActivityIds.has(activity.id)) return false;
+
         const searchTerm = search.trim().toLowerCase();
         if (!searchTerm) return true;
 
@@ -35,7 +39,7 @@ const ExploreScreen = () => {
           activity.location.toLowerCase().includes(searchTerm)
         );
       }),
-    [activities, search],
+    [activities, userActivityIds, search],
   );
 
   return (

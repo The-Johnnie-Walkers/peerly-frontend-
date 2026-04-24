@@ -10,33 +10,6 @@ import { userService } from "@/features/users/services/user.service";
 import { toast } from "sonner";
 import BubbleBackground from "@/shared/components/ui/bubble-background";
 
-const GoogleIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 48 48"
-    aria-hidden="true"
-  >
-    <path
-      fill="#EA4335"
-      d="M24 9.5c3.54 0 6 1.54 7.38 2.84l5.4-5.4C33.64 3.5 29.3 1.5 24 1.5 14.88 1.5 7.09 7.34 4.24 15.44l6.77 5.26C12.53 14.6 17.74 9.5 24 9.5Z"
-    />
-    <path
-      fill="#34A853"
-      d="M46.5 24.5c0-1.57-.14-3.08-.41-4.5H24v9h12.7c-.55 2.82-2.2 5.21-4.7 6.82l7.31 5.68C43.73 37.7 46.5 31.6 46.5 24.5Z"
-    />
-    <path
-      fill="#FBBC05"
-      d="M11.01 28.3A14.44 14.44 0 0 1 10 24c0-1.49.26-2.93.73-4.27L3.96 14.5A23.93 23.93 0 0 0 1.5 24c0 3.78.9 7.34 2.46 10.5l7.05-6.2Z"
-    />
-    <path
-      fill="#4285F4"
-      d="M24 46.5c6.3 0 11.6-2.07 15.47-5.64l-7.31-5.68C30.46 36.1 27.53 37 24 37c-6.26 0-11.47-5.1-12.73-11.96l-7.03 6.2C7.09 40.66 14.88 46.5 24 46.5Z"
-    />
-    <path fill="none" d="M1.5 1.5h45v45h-45Z" />
-  </svg>
-);
-
 const Field = ({
   icon: Icon,
   label,
@@ -83,17 +56,7 @@ const Login = () => {
 
     setIsLoading(true);
     try {
-      const response = await authService.login({ email, password });
-      const userProfile = await userService.getUserByEmail(response.email);
-
-      if (!userProfile) {
-        authService.logout();
-        throw new Error("No se encontro el perfil del usuario");
-      }
-
-      localStorage.setItem('user_id', userProfile.id);
-      localStorage.setItem('user_data', JSON.stringify(userProfile));
-
+      await authService.login({ email, password });
       toast.success("¡Bienvenido de nuevo!");
       navigate("/home");
     } catch (error: unknown) {
@@ -204,14 +167,6 @@ const Login = () => {
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </form>
-
-                <Button
-                  variant="outline"
-                  className="w-full h-11 rounded-2xl bg-white hover:bg-[hsl(var(--peerly-soft-accent))] text-foreground text-sm justify-center border-border"
-                >
-                  <GoogleIcon className="w-4 h-4" />
-                  <span>Continuar con Google</span>
-                </Button>
 
                 <div className="flex items-center justify-between text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">
                   <Link to="/forgot-password" className="hover:text-[hsl(var(--peerly-primary))] transition-colors">

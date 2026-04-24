@@ -1,3 +1,4 @@
+import { userService } from '@/features/users/services/user.service';
 import { authApi, AUTH_API_BASE } from '@/shared/lib/api';
 
 export interface LoginRequest {
@@ -36,6 +37,16 @@ export const authService = {
       localStorage.setItem('user_name', response.name);
       localStorage.setItem('user_email', response.email);
     }
+
+    const userProfile = await userService.getUserByEmail(response.email);
+    
+    if (!userProfile) {
+        authService.logout();
+        throw new Error("No se encontro el perfil del usuario");
+      }
+
+    localStorage.setItem('user_id', userProfile.id);
+    localStorage.setItem('user_data', JSON.stringify(userProfile));
 
     return response;
   },
