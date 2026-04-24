@@ -65,7 +65,28 @@ export const authService = {
   },
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
+    if (!token) return null;
+
+    // Decode payload and check expiration without a library
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const isExpired = payload.exp && Date.now() / 1000 > payload.exp;
+      if (isExpired) {
+        // Token expired — clear session and force re-login
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('user_name');
+        localStorage.removeItem('user_email');
+        return null;
+      }
+    } catch {
+      // Malformed token — discard it
+      localStorage.removeItem('auth_token');
+      return null;
+    }
+
+    return token;
   },
 
   isAuthenticated(): boolean {

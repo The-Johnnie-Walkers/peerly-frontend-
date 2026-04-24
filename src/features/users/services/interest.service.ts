@@ -70,7 +70,7 @@ export const interestService = {
 
     await userApi.request(`/${USERS_API_BASE}/${userId}`, {
       method: 'PUT',
-      body: { interests: interestIds.map(id => ({ id })) },
+      body: { interests: interestIds },
       headers,
     });
   },
