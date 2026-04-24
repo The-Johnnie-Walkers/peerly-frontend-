@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
@@ -24,6 +24,8 @@ import VirtualWorldScreen from "./features/virtual-world/pages/VirtualWorldScree
 import NotFound from "./shared/pages/NotFound";
 import LandingPage from "./features/landing/pages/LandingPage";
 import Login from "./features/auth/pages/Login";
+import { ReactNode } from "react";
+import { authService } from "./features/auth/services/auth.service";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,13 @@ const appShellMatchers = [
   "/virtual-world",
 ];
 
+const ProtectedRoute = ({ children } : { children: ReactNode }) => {
+  if(!authService.isAuthenticated()){
+    return <Navigate to="/login" replace/>
+  }
+  return<>{children}</>
+}
+
 const usesAppShell = (pathname: string) =>
   appShellMatchers.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 
@@ -49,23 +58,23 @@ const AppLayout = () => {
   const appRoutes = (
     <Routes>
       <Route path="/splash" element={<SplashScreen />} />
-      <Route path="/onboarding" element={<OnboardingScreen />} />
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/onboarding" element={<OnboardingScreen/>} />
+      <Route path="/" element={<LandingPage/>} />
       <Route path="login" element={<Login/>}/>
-      <Route path="/home" element={<HomeScreen />} />
+      <Route path="/home" element={<ProtectedRoute> <HomeScreen/> </ProtectedRoute>}/>
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/connect" element={<ConnectScreen />} />
-      <Route path="/social" element={<ConnectionsScreen />} />
-      <Route path="/chats" element={<ChatsScreen />} />
-      <Route path="/profile" element={<ProfileScreen />} />
-      <Route path="/profile/edit" element={<EditProfileScreen />} />
-      <Route path="/profile/:id" element={<ProfileScreen />} />
-      <Route path="/explore" element={<ExploreScreen />} />
-      <Route path="/activity/:id" element={<ActivityDetailScreen />} />
-      <Route path="/create-activity" element={<CreateActivityScreen />} />
-      <Route path="/virtual-world" element={<VirtualWorldScreen />} />
+      <Route path="/connect" element={<ProtectedRoute> <ConnectScreen/> </ProtectedRoute>}/>
+      <Route path="/social" element={<ProtectedRoute> <ConnectionsScreen/> </ProtectedRoute>}/>
+      <Route path="/chats" element={<ProtectedRoute> <ChatsScreen/> </ProtectedRoute>}/>
+      <Route path="/profile" element={<ProtectedRoute> <ProfileScreen/> </ProtectedRoute>}/>
+      <Route path="/profile/edit" element={<ProtectedRoute> <EditProfileScreen /> </ProtectedRoute>}/>
+      <Route path="/profile/:id" element={<ProtectedRoute> <ProfileScreen/> </ProtectedRoute>}/>
+      <Route path="/explore" element={<ProtectedRoute> <ExploreScreen/> </ProtectedRoute>}/>
+      <Route path="/activity/:id" element={<ProtectedRoute> <ActivityDetailScreen/> </ProtectedRoute>}/>
+      <Route path="/create-activity" element={<ProtectedRoute> <CreateActivityScreen/> </ProtectedRoute>}/>
+      <Route path="/virtual-world" element={<ProtectedRoute> <VirtualWorldScreen/> </ProtectedRoute>}/>
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
