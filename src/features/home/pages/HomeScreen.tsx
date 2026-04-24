@@ -135,12 +135,9 @@ const HomeScreen = () => {
                         {activity.title}
                       </h3>
                     </div>
-<<<<<<< HEAD
-=======
                     <span className="rounded-full bg-[hsl(var(--peerly-soft-accent))] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-[color:hsl(var(--peerly-primary-dark))]">
                       Actividad
                     </span>
->>>>>>> feature/conexionEntornoVirtual
                   </div>
 
                   <p className="mt-5 line-clamp-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
