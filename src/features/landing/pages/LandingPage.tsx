@@ -19,7 +19,7 @@ export default function LandingPage() {
             <NavBar/>
             <div className="relative flex min-h-screen justify-center">
                 <BubbleBackground showGlow />
-                <div className="relative z-10 flex flex-col items-center mt-48">
+                <div className="relative z-10 flex flex-col items-center justify-center">
                     <motion.img
                         className="w-65 h-60 object-contain"
                         src={PeerlyLogo}

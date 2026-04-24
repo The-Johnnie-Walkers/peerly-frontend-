@@ -6,7 +6,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { useState } from "react";
 import { authService } from "@/features/auth/services/auth.service";
-import { userService } from "@/features/users/services/user.service";
 import { toast } from "sonner";
 import BubbleBackground from "@/shared/components/ui/bubble-background";
 
