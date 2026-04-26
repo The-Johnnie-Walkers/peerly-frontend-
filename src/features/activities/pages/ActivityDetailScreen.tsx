@@ -11,7 +11,9 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Pencil,
   RefreshCw,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -296,6 +298,24 @@ const ActivityDetailScreen = () => {
     );
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('No se pudo identificar la actividad.');
+      return activityService.deleteActivity(id);
+    },
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: ['activities'] });
+      queryClient.removeQueries({ queryKey: ['user-activities', userId] });
+      queryClient.removeQueries({ queryKey: ['joined-activity-ids', userId] });
+      toast.success('La actividad fue eliminada.');
+      navigate('/explore');
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'No fue posible eliminar la actividad.';
+      toast.error(message);
+    },
+  });
+
   const joinMutation = useMutation({
     mutationFn: async () => {
       if (!id || !userId) {
@@ -380,6 +400,7 @@ const ActivityDetailScreen = () => {
   const statusDescription = STATUS_DESCRIPTIONS[status];
   const availablePlaces = getAvailablePlaces(activity);
   const confirmedCount = getConfirmedCount(activity);
+  const isOwner = Boolean(userId && activity.creatorId === userId);
   const isJoined = Boolean(userId && joinedActivityIdsQuery.data?.includes(activity.id));
   const isActionPending = joinMutation.isPending || leaveMutation.isPending;
   const canJoin = Boolean(userId) && !isJoined && status === 'OPEN' && availablePlaces > 0;
@@ -471,7 +492,7 @@ const ActivityDetailScreen = () => {
           <div className="grid gap-3 md:grid-cols-3">
             <SummaryCard icon={CalendarDays} label="Fecha" value={getDateLabel(activity)} />
             <SummaryCard icon={Clock3} label="Horario" value={getScheduleLabel(activity)} />
-            <SummaryCard icon={MapPin} label="Ubicacion" value={activity.location} />
+            <SummaryCard icon={MapPin} label="Ubicacion" value={activity.locationPayload.displayName} />
           </div>
         </div>
       </header>
@@ -526,142 +547,215 @@ const ActivityDetailScreen = () => {
 
         <aside className="order-1 self-start lg:order-2 lg:sticky lg:top-6">
           <article className="rounded-[30px] border border-white/70 bg-white/88 px-6 py-6 shadow-card sm:px-7">
-            <div className="flex flex-col gap-5">
-              <div>
-                <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
-                  Tu participacion
-                </p>
-                <h2 className="mt-2 font-display text-2xl font-bold text-foreground">
-                  {isJoined ? 'Ya estas dentro' : 'Aun no has ingresado'}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                  {isJoined
-                    ? 'Puedes salir cuando quieras. Si cambias de opinion, confirmamos antes de liberar tu cupo.'
-                    : primaryAction.description}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/40 px-4 py-4">
-                <div className="flex items-center gap-3 text-sm text-foreground">
-                  <Users className="h-4 w-4 text-primary" />
-                  <span>
-                    {confirmedCount} persona{confirmedCount === 1 ? '' : 's'} confirmada
-                    {confirmedCount === 1 ? '' : 's'} de {activity.maxAttendees}
-                  </span>
-                </div>
-              </div>
-
-              {joinedActivityIdsQuery.isPending && userId ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-12 rounded-2xl" />
-                  <Skeleton className="h-4 w-3/4 rounded-full" />
-                </div>
-              ) : null}
-
-              {showMembershipError ? (
-                <div className="rounded-[24px] border border-destructive/20 bg-destructive/5 px-4 py-4">
-                  <p className="text-sm font-medium text-foreground">
-                    No pudimos validar si ya estas dentro de esta actividad.
+            {isOwner ? (
+              <div className="flex flex-col gap-5">
+                <div>
+                  <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+                    Tu actividad
                   </p>
-                  <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                    Reintenta para habilitar la accion correcta.
+                  <h2 className="mt-2 font-display text-2xl font-bold text-foreground">
+                    Eres el creador
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    Puedes editar los datos o eliminarla. Los cambios son inmediatos para todos los participantes.
                   </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      void joinedActivityIdsQuery.refetch();
-                    }}
-                    className="mt-4 h-10 rounded-full border-border/80 bg-white px-4"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Reintentar
-                  </Button>
                 </div>
-              ) : null}
 
-              {!joinedActivityIdsQuery.isPending && !showMembershipError ? (
-                isJoined ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        disabled={isActionPending}
-                        className="h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
+                <div className="rounded-[24px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/40 px-4 py-4">
+                  <div className="flex items-center gap-3 text-sm text-foreground">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span>
+                      {confirmedCount} persona{confirmedCount === 1 ? '' : 's'} confirmada
+                      {confirmedCount === 1 ? '' : 's'} de {activity.maxAttendees}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => navigate(`/activity/${id}/edit`)}
+                  className="h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Editar actividad
+                </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      disabled={deleteMutation.isPending}
+                      className="h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
+                    >
+                      {deleteMutation.isPending ? (
+                        <>
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Eliminando...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar actividad
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">
+                        Eliminar actividad
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                        Esta accion es permanente. Se eliminara la actividad para todos los participantes y no podra recuperarse.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">
+                        Cancelar
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        disabled={deleteMutation.isPending}
+                        onClick={() => { void deleteMutation.mutateAsync(); }}
+                        className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90"
                       >
-                        {leaveMutation.isPending ? (
-                          <>
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                            Saliendo...
-                          </>
-                        ) : (
-                          <>
-                            <LogOut className="h-4 w-4" />
-                            Salir de la actividad
-                          </>
-                        )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">
-                          Salir de la actividad
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                          Vas a liberar tu cupo en esta actividad. Si todavia quieres participar, tendras que ingresar otra vez.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">
-                          Cancelar
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          disabled={leaveMutation.isPending}
-                          onClick={() => {
-                            void leaveMutation.mutateAsync();
-                          }}
-                          className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90"
-                        >
-                          {leaveMutation.isPending ? 'Saliendo...' : 'Confirmar salida'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : (
-                  <Button
-                    type="button"
-                    disabled={primaryAction.disabled || isActionPending || !canJoin}
-                    onClick={() => {
-                      void joinMutation.mutateAsync();
-                    }}
-                    className="h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
-                  >
-                    {joinMutation.isPending ? (
-                      <>
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                        Ingresando...
-                      </>
-                    ) : (
-                      <>
-                        <LogIn className="h-4 w-4" />
-                        {primaryAction.label}
-                      </>
-                    )}
-                  </Button>
-                )
-              ) : null}
-
-              <div className="rounded-[24px] border border-border/70 bg-white/70 px-4 py-4">
-                <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
-                  Estado del sistema
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                  {activityQuery.isSuccess
-                    ? 'Informacion sincronizada con el microservicio de actividades.'
-                    : 'Cargando la informacion mas reciente.'}
-                </p>
+                        {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar definitivamente'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-5">
+                <div>
+                  <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+                    Tu participacion
+                  </p>
+                  <h2 className="mt-2 font-display text-2xl font-bold text-foreground">
+                    {isJoined ? 'Ya estas dentro' : 'Aun no has ingresado'}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    {isJoined
+                      ? 'Puedes salir cuando quieras. Si cambias de opinion, confirmamos antes de liberar tu cupo.'
+                      : primaryAction.description}
+                  </p>
+                </div>
+
+                <div className="rounded-[24px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/40 px-4 py-4">
+                  <div className="flex items-center gap-3 text-sm text-foreground">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span>
+                      {confirmedCount} persona{confirmedCount === 1 ? '' : 's'} confirmada
+                      {confirmedCount === 1 ? '' : 's'} de {activity.maxAttendees}
+                    </span>
+                  </div>
+                </div>
+
+                {joinedActivityIdsQuery.isPending && userId ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-12 rounded-2xl" />
+                    <Skeleton className="h-4 w-3/4 rounded-full" />
+                  </div>
+                ) : null}
+
+                {showMembershipError ? (
+                  <div className="rounded-[24px] border border-destructive/20 bg-destructive/5 px-4 py-4">
+                    <p className="text-sm font-medium text-foreground">
+                      No pudimos validar si ya estas dentro de esta actividad.
+                    </p>
+                    <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                      Reintenta para habilitar la accion correcta.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => { void joinedActivityIdsQuery.refetch(); }}
+                      className="mt-4 h-10 rounded-full border-border/80 bg-white px-4"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Reintentar
+                    </Button>
+                  </div>
+                ) : null}
+
+                {!joinedActivityIdsQuery.isPending && !showMembershipError ? (
+                  isJoined ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          disabled={isActionPending}
+                          className="h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
+                        >
+                          {leaveMutation.isPending ? (
+                            <>
+                              <LoaderCircle className="h-4 w-4 animate-spin" />
+                              Saliendo...
+                            </>
+                          ) : (
+                            <>
+                              <LogOut className="h-4 w-4" />
+                              Salir de la actividad
+                            </>
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">
+                            Salir de la actividad
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                            Vas a liberar tu cupo en esta actividad. Si todavia quieres participar, tendras que ingresar otra vez.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">
+                            Cancelar
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            disabled={leaveMutation.isPending}
+                            onClick={() => { void leaveMutation.mutateAsync(); }}
+                            className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90"
+                          >
+                            {leaveMutation.isPending ? 'Saliendo...' : 'Confirmar salida'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <Button
+                      type="button"
+                      disabled={primaryAction.disabled || isActionPending || !canJoin}
+                      onClick={() => { void joinMutation.mutateAsync(); }}
+                      className="h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
+                    >
+                      {joinMutation.isPending ? (
+                        <>
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Ingresando...
+                        </>
+                      ) : (
+                        <>
+                          <LogIn className="h-4 w-4" />
+                          {primaryAction.label}
+                        </>
+                      )}
+                    </Button>
+                  )
+                ) : null}
+
+                <div className="rounded-[24px] border border-border/70 bg-white/70 px-4 py-4">
+                  <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+                    Estado del sistema
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    {activityQuery.isSuccess
+                      ? 'Informacion sincronizada con el microservicio de actividades.'
+                      : 'Cargando la informacion mas reciente.'}
+                  </p>
+                </div>
+              </div>
+            )}
           </article>
         </aside>
       </div>
