@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -6,26 +6,67 @@ import { CalendarPlus2, Search } from 'lucide-react';
 import { ActivityCard } from '@/features/activities/components/ActivityCard';
 import { activityService } from '@/features/activities/services/activity.service';
 import { authService } from '@/features/auth/services/auth.service';
+import { Skeleton } from '@/shared/components/ui/skeleton';
+
+const BROWSABLE_STATUSES = new Set(['OPEN', 'FULL', 'IN_PROGRESS']);
+const ACTIVE_STATUSES = new Set(['OPEN', 'FULL', 'IN_PROGRESS']);
+const PAST_STATUSES = new Set(['ENDED', 'CANCELLED']);
+
+const ActivityCardSkeleton = () => (
+  <div className="overflow-hidden rounded-[32px] border border-border bg-card shadow-card">
+    <div className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(255,248,242,0.95),rgba(247,241,235,0.92))] px-4 py-4">
+      <div className="flex items-start justify-between gap-2">
+        <Skeleton className="mt-1 h-6 w-3/4 rounded-2xl" />
+        <Skeleton className="mt-1 h-5 w-16 rounded-full" />
+      </div>
+    </div>
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-4 w-full rounded-full" />
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-full rounded-2xl" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Skeleton className="h-8 w-full rounded-2xl" />
+          <Skeleton className="h-8 w-full rounded-2xl" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-9 w-20 rounded-full" />
+        <Skeleton className="h-9 w-24 rounded-full" />
+      </div>
+    </div>
+  </div>
+);
 
 const ExploreScreen = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const { data: fetchedActivities } = useQuery({
+  const deferredSearch = useDeferredValue(search);
+
+  const { data: fetchedActivities, isPending: activitiesPending } = useQuery({
     queryKey: ['activities'],
     queryFn: () => activityService.getAllActivities(),
   });
 
   const userId = authService.getCurrentUser()?.id;
   const activities = fetchedActivities ?? [];
-  const { data: userActivities = [] } = useQuery({
+
+  const { data: userActivities = [], isPending: userActivitiesPending } = useQuery({
     queryKey: ['user-activities', userId],
     queryFn: () => activityService.getUserActivitiesById(userId!),
     enabled: Boolean(userId),
   });
 
-  const userActivityIds = useMemo(() => new Set(userActivities.map((a) => a.id)), [userActivities]);
+  const activeUserActivities = useMemo(
+    () => userActivities.filter((a) => ACTIVE_STATUSES.has(a.status ?? 'OPEN')),
+    [userActivities],
+  );
 
-  const BROWSABLE_STATUSES = new Set(['OPEN', 'FULL', 'IN_PROGRESS']);
+  const pastUserActivities = useMemo(
+    () => userActivities.filter((a) => PAST_STATUSES.has(a.status ?? 'OPEN')),
+    [userActivities],
+  );
+
+  const userActivityIds = useMemo(() => new Set(userActivities.map((a) => a.id)), [userActivities]);
 
   const filteredActivities = useMemo(
     () =>
@@ -33,7 +74,7 @@ const ExploreScreen = () => {
         if (userActivityIds.has(activity.id)) return false;
         if (!BROWSABLE_STATUSES.has(activity.status ?? 'OPEN')) return false;
 
-        const searchTerm = search.trim().toLowerCase();
+        const searchTerm = deferredSearch.trim().toLowerCase();
         if (!searchTerm) return true;
 
         return (
@@ -42,7 +83,7 @@ const ExploreScreen = () => {
           activity.location.toLowerCase().includes(searchTerm)
         );
       }),
-    [activities, userActivityIds, search],
+    [activities, userActivityIds, deferredSearch],
   );
 
   return (
@@ -76,42 +117,79 @@ const ExploreScreen = () => {
           <section className="space-y-6">
             <div className="flex-col gap-4 rounded-[30px] border border-white/70 bg-white/72 px-5 py-5 shadow-card sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
               <h2 className="pb-8 pl-2 font-display text-2xl font-bold text-foreground">Tus Actividades</h2>
-              {userActivities.length === 0 ? (
+
+              {userActivitiesPending ? (
+                <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <li key={i}><ActivityCardSkeleton /></li>
+                  ))}
+                </ul>
+              ) : activeUserActivities.length === 0 && pastUserActivities.length === 0 ? (
                 <div className="rounded-[30px] border border-dashed border-primary/25 bg-white/70 px-6 py-12 text-center shadow-card">
                   <h3 className="font-display text-xl font-bold text-foreground">No tienes actividades</h3>
                   <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                    Unete a una o crea una nueva actividad para empezar a mover la comunidad .
+                    Unete a una o crea una nueva actividad para empezar a mover la comunidad.
                   </p>
                 </div>
               ) : (
-                <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
-                  {userActivities.map((activity, index) => (
-                    <li key={activity.id}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(index * 0.05, 0.25) }}
-                      >
-                        <ActivityCard
-                          activity={activity}
-                          isOwner={activity.creatorId === userId}
-                          onClick={() => navigate(`/activity/${activity.id}`)}
-                        />
-                      </motion.div>
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-8">
+                  {activeUserActivities.length > 0 && (
+                    <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                      {activeUserActivities.map((activity, index) => (
+                        <li key={activity.id}>
+                          <motion.div
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: Math.min(index * 0.05, 0.25) }}
+                          >
+                            <ActivityCard
+                              activity={activity}
+                              isOwner={activity.creatorId === userId}
+                              onClick={() => navigate(`/activity/${activity.id}`)}
+                            />
+                          </motion.div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {pastUserActivities.length > 0 && (
+                    <div>
+                      <p className="mb-4 pl-2 text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-[color:hsl(var(--peerly-text-secondary))]">
+                        Historial
+                      </p>
+                      <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                        {pastUserActivities.map((activity, index) => (
+                          <li key={activity.id}>
+                            <motion.div
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: Math.min(index * 0.05, 0.25) }}
+                            >
+                              <ActivityCard
+                                activity={activity}
+                                isOwner={activity.creatorId === userId}
+                                onClick={() => navigate(`/activity/${activity.id}`)}
+                              />
+                            </motion.div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </section>
-
 
           <section className="space-y-6">
             <div className="flex flex-col gap-4 rounded-[30px] border border-white/70 bg-white/72 px-5 py-5 shadow-card sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="font-display text-2xl font-bold text-foreground">Actividades disponibles</h2>
                 <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                  {filteredActivities.length} resultado{filteredActivities.length === 1 ? '' : 's'} para explorar.
+                  {activitiesPending
+                    ? 'Cargando...'
+                    : `${filteredActivities.length} resultado${filteredActivities.length === 1 ? '' : 's'} para explorar.`}
                 </p>
               </div>
 
@@ -132,7 +210,13 @@ const ExploreScreen = () => {
               </div>
             </div>
 
-            {filteredActivities.length === 0 ? (
+            {activitiesPending ? (
+              <ul className="grid list-none gap-5 p-0 m-0 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <li key={i}><ActivityCardSkeleton /></li>
+                ))}
+              </ul>
+            ) : filteredActivities.length === 0 ? (
               <div className="rounded-[30px] border border-dashed border-primary/25 bg-white/70 px-6 py-12 text-center shadow-card">
                 <h3 className="font-display text-xl font-bold text-foreground">No encontramos actividades</h3>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">

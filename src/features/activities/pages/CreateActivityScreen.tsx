@@ -76,6 +76,7 @@ const CreateActivityScreen = () => {
   const [form, setForm] = useState<CreateActivityFormState>(INITIAL_FORM);
   const [selectedLocation, setSelectedLocation] = useState<ActivityLocationPayload | null>(null);
   const [locationResults, setLocationResults] = useState<ActivityLocationPayload[]>([]);
+  const [locationSearched, setLocationSearched] = useState(false);
 
   const today = formatDateInputValue(new Date());
   const startsAt = buildLocalDateTime(form.date, form.startTime);
@@ -115,9 +116,7 @@ const CreateActivityScreen = () => {
     },
     onSuccess: (locations) => {
       setLocationResults(locations);
-      if (!locations.length) {
-        toast.info('No encontramos opciones para ese lugar.');
-      }
+      setLocationSearched(true);
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : 'No fue posible buscar lugares.';
@@ -167,6 +166,8 @@ const CreateActivityScreen = () => {
 
     if (field === 'locationQuery') {
       setSelectedLocation(null);
+      setLocationResults([]);
+      setLocationSearched(false);
     }
   };
 
@@ -443,7 +444,14 @@ const CreateActivityScreen = () => {
                     </p>
                   </div>
 
-                  {locationResults.length ? (
+                  {locationSearched && locationResults.length === 0 && !searchLocationMutation.isPending ? (
+                    <div className="rounded-[22px] border border-border/70 bg-white/70 px-4 py-4 text-center">
+                      <p className="text-sm font-medium text-foreground">Sin resultados</p>
+                      <p className="mt-1 text-xs text-[color:hsl(var(--peerly-text-secondary))]">
+                        Intenta con un nombre diferente o más específico.
+                      </p>
+                    </div>
+                  ) : locationResults.length > 0 ? (
                     <div className="grid gap-3">
                       {locationResults.map((location) => {
                         const isSelected =

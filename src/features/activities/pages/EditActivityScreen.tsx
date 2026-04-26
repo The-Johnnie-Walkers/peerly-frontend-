@@ -78,6 +78,7 @@ const EditActivityScreen = () => {
   });
   const [selectedLocation, setSelectedLocation] = useState<ActivityLocationPayload | null>(null);
   const [locationResults, setLocationResults] = useState<ActivityLocationPayload[]>([]);
+  const [locationSearched, setLocationSearched] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   const activityQuery = useQuery({
@@ -152,7 +153,7 @@ const EditActivityScreen = () => {
     },
     onSuccess: (locations) => {
       setLocationResults(locations);
-      if (!locations.length) toast.info('No encontramos opciones para ese lugar.');
+      setLocationSearched(true);
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : 'No fue posible buscar lugares.';
@@ -179,6 +180,8 @@ const EditActivityScreen = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['activities'] }),
         queryClient.invalidateQueries({ queryKey: ['activities', id] }),
+        queryClient.invalidateQueries({ queryKey: ['user-activities', userId] }),
+        queryClient.invalidateQueries({ queryKey: ['joined-activity-ids', userId] }),
       ]);
       toast.success('La actividad se actualizo correctamente.');
       navigate(`/activity/${id}`);
@@ -191,7 +194,11 @@ const EditActivityScreen = () => {
 
   const updateField = (field: keyof EditActivityFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
-    if (field === 'locationQuery') setSelectedLocation(null);
+    if (field === 'locationQuery') {
+      setSelectedLocation(null);
+      setLocationResults([]);
+      setLocationSearched(false);
+    }
   };
 
   const handleSelectLocation = (location: ActivityLocationPayload) => {
@@ -234,6 +241,17 @@ const EditActivityScreen = () => {
           <Button type="button" variant="outline" className="mt-4 rounded-full" onClick={() => navigate(-1)}>
             Volver
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!initialized) {
+    return (
+      <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 py-8 sm:px-8 sm:py-9 lg:px-10 lg:py-10 xl:px-12">
+          <Skeleton className="h-40 rounded-[32px]" />
+          <Skeleton className="h-96 rounded-[28px]" />
         </div>
       </div>
     );
@@ -461,7 +479,14 @@ const EditActivityScreen = () => {
                     </p>
                   </div>
 
-                  {locationResults.length ? (
+                  {locationSearched && locationResults.length === 0 && !searchLocationMutation.isPending ? (
+                    <div className="rounded-[22px] border border-border/70 bg-white/70 px-4 py-4 text-center">
+                      <p className="text-sm font-medium text-foreground">Sin resultados</p>
+                      <p className="mt-1 text-xs text-[color:hsl(var(--peerly-text-secondary))]">
+                        Intenta con un nombre diferente o más específico.
+                      </p>
+                    </div>
+                  ) : locationResults.length > 0 ? (
                     <div className="grid gap-3">
                       {locationResults.map((location) => {
                         const isSelected =

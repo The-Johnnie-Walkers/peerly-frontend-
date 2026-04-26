@@ -180,16 +180,11 @@ export const activityService = {
 
   async getUserActivitiesById(id: string): Promise<Activity[]> {
     const activityIds = [...new Set(await this.getJoinedActivityIdsByUserId(id))];
-
     if (!activityIds.length) return [];
 
-    const activities = await Promise.all(
-      activityIds.map((activityId) =>
-        activityApi.request<ActivityResponseDto>(`${ACTIVITIES_API_BASE}/${activityId}`),
-      ),
-    );
-
-    return sortActivitiesByStartDate(activities.map(mapActivityDtoToViewModel));
+    const allActivities = await this.getAllActivities();
+    const idSet = new Set(activityIds);
+    return allActivities.filter((a) => idSet.has(a.id));
   },
 
   async joinActivity(activityId: string, userId: string): Promise<ActivityParticipationResponse> {
