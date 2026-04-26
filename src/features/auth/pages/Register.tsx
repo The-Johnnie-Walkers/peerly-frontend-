@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { User, Mail, Lock, BookOpen, UserPlus, Clock, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Mail, Lock, BookOpen, UserPlus, Clock, Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -12,11 +12,12 @@ import {
 } from "@/shared/components/ui/select";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { PeerlyChip } from "@/shared/components/PeerlyChip";
-import { INTERESTS, DAY_LABELS, TIME_OPTIONS } from "@/shared/data/mockData";
+import { DAY_LABELS, TIME_OPTIONS } from "@/shared/data/mockData";
 import type { AvailabilityBlock } from "@/shared/data/mockData";
 import { Link, useNavigate } from "react-router-dom";
 import { authService } from "@/features/auth/services/auth.service";
 import { userApi } from "@/shared/lib/api";
+import { interestService, type BackendInterest } from "@/features/users/services/interest.service";
 import { toast } from "sonner";
 
 const careers = [
@@ -41,13 +42,26 @@ const isInstitutionalEmail = (email: string) => {
 
 const generateBlockId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const DAY_MAPPING: Record<string, string> = {
+  'Lun': 'MONDAY',
+  'Mar': 'TUESDAY',
+  'Mié': 'WEDNESDAY',
+  'Jue': 'THURSDAY',
+  'Vie': 'FRIDAY',
+  'Sáb': 'SATURDAY',
+  'Dom': 'SUNDAY',
+};
+
 const Register = () => {
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [career, setCareer] = useState("");
   const [semester, setSemester] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [availableInterests, setAvailableInterests] = useState<BackendInterest[]>([]);
+  const [isLoadingInterests, setIsLoadingInterests] = useState(true);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([
     { id: generateBlockId(), day: DAY_LABELS[0], start: "08:00", end: "10:00" },
   ]);
@@ -55,34 +69,41 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    interestService.getAllInterests().then(interests => {
+      setAvailableInterests(interests);
+      setIsLoadingInterests(false);
+    });
+  }, []);
+
   const emailIsValid = email.length === 0 || isInstitutionalEmail(email);
-  const hasMinimumInterests = selectedInterests.length >= 3;
+  const hasValidInterests = selectedInterests.length >= 3 && selectedInterests.length <= 5;
   const hasAtLeastOneBlock = availabilityBlocks.length > 0;
   const canSubmit =
-    name.trim().length > 0 &&
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
     isInstitutionalEmail(email) &&
     password.length >= 6 &&
     career &&
     semester &&
-    hasMinimumInterests &&
+    hasValidInterests &&
     hasAtLeastOneBlock &&
     acceptedRules;
 
   const toggleInterest = (id: string) => {
     setSelectedInterests((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+      prev.includes(id)
+        ? prev.filter((i) => i !== id)
+        : prev.length >= 5
+          ? prev
+          : [...prev, id],
     );
   };
 
   const addAvailabilityBlock = () => {
     setAvailabilityBlocks((prev) => [
       ...prev,
-      {
-        id: generateBlockId(),
-        day: DAY_LABELS[0],
-        start: "08:00",
-        end: "10:00",
-      },
+      { id: generateBlockId(), day: DAY_LABELS[0], start: "08:00", end: "10:00" },
     ]);
   };
 
@@ -103,32 +124,60 @@ const Register = () => {
     setIsLoading(true);
     try {
       const username = email.split('@')[0];
-      const lastname = name.split(' ').slice(1).join(' ') || name;
-      
-      await authService.register({ name, email, password });
+      const freeTimeSchedule = availabilityBlocks.map(b => ({
+        dayOfTheWeek: DAY_MAPPING[b.day] || 'MONDAY',
+        startsAt: new Date(`1970-01-01T${b.start}:00Z`),
+        endsAt: new Date(`1970-01-01T${b.end}:00Z`),
+      }));
 
-      await userApi.request('users', {
+      // Paso 1: crear cuenta en auth-service
+      const authResponse = await authService.register({ name: `${firstName} ${lastName}`, email, password });
+
+      // Paso 2: crear perfil en user-service
+      const userResponse = await userApi.request<{ id: string }>('users', {
         method: 'POST',
         body: {
           username,
-          name,
-          lastname,
+          name: firstName,
+          lastname: lastName,
           email,
           birthDate: new Date('2000-01-01'),
           semester: parseInt(semester),
-          interests: selectedInterests.map(id => ({ id, name: id })),
-          freeTimeSchedule: availabilityBlocks.map(b => ({
-            id: b.id,
-            dayOfTheWeek: b.day,
-            startsAt: new Date(`1970-01-01T${b.start}:00`),
-            endsAt: new Date(`1970-01-01T${b.end}:00`),
-          })),
           status: 'ACTIVE',
           programs: [career],
           role: 'USER',
           description: '',
+          freeTimeSchedule,
         },
       });
+
+      localStorage.setItem('user_id', userResponse.id);
+      localStorage.setItem('user_name', firstName);
+      localStorage.setItem('user_email', email);
+
+      // Paso 3: asignar intereses e info completa via PUT
+      try {
+        await userApi.request(`users/${userResponse.id}`, {
+          method: 'PUT',
+          body: {
+            id: userResponse.id,
+            username,
+            name: firstName,
+            lastname: lastName,
+            email,
+            birthDate: new Date('2000-01-01'),
+            semester: parseInt(semester),
+            freeTimeSchedule,
+            status: 'ACTIVE',
+            programs: [career],
+            role: 'USER',
+            description: '',
+            interests: selectedInterests.map(id => ({ id })),
+          },
+        });
+      } catch (interestError) {
+        console.warn("[Register] Could not assign interests:", interestError);
+      }
 
       toast.success("¡Cuenta creada! Por favor inicia sesión.");
       navigate("/");
@@ -161,14 +210,25 @@ const Register = () => {
                   Datos básicos
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5 sm:col-span-2">
+                  <div className="space-y-1.5">
                     <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))]">
-                      Nombre completo
+                      Nombre
                     </label>
                     <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Tu nombre como aparece en la universidad"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Tu nombre"
+                      className="h-11 rounded-2xl bg-background/80 border-border text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))]">
+                      Apellido
+                    </label>
+                    <Input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Tu apellido"
                       className="h-11 rounded-2xl bg-background/80 border-border text-sm"
                     />
                   </div>
@@ -264,25 +324,31 @@ const Register = () => {
                   Intereses comunes
                 </h3>
                 <p className="text-[12px] text-[color:hsl(var(--peerly-text-secondary))]">
-                  Selecciona al menos 3 intereses para mejorar tus conexiones. Siempre podrás cambiarlos luego.
+                  Selecciona entre 3 y 5 intereses para mejorar tus conexiones. Siempre podrás cambiarlos luego.
                 </p>
-                <div className="flex flex-wrap gap-2.5">
-                  {INTERESTS.map((interest) => (
-                    <PeerlyChip
-                      key={interest.id}
-                      label={interest.label}
-                      iconName={interest.icon}
-                      active={selectedInterests.includes(interest.id)}
-                      onClick={() => toggleInterest(interest.id)}
-                    />
-                  ))}
-                </div>
+                {isLoadingInterests ? (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Cargando intereses...
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2.5">
+                    {availableInterests.map((interest) => (
+                      <PeerlyChip
+                        key={interest.id}
+                        label={interest.name}
+                        active={selectedInterests.includes(interest.id)}
+                        onClick={() => toggleInterest(interest.id)}
+                      />
+                    ))}
+                  </div>
+                )}
                 <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))] font-mono">
-                  {selectedInterests.length}/3 mínimo seleccionados
+                  {selectedInterests.length}/5 máximo (mínimo 3)
                 </p>
               </section>
 
-              {/* Disponibilidad por franjas (bloques) */}
+              {/* Disponibilidad */}
               <section className="space-y-3">
                 <h3 className="text-xs font-mono font-bold tracking-widest uppercase text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[color:hsl(var(--peerly-primary))]" />
@@ -404,4 +470,3 @@ const Register = () => {
 };
 
 export default Register;
-

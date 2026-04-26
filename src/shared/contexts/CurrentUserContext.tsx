@@ -2,6 +2,27 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import type { AvailabilityBlock } from '@/shared/data/mockData';
 import { userService, type UserProfile } from '@/features/users/services/user.service';
 
+// Traduce nombres de días del backend al español
+const DAY_MAP: Record<string, string> = {
+  MONDAY: 'Lun', TUESDAY: 'Mar', WEDNESDAY: 'Miér',
+  THURSDAY: 'Jue', FRIDAY: 'Vie', SATURDAY: 'Sáb', SUNDAY: 'Dom',
+};
+const toDay = (d: string) => DAY_MAP[d?.toUpperCase()] ?? d;
+
+// Parsea ISO UTC o "HH:mm:ss" a "HH:mm"
+const toTime = (raw: string | undefined): string => {
+  if (!raw) return '--:--';
+  if (raw.includes('T')) {
+    if (raw.endsWith('Z') || raw.includes('+')) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime()))
+        return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+    }
+    return raw.substring(11, 16);
+  }
+  return raw.substring(0, 5);
+};
+
 type CurrentUserProfile = {
   bio: string;
   interests: string[];
@@ -41,24 +62,32 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadUserData = async () => {
       const userId = localStorage.getItem('user_id');
+      console.log("[CurrentUserContext] Initializing session, found userId in local storage:", userId);
+
       if (userId) {
         try {
+          console.log("[CurrentUserContext] Fetching full user data for session...");
           const user = await userService.getUserById(userId);
           if (user) {
+            console.log("[CurrentUserContext] User data loaded successfully:", user.name);
             setUserData(user);
             setProfile({
               bio: user.description || '',
               interests: user.interests?.map(i => i.id) || [],
               availability: user.freeTimeSchedule?.map(f => ({
-                day: f.dayOfTheWeek,
-                start: f.startsAt?.substring(11, 16) ?? '',
-                end: f.endsAt?.substring(11, 16) ?? '',
+                day: toDay(f.dayOfTheWeek),
+                start: toTime(f.startsAt),
+                end: toTime(f.endsAt),
               })) || [],
             });
+          } else {
+            console.warn("[CurrentUserContext] User not found in backend for ID:", userId);
           }
         } catch (error) {
-          console.error('Error loading user data:', error);
+          console.error('[CurrentUserContext] Error loading user data:', error);
         }
+      } else {
+        console.warn("[CurrentUserContext] No user_id found in localStorage. User not logged in?");
       }
       setIsLoading(false);
     };

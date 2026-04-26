@@ -1,6 +1,6 @@
-const USER_MGMT_URL = 'http://localhost:3000';
-const AUTH_MGMT_URL = 'http://localhost:3002';
-const ACTIVITIES_MGMT_URL = 'http://localhost:3001';
+const USER_MGMT_URL = 'http://localhost:3001';
+const AUTH_MGMT_URL = 'http://localhost:3000';
+const ACTIVITIES_MGMT_URL = 'http://localhost:3005';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -56,8 +56,9 @@ class ApiClient {
       const response = await fetch(url, config);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Request failed' }));
-        throw new Error(error.message || `Request failed with status ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[API Error Response] ${method} ${url}`, errorData);
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
       }
 
       const textResponse = await response.text();
@@ -113,9 +114,12 @@ class ApiClient {
   }
 }
 
+const CONNECTIONS_MGMT_URL = 'http://localhost:3002';
+
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
 export const ACTIVITIES_API_BASE = 'activities';
 export const userApi = new ApiClient(USER_MGMT_URL);
 export const authApi = new ApiClient(AUTH_MGMT_URL);
 export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);
+export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);

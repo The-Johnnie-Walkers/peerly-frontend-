@@ -1,26 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, UserPlus, MessageSquare } from 'lucide-react';
+import { useRealtimeMap } from '../hooks/useRealtimeMap';
+import { useSocket } from '@/shared/contexts/SocketContext';
+import { authService } from '@/features/auth/services/auth.service';
+import { connectionsApi } from '@/shared/lib/api';
+import { toast } from '@/shared/components/ui/use-toast';
+import { UserInMap, ChatMessage } from '../types/realtime.types';
+import { drawDuelPads } from '@/features/football-duel/components/DuelPads';
+import { drawCrown } from '@/features/football-duel/components/Crown';
+import { PadId, PAD_AREAS, PadState, CrownState, DuelStartedPayload } from '@/features/football-duel/types/football-duel.types';
+import FootballDuelMatch from '@/features/football-duel/components/FootballDuelMatch';
 
-interface MockUser {
+interface ChatBubble extends ChatMessage {
   id: string;
-  name: string;
-  color: string;
-  x: number;
-  y: number;
 }
 
-interface ChatBubble {
-  id: string;
-  userId: string;
-  userName: string;
-  message: string;
-  timestamp: number;
-}
-
-/**
- * Colores para Canvas 2D alineados con :root en src/index.css
- * (el canvas no consume variables CSS directamente de forma fiable en todos los casos).
- */
 const CANVAS_THEME = {
   grid: 'hsl(43 35% 82%)',
   foreground: 'hsl(0 0% 31%)',
@@ -30,206 +24,287 @@ const CANVAS_THEME = {
   primaryDark: 'hsl(12 72% 48%)',
   secondary: 'hsl(146 53% 69%)',
   secondaryDeep: 'hsl(146 45% 52%)',
-  warmSand: 'hsl(43 55% 72%)',
-  terracottaMuted: 'hsl(12 45% 48%)',
 } as const;
 
-const MOCK_USERS: MockUser[] = [
-  { id: '1', name: 'Ana', color: CANVAS_THEME.primary, x: 200, y: 200 },
-  { id: '2', name: 'Carlos', color: CANVAS_THEME.secondaryDeep, x: 400, y: 300 },
-  { id: '3', name: 'Laura', color: CANVAS_THEME.warmSand, x: 600, y: 450 },
-  { id: '4', name: 'Mateo', color: CANVAS_THEME.terracottaMuted, x: 350, y: 500 },
-];
+// World dimensions (2× the original map)
+const WORLD_WIDTH = 1600;
+const WORLD_HEIGHT = 1200;
 
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 600;
+// Viewport dimensions (what the player sees — fixed canvas size)
+const VIEWPORT_WIDTH = 800;
+const VIEWPORT_HEIGHT = 600;
+
 const GRID_SIZE = 32;
-const AVATAR_RADIUS = 20;
+const AVATAR_RADIUS = 14;       // smaller avatars so the bigger map feels more open
 const MOVEMENT_SPEED = 3;
 const PROXIMITY_THRESHOLD = 80;
 const BUBBLE_TIMEOUT = 3000;
+const LERP_FACTOR = 0.15;
 
 const VirtualWorld: React.FC = () => {
-  const [player, setPlayer] = useState({
-    x: 100,
-    y: 100,
-    name: 'Tú',
+  const currentUser = authService.getCurrentUser();
+  const { socket } = useSocket();
+  const {
+    users: remoteUsers,
+    chatHistory,
+    move,
+    sendMessage,
+    targetPositions,
+    myAuthId,
+    padStates,
+    crownState,
+    activeDuel,
+    checkDuelPads,
+    clearActiveDuel,
+    rejoinMap,
+  } = useRealtimeMap();
+
+  // ── All mutable state that the RAF loop reads goes into refs ──────────────
+  const remoteUsersRef = useRef<UserInMap[]>(remoteUsers);
+  const targetPositionsRef = useRef(targetPositions);
+  const moveRef = useRef(move);
+  const padStatesRef = useRef<PadState[]>(padStates);
+  const crownStateRef = useRef<CrownState | null>(crownState);
+  const checkDuelPadsRef = useRef(checkDuelPads);
+  const isChatFocusedRef = useRef(false);
+  const activeDuelRef = useRef<DuelStartedPayload | null>(activeDuel);
+  const myAuthIdRef = useRef<string | null>(myAuthId);
+
+  useEffect(() => { remoteUsersRef.current = remoteUsers; }, [remoteUsers]);
+  useEffect(() => { targetPositionsRef.current = targetPositions; }, [targetPositions]);
+  useEffect(() => { moveRef.current = move; }, [move]);
+  useEffect(() => { padStatesRef.current = padStates; }, [padStates]);
+  useEffect(() => { crownStateRef.current = crownState; }, [crownState]);
+  useEffect(() => { checkDuelPadsRef.current = checkDuelPads; }, [checkDuelPads]);
+  useEffect(() => { activeDuelRef.current = activeDuel; }, [activeDuel]);
+  useEffect(() => { myAuthIdRef.current = myAuthId; }, [myAuthId]);
+
+  // ── React state ───────────────────────────────────────────────────────────
+  const [player, setPlayer] = useState(() => ({
+    x: Math.random() * (WORLD_WIDTH - 200) + 100,
+    y: Math.random() * (WORLD_HEIGHT - 200) + 100,
+    name: currentUser?.name || 'Tú',
     color: CANVAS_THEME.primaryDark,
-  });
+  }));
   const playerRef = useRef(player);
 
   const [inputMessage, setInputMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<{ name: string; message: string }[]>([]);
-  const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
-  const bubblesRef = useRef<ChatBubble[]>([]);
-
-  const [nearbyUser, setNearbyUser] = useState<MockUser | null>(null);
-
-  const [isChatFocused, setIsChatFocused] = useState(false);
+  const [nearbyUser, setNearbyUser] = useState<UserInMap | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [activeMatch, setActiveMatch] = useState<{
+    matchId: string;
+    role: 1 | 2;
+    opponent: { userId: string; name: string };
+  } | null>(null);
 
+  const bubblesRef = useRef<ChatBubble[]>([]);
+  const renderedUsersRef = useRef<UserInMap[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<number>();
-  const keysPressed = useRef<{ [key: string]: boolean }>({});
+  const keysPressed = useRef<Record<string, boolean>>({});
 
+  // ── Camera offset (top-left world coordinate visible in viewport) ─────────
+  const cameraRef = useRef({ x: 0, y: 0 });
+
+  const updateCamera = (px: number, py: number) => {
+    const cx = px - VIEWPORT_WIDTH / 2;
+    const cy = py - VIEWPORT_HEIGHT / 2;
+    cameraRef.current = {
+      x: Math.max(0, Math.min(cx, WORLD_WIDTH - VIEWPORT_WIDTH)),
+      y: Math.max(0, Math.min(cy, WORLD_HEIGHT - VIEWPORT_HEIGHT)),
+    };
+  };
+
+  // ── Mobile detection ──────────────────────────────────────────────────────
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const check = () => setIsMobile(window.innerWidth < 1024);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
-  const emitMove = useCallback((x: number, y: number) => {
-    console.log('[Mock] Enviar posición:', { x, y });
-  }, []);
-
-  const emitMessage = useCallback((message: string) => {
-    console.log('[Mock] Enviar mensaje:', message);
-  }, []);
-
-  const emitConnectAttempt = useCallback((targetUserId: string) => {
-    console.log('[Mock] Intentar conectar con usuario:', targetUserId);
-    alert(`Intentando conectar con usuario ID: ${targetUserId}`);
-  }, []);
-
+  // ── Chat bubbles ──────────────────────────────────────────────────────────
   const addBubble = useCallback((userId: string, userName: string, message: string) => {
-    const newBubble: ChatBubble = {
-      id: Math.random().toString(36).substr(2, 9),
+    const bubble: ChatBubble = {
+      id: Math.random().toString(36).substring(2, 9),
       userId,
-      userName,
+      name: userName,
       message,
       timestamp: Date.now(),
     };
-    setBubbles(prev => [...prev, newBubble]);
-    bubblesRef.current = [...bubblesRef.current, newBubble];
-    setChatHistory(prev => [...prev.slice(-19), { name: userName, message }]);
-
+    bubblesRef.current = [...bubblesRef.current.slice(-9), bubble];
     setTimeout(() => {
-      setBubbles(prev => prev.filter(b => b.id !== newBubble.id));
-      bubblesRef.current = bubblesRef.current.filter(b => b.id !== newBubble.id);
+      bubblesRef.current = bubblesRef.current.filter(b => b.id !== bubble.id);
     }, BUBBLE_TIMEOUT);
   }, []);
 
-  const handleSendMessage = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!inputMessage.trim()) return;
-
-    addBubble('me', player.name, inputMessage);
-    emitMessage(inputMessage);
-    setInputMessage('');
-  };
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        const randomUser = MOCK_USERS[Math.floor(Math.random() * MOCK_USERS.length)];
-        const messages = ['¡Hola a todos!', '¿Alguien para una reunión?', '¿Vieron el nuevo diseño?', 'Trabajando duro...', 'Peerly es genial'];
-        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-        addBubble(randomUser.id, randomUser.name, randomMsg);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [addBubble]);
+    if (chatHistory.length > 0) {
+      const last = chatHistory[chatHistory.length - 1];
+      addBubble(last.userId, last.name, last.message);
+    }
+  }, [chatHistory, addBubble]);
 
+  // ── Duel transition ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeDuel) return;
+    const uid = myAuthIdRef.current;
+    if (!uid) return;
+    const isP1 = activeDuel.player1.userId === uid;
+    setActiveMatch({
+      matchId: activeDuel.matchId,
+      role: isP1 ? 1 : 2,
+      opponent: isP1 ? activeDuel.player2 : activeDuel.player1,
+    });
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    if (socket?.connected) socket.emit('leaveMap');
+  }, [activeDuel, socket]);
+
+  // ── Main RAF loop ─────────────────────────────────────────────────────────
   const update = useCallback(() => {
-    let dx = 0;
-    let dy = 0;
+    let dx = 0, dy = 0;
 
-    if (!isChatFocused) {
-      if (keysPressed.current.w || keysPressed.current.ArrowUp || keysPressed.current['btn-up']) dy -= MOVEMENT_SPEED;
-      if (keysPressed.current.s || keysPressed.current.ArrowDown || keysPressed.current['btn-down']) dy += MOVEMENT_SPEED;
-      if (keysPressed.current.a || keysPressed.current.ArrowLeft || keysPressed.current['btn-left']) dx -= MOVEMENT_SPEED;
-      if (keysPressed.current.d || keysPressed.current.ArrowRight || keysPressed.current['btn-right']) dx += MOVEMENT_SPEED;
+    if (!isChatFocusedRef.current) {
+      const k = keysPressed.current;
+      if (k.w || k.ArrowUp    || k['btn-up'])    dy -= MOVEMENT_SPEED;
+      if (k.s || k.ArrowDown  || k['btn-down'])  dy += MOVEMENT_SPEED;
+      if (k.a || k.ArrowLeft  || k['btn-left'])  dx -= MOVEMENT_SPEED;
+      if (k.d || k.ArrowRight || k['btn-right']) dx += MOVEMENT_SPEED;
     }
 
     if (dx !== 0 || dy !== 0) {
-      const newX = Math.max(AVATAR_RADIUS, Math.min(CANVAS_WIDTH - AVATAR_RADIUS, playerRef.current.x + dx));
-      const newY = Math.max(AVATAR_RADIUS, Math.min(CANVAS_HEIGHT - AVATAR_RADIUS, playerRef.current.y + dy));
-
-      if (newX !== playerRef.current.x || newY !== playerRef.current.y) {
-        const newState = { ...playerRef.current, x: newX, y: newY };
-        playerRef.current = newState;
-        setPlayer(newState);
-        emitMove(newX, newY);
+      const nx = Math.max(AVATAR_RADIUS, Math.min(WORLD_WIDTH  - AVATAR_RADIUS, playerRef.current.x + dx));
+      const ny = Math.max(AVATAR_RADIUS, Math.min(WORLD_HEIGHT - AVATAR_RADIUS, playerRef.current.y + dy));
+      if (nx !== playerRef.current.x || ny !== playerRef.current.y) {
+        const next = { ...playerRef.current, x: nx, y: ny };
+        playerRef.current = next;
+        setPlayer(next);
+        moveRef.current(nx, ny);
       }
     }
 
-    let closestUser: MockUser | null = null;
-    let minDistance = PROXIMITY_THRESHOLD;
+    // Update camera to follow player
+    updateCamera(playerRef.current.x, playerRef.current.y);
 
-    MOCK_USERS.forEach(user => {
-      const dist = Math.sqrt((user.x - playerRef.current.x) ** 2 + (user.y - playerRef.current.y) ** 2);
-      if (dist < minDistance) {
-        minDistance = dist;
-        closestUser = user;
-      }
+    // Interpolate remote users
+    const myId = myAuthIdRef.current || '';
+    const updated = remoteUsersRef.current
+      .filter(u => u.userId !== myId)
+      .map(user => {
+        const target = targetPositionsRef.current[user.userId] || { x: user.x, y: user.y };
+        const prev = renderedUsersRef.current.find(r => r.userId === user.userId);
+        const cx = prev ? prev.x : user.x;
+        const cy = prev ? prev.y : user.y;
+        return {
+          ...user,
+          color: user.color || CANVAS_THEME.secondaryDeep,
+          x: cx + (target.x - cx) * LERP_FACTOR,
+          y: cy + (target.y - cy) * LERP_FACTOR,
+        };
+      });
+    renderedUsersRef.current = updated;
+
+    // Proximity check
+    let closest: UserInMap | null = null;
+    let minDist = PROXIMITY_THRESHOLD;
+    updated.forEach(u => {
+      const d = Math.hypot(u.x - playerRef.current.x, u.y - playerRef.current.y);
+      if (d < minDist) { minDist = d; closest = u; }
     });
-    setNearbyUser(closestUser);
+    if (nearbyUser?.userId !== closest?.userId) setNearbyUser(closest);
+
+    checkDuelPadsRef.current?.(playerRef.current.x, playerRef.current.y);
 
     draw();
     requestRef.current = requestAnimationFrame(update);
-  }, [emitMove, isChatFocused]);
+  }, []); // stable
 
+  // ── Canvas draw ───────────────────────────────────────────────────────────
   const draw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const cam = cameraRef.current;
+    const pads = padStatesRef.current;
+    const crown = crownStateRef.current;
+    const uid = authService.getCurrentUser()?.id;
 
+    ctx.clearRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+
+    // Apply camera transform — everything drawn after this is in world space
+    ctx.save();
+    ctx.translate(-cam.x, -cam.y);
+
+    // Grid (only draw visible portion for performance)
     ctx.strokeStyle = CANVAS_THEME.grid;
     ctx.lineWidth = 1;
-    for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, CANVAS_HEIGHT);
-      ctx.stroke();
+    const startX = Math.floor(cam.x / GRID_SIZE) * GRID_SIZE;
+    const startY = Math.floor(cam.y / GRID_SIZE) * GRID_SIZE;
+    for (let x = startX; x <= cam.x + VIEWPORT_WIDTH; x += GRID_SIZE) {
+      ctx.beginPath(); ctx.moveTo(x, cam.y); ctx.lineTo(x, cam.y + VIEWPORT_HEIGHT); ctx.stroke();
     }
-    for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_SIZE) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(CANVAS_WIDTH, y);
-      ctx.stroke();
+    for (let y = startY; y <= cam.y + VIEWPORT_HEIGHT; y += GRID_SIZE) {
+      ctx.beginPath(); ctx.moveTo(cam.x, y); ctx.lineTo(cam.x + VIEWPORT_WIDTH, y); ctx.stroke();
     }
 
-    MOCK_USERS.forEach(user => {
-      drawAvatar(ctx, user.x, user.y, user.color, user.name);
-      drawBubble(ctx, user.x, user.y, user.id);
+    // World border
+    ctx.strokeStyle = 'hsl(43 35% 70%)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+    // Duel pads
+    const padsToRender: PadState[] = pads.length > 0 ? pads : [
+      { padId: 'pad-a', status: 'available', activationProgress: 0 },
+      { padId: 'pad-b', status: 'available', activationProgress: 0 },
+    ];
+    const localOverlap = (['pad-a', 'pad-b'] as PadId[]).find(padId => {
+      const a = PAD_AREAS[padId];
+      const px = playerRef.current.x, py = playerRef.current.y;
+      const cx = Math.max(a.x, Math.min(px, a.x + a.width));
+      const cy = Math.max(a.y, Math.min(py, a.y + a.height));
+      return (px - cx) ** 2 + (py - cy) ** 2 <= AVATAR_RADIUS ** 2;
+    }) ?? null;
+    drawDuelPads({ ctx, padStates: padsToRender, localPlayerOverlap: localOverlap });
+
+    // Remote users
+    renderedUsersRef.current.forEach(user => {
+      drawAvatar(ctx, user.x, user.y, user.color || CANVAS_THEME.secondaryDeep, user.name);
+      drawBubble(ctx, user.x, user.y, user.userId);
+      if (crown?.winnerId === user.userId) drawCrown(ctx, user.x, user.y);
     });
 
+    // Local player
     drawAvatar(ctx, playerRef.current.x, playerRef.current.y, playerRef.current.color, playerRef.current.name, true);
-    drawBubble(ctx, playerRef.current.x, playerRef.current.y, 'me');
+    drawBubble(ctx, playerRef.current.x, playerRef.current.y, uid || 'me');
+    if (crown?.winnerId === uid) drawCrown(ctx, playerRef.current.x, playerRef.current.y);
+
+    ctx.restore();
   };
 
   const drawAvatar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, name: string, isMe = false) => {
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 8;
     ctx.shadowColor = 'hsl(30 20% 30% / 0.12)';
-    ctx.shadowOffsetY = 4;
-
+    ctx.shadowOffsetY = 3;
     ctx.beginPath();
     ctx.arc(x, y, AVATAR_RADIUS, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-
     ctx.strokeStyle = CANVAS_THEME.surface;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
-
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-
     ctx.fillStyle = CANVAS_THEME.foreground;
-    ctx.font = 'bold 12px "DM Sans", system-ui, sans-serif';
+    ctx.font = 'bold 10px "DM Sans", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, x, y - AVATAR_RADIUS - 10);
-
+    ctx.fillText(name, x, y - AVATAR_RADIUS - 6);
     if (isMe) {
       ctx.strokeStyle = CANVAS_THEME.primary;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, AVATAR_RADIUS + 5, 0, Math.PI * 2);
+      ctx.arc(x, y, AVATAR_RADIUS + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
   };
@@ -237,63 +312,40 @@ const VirtualWorld: React.FC = () => {
   const drawBubble = (ctx: CanvasRenderingContext2D, x: number, y: number, userId: string) => {
     const bubble = bubblesRef.current.find(b => b.userId === userId);
     if (!bubble) return;
-
-    const padding = 10;
-    const maxWidth = 150;
-    ctx.font = '12px "DM Sans", sans-serif';
-
+    const padding = 8, maxWidth = 140;
+    ctx.font = '11px "DM Sans", sans-serif';
     const lines = wrapText(ctx, bubble.message, maxWidth);
-    const bubbleHeight = lines.length * 16 + padding * 2;
-    const bubbleWidth = Math.min(maxWidth, ctx.measureText(bubble.message).width + padding * 2);
-
-    const bx = x - bubbleWidth / 2;
-    const by = y - AVATAR_RADIUS - 40 - bubbleHeight;
-
+    const bh = lines.length * 15 + padding * 2;
+    const bw = Math.min(maxWidth, ctx.measureText(bubble.message).width + padding * 2);
+    const bx = x - bw / 2, by = y - AVATAR_RADIUS - 36 - bh;
     ctx.fillStyle = CANVAS_THEME.surface;
     ctx.strokeStyle = CANVAS_THEME.grid;
     ctx.lineWidth = 1;
-    roundRect(ctx, bx, by, bubbleWidth, bubbleHeight, 8);
-    ctx.fill();
-    ctx.stroke();
-
+    roundRect(ctx, bx, by, bw, bh, 7);
+    ctx.fill(); ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x - 5, by + bubbleHeight);
-    ctx.lineTo(x + 5, by + bubbleHeight);
-    ctx.lineTo(x, by + bubbleHeight + 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
+    ctx.moveTo(x - 4, by + bh); ctx.lineTo(x + 4, by + bh); ctx.lineTo(x, by + bh + 7);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = CANVAS_THEME.mutedForeground;
     ctx.textAlign = 'left';
-    lines.forEach((line, i) => {
-      ctx.fillText(line, bx + padding, by + padding + 12 + i * 16);
-    });
+    lines.forEach((line, i) => ctx.fillText(line, bx + padding, by + padding + 11 + i * 15));
   };
 
   const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
     const words = text.split(' ');
     const lines: string[] = [];
-    let currentLine = words[0] ?? '';
-
+    let cur = words[0] ?? '';
     for (let i = 1; i < words.length; i++) {
-      const word = words[i];
-      const width = ctx.measureText(`${currentLine} ${word}`).width;
-      if (width < maxWidth) {
-        currentLine += ` ${word}`;
-      } else {
-        lines.push(currentLine);
-        currentLine = word;
-      }
+      const w = words[i];
+      if (ctx.measureText(`${cur} ${w}`).width < maxWidth) cur += ` ${w}`;
+      else { lines.push(cur); cur = w; }
     }
-    lines.push(currentLine);
+    lines.push(cur);
     return lines;
   };
 
   const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
-    let rad = r;
-    if (w < 2 * rad) rad = w / 2;
-    if (h < 2 * rad) rad = h / 2;
+    const rad = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
     ctx.moveTo(x + rad, y);
     ctx.arcTo(x + w, y, x + w, y + h, rad);
@@ -303,22 +355,18 @@ const VirtualWorld: React.FC = () => {
     ctx.closePath();
   };
 
+  // ── Start/stop RAF ────────────────────────────────────────────────────────
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressed.current[e.key] = true;
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current[e.key] = false;
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
+    const onKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.key] = true; };
+    const onKeyUp   = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup',   onKeyUp);
+    // Initialise camera on mount
+    updateCamera(playerRef.current.x, playerRef.current.y);
     requestRef.current = requestAnimationFrame(update);
-
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup',   onKeyUp);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, [update]);
@@ -327,6 +375,51 @@ const VirtualWorld: React.FC = () => {
     keysPressed.current[key] = pressed;
   };
 
+  const emitConnectAttempt = useCallback(async (targetUserId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      await connectionsApi.request('/connections', {
+        method: 'POST',
+        body: { requesterId: currentUser.id, receiverId: targetUserId },
+      });
+      toast({ title: 'Solicitud enviada', description: 'Se ha enviado una solicitud de conexión.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar la solicitud de conexión.' });
+    }
+  }, [currentUser]);
+
+  const handleMatchEnd = useCallback((spawnX: number, spawnY: number) => {
+    const next = { ...playerRef.current, x: spawnX, y: spawnY };
+    playerRef.current = next;
+    setPlayer(next);
+    updateCamera(spawnX, spawnY);
+    setActiveMatch(null);
+    clearActiveDuel();
+    rejoinMap();
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    setTimeout(() => {
+      requestRef.current = requestAnimationFrame(update);
+    }, 0);
+  }, [clearActiveDuel, rejoinMap, update]);
+
+  // Nearby user button position in viewport space
+  const nearbyViewX = nearbyUser ? nearbyUser.x - cameraRef.current.x : 0;
+  const nearbyViewY = nearbyUser ? nearbyUser.y - cameraRef.current.y : 0;
+
+  // ── Match screen ──────────────────────────────────────────────────────────
+  if (activeMatch) {
+    const localName = currentUser?.name || 'Tú';
+    return (
+      <FootballDuelMatch
+        matchId={activeMatch.matchId}
+        localPlayer={{ userId: myAuthIdRef.current ?? '', name: localName, role: activeMatch.role }}
+        opponent={activeMatch.opponent}
+        onMatchEnd={handleMatchEnd}
+      />
+    );
+  }
+
+  // ── Map screen ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-4 max-w-6xl mx-auto bg-muted/50 lg:rounded-2xl shadow-elevated border border-border overflow-hidden animate-in fade-in duration-500 min-h-[90vh] lg:min-h-0">
       <div className="relative flex-1 flex flex-col min-h-0">
@@ -335,30 +428,22 @@ const VirtualWorld: React.FC = () => {
           <span className="text-xs font-semibold text-foreground">Oficina Virtual Peerly</span>
         </div>
 
-        <div
-          ref={containerRef}
-          className="relative bg-card rounded-xl border border-border shadow-inner overflow-auto h-[400px] lg:h-[600px] custom-scrollbar focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 focus-within:ring-offset-background transition-all"
-        >
+        <div className="relative bg-card rounded-xl border border-border shadow-inner overflow-hidden h-[400px] lg:h-[600px]">
           <canvas
             ref={canvasRef}
-            width={CANVAS_WIDTH}
-            height={CANVAS_HEIGHT}
-            className="cursor-crosshair bg-card"
-            style={{ imageRendering: 'pixelated', minWidth: CANVAS_WIDTH, minHeight: CANVAS_HEIGHT }}
+            width={VIEWPORT_WIDTH}
+            height={VIEWPORT_HEIGHT}
+            className="cursor-crosshair bg-card block w-full h-full"
           />
-
           {nearbyUser && (
             <div
-              className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full mb-4 animate-bounce"
-              style={{
-                left: nearbyUser.x,
-                top: nearbyUser.y,
-              }}
+              className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full animate-bounce"
+              style={{ left: nearbyViewX, top: nearbyViewY }}
             >
               <button
                 type="button"
-                onClick={() => emitConnectAttempt(nearbyUser.id)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold shadow-md flex items-center gap-2 transition-colors border-2 border-card whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => emitConnectAttempt(nearbyUser.userId)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold shadow-md flex items-center gap-2 transition-colors border-2 border-card whitespace-nowrap"
               >
                 <UserPlus size={16} />
                 Conectar con {nearbyUser.name}
@@ -371,77 +456,42 @@ const VirtualWorld: React.FC = () => {
           <div className="flex justify-between items-center mt-4 px-2">
             <div className="grid grid-cols-3 gap-1 bg-card p-3 rounded-2xl border border-border shadow-sm">
               <div />
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
-                aria-label="Mover arriba"
-                onTouchStart={() => handleMobileControl('btn-up', true)}
-                onTouchEnd={() => handleMobileControl('btn-up', false)}
-                onMouseDown={() => handleMobileControl('btn-up', true)}
-                onMouseUp={() => handleMobileControl('btn-up', false)}
-              >
-                ↑
-              </button>
-              <div />
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
-                aria-label="Mover izquierda"
-                onTouchStart={() => handleMobileControl('btn-left', true)}
-                onTouchEnd={() => handleMobileControl('btn-left', false)}
-                onMouseDown={() => handleMobileControl('btn-left', true)}
-                onMouseUp={() => handleMobileControl('btn-left', false)}
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
-                aria-label="Mover abajo"
-                onTouchStart={() => handleMobileControl('btn-down', true)}
-                onTouchEnd={() => handleMobileControl('btn-down', false)}
-                onMouseDown={() => handleMobileControl('btn-down', true)}
-                onMouseUp={() => handleMobileControl('btn-down', false)}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
-                aria-label="Mover derecha"
-                onTouchStart={() => handleMobileControl('btn-right', true)}
-                onTouchEnd={() => handleMobileControl('btn-right', false)}
-                onMouseDown={() => handleMobileControl('btn-right', true)}
-                onMouseUp={() => handleMobileControl('btn-right', false)}
-              >
-                →
-              </button>
+              {(['btn-up', 'btn-left', 'btn-down', 'btn-right'] as const).map((key, i) => {
+                const labels = ['↑', '←', '↓', '→'];
+                const ariaLabels = ['Mover arriba', 'Mover izquierda', 'Mover abajo', 'Mover derecha'];
+                return (
+                  <button key={key} type="button"
+                    className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
+                    aria-label={ariaLabels[i]}
+                    onTouchStart={() => handleMobileControl(key, true)}
+                    onTouchEnd={() => handleMobileControl(key, false)}
+                    onMouseDown={() => handleMobileControl(key, true)}
+                    onMouseUp={() => handleMobileControl(key, false)}
+                  >{labels[i]}</button>
+                );
+              })}
             </div>
             <div className="text-xs text-muted-foreground font-bold uppercase tracking-tighter text-right leading-tight">
-              Controles
-              <br />
-              virtuales
+              Controles virtuales
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (inputMessage.trim()) { sendMessage(inputMessage); setInputMessage(''); } }}
+          className="mt-4 flex gap-2"
+        >
           <div className="relative flex-1">
             <input
               type="text"
               value={inputMessage}
-              onFocus={() => setIsChatFocused(true)}
-              onBlur={() => setIsChatFocused(false)}
+              onFocus={() => { isChatFocusedRef.current = true; }}
+              onBlur={() => { isChatFocusedRef.current = false; }}
               onChange={e => setInputMessage(e.target.value)}
               placeholder="Escribe un mensaje..."
               className="w-full pl-4 pr-12 py-3 bg-card rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all shadow-sm text-foreground placeholder:text-muted-foreground"
-              aria-label="Mensaje en mundo virtual"
             />
-            <button
-              type="submit"
-              className="absolute right-2 top-1.5 p-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Enviar mensaje"
-            >
+            <button type="submit" className="absolute right-2 top-1.5 p-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
               <Send size={18} />
             </button>
           </div>
@@ -460,23 +510,16 @@ const VirtualWorld: React.FC = () => {
               <p className="text-sm">No hay mensajes aún</p>
             </div>
           ) : (
-            chatHistory.map((chat, index) => (
-              <div key={index} className={`flex flex-col ${chat.name === player.name ? 'items-end' : 'items-start'}`}>
+            chatHistory.map((chat, i) => (
+              <div key={i} className={`flex flex-col ${chat.userId === currentUser?.id ? 'items-end' : 'items-start'}`}>
                 <span className="text-xs font-bold text-muted-foreground uppercase mb-0.5">{chat.name}</span>
-                <div
-                  className={`px-3 py-2 rounded-2xl text-sm ${
-                    chat.name === player.name
-                      ? 'bg-primary text-primary-foreground rounded-tr-none'
-                      : 'bg-muted text-foreground rounded-tl-none'
-                  }`}
-                >
+                <div className={`px-3 py-2 rounded-2xl text-sm ${chat.userId === currentUser?.id ? 'bg-primary text-primary-foreground rounded-tr-none' : 'bg-muted text-foreground rounded-tl-none'}`}>
                   {chat.message}
                 </div>
               </div>
             ))
           )}
         </div>
-        <div className="p-3 bg-muted/40 text-xs text-muted-foreground text-center flex-shrink-0 border-t border-border min-h-[2.5rem]" />
       </div>
     </div>
   );

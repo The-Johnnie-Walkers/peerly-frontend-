@@ -8,11 +8,11 @@ export interface UserProfile {
   lastname: string;
   email: string;
   description?: string;
-  interests?: Array<{ id: string; name: string }>;
+  interests?: Array<{ id: string; name: string; category: string }>;
   profilePicURL?: string;
   semester: number;
+  birthDate?: string;
   freeTimeSchedule?: Array<{
-    id: string;
     dayOfTheWeek: string;
     startsAt: string;
     endsAt: string;
@@ -20,6 +20,10 @@ export interface UserProfile {
   status: string;
   programs: string[];
   role: string;
+}
+
+export interface UserUpdatePayload extends Omit<Partial<UserProfile>, 'interests'> {
+  interests?: string[];
 }
 
 export const userService = {
@@ -40,7 +44,7 @@ export const userService = {
     } catch {
       return null;
     }
-  }, 
+  },
 
   async getUserByEmail(email: string): Promise<UserProfile | null> {
     try {
@@ -58,7 +62,7 @@ export const userService = {
     }
   },
 
-  async updateUser(id: string, data: Partial<UserProfile>): Promise<UserProfile> {
+  async updateUser(id: string, data: UserUpdatePayload): Promise<UserProfile> {
     const token = authService.getToken();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -66,7 +70,6 @@ export const userService = {
     return await userApi.request<UserProfile>(`${USERS_API_BASE}/${id}`, {
       method: 'PUT',
       body: data,
-      headers,
     });
   },
 
@@ -77,7 +80,6 @@ export const userService = {
 
     await userApi.requestVoid(`${USERS_API_BASE}/${id}`, {
       method: 'DELETE',
-      headers,
     });
   },
 };
