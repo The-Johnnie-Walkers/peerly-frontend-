@@ -1,13 +1,13 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, MessageCircle, Plus, UserPlus, User } from 'lucide-react';
+import { Home, MessageCircle, Plus, UserPlus, User, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const NAV_ITEMS = [
-  { path: '/home', icon: Search, label: 'Inicio' },
+  { path: '/home', icon: Home, label: 'Inicio' },
   { path: '/chats', icon: MessageCircle, label: 'Chats' },
   { path: '/create-activity', icon: Plus, label: 'Crear', isCenter: true },
-  { path: '/connect', icon: UserPlus, label: 'Descubrir' },
-  { path: '/social', icon: User, label: 'Social' },
+  { path: '/communities', icon: Users, label: 'Comunidades' },
+  { path: '/social', icon: UserPlus, label: 'Social' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
 

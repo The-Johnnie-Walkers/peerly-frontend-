@@ -117,6 +117,8 @@ const ProfileScreen = () => {
   const [student, setStudent] = useState<ProfileStudent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [isPendingConnection, setIsPendingConnection] = useState(false);
+  const [compatibilityScore, setCompatibilityScore] = useState<number | null>(null);
   const [connectionSent, setConnectionSent] = useState(false);
   const createConnection = useCreateConnection();
   const updateConnection = useUpdateConnection();
@@ -157,9 +159,19 @@ const ProfileScreen = () => {
               start: parseTime(f.startsAt),
               end: parseTime(f.endsAt),
             })) || [],
-            compatibility: isOwnProfile ? 100 : Math.floor(Math.random() * 21) + 80,
+            compatibility: isOwnProfile ? 100 : 0, // se actualiza abajo
             isOnline: true,
           });
+
+          // Calcular compatibilidad real desde el backend (solo para perfiles ajenos)
+          if (!isOwnProfile && currentAuthUser?.id) {
+            try {
+              const score = await userService.getCompatibility(currentAuthUser.id, data.id);
+              setCompatibilityScore(score);
+            } catch {
+              setCompatibilityScore(null);
+            }
+          }
         }
       } catch (error) {
         console.error('[ProfileScreen] Error fetching profile:', error);
@@ -173,19 +185,24 @@ const ProfileScreen = () => {
 
   // Verificar conexión — useEffect separado para evitar race condition con currentAuthUser
   useEffect(() => {
-    if (isOwnProfile || !id || !currentAuthUser?.id || fromRequest || fromConnect) return;
+    if (isOwnProfile || !id || !currentAuthUser?.id || fromRequest) return;
 
     const checkConnection = async () => {
       try {
-        const connections = await connectionsService.findAll(currentAuthUser.id, ConnectionStatus.ACCEPTED);
-        setIsConnected(connections.some(c => c.requesterId === id || c.receiverId === id));
+        const connections = await connectionsService.findAll(currentAuthUser.id);
+        const match = connections.find(c => c.requesterId === id || c.receiverId === id);
+        if (match) {
+          setIsConnected(match.status === ConnectionStatus.ACCEPTED);
+          setIsPendingConnection(match.status === ConnectionStatus.PENDING);
+        }
       } catch {
         setIsConnected(false);
+        setIsPendingConnection(false);
       }
     };
 
     checkConnection();
-  }, [id, currentAuthUser?.id, isOwnProfile, fromRequest, fromConnect]);
+  }, [id, currentAuthUser?.id, isOwnProfile, fromRequest]);
 
   if (isContextLoading || isLoading) {
     return (
@@ -269,7 +286,9 @@ const ProfileScreen = () => {
             {!isOwnProfile && (
               <div className="flex items-center justify-center gap-2 my-3">
                 <div className="bg-success/10 px-3 py-1 rounded-full">
-                  <span className="text-xs font-mono font-bold text-success">{student.compatibility}% Compatible</span>
+                  <span className="text-xs font-mono font-bold text-success">
+                    {compatibilityScore !== null ? `${compatibilityScore}% Compatible` : 'Calculando...'}
+                  </span>
                 </div>
               </div>
             )}
@@ -338,13 +357,21 @@ const ProfileScreen = () => {
               </motion.button>
             ) : (
               <div className="flex gap-3">
-                {isConnected ? (
-                  // Ya son conexiones: solo Proponer plan
+                {isConnected && !isPendingConnection ? (
+                  // Conexión ACCEPTED: solo Proponer plan
                   <motion.button
                     whileTap={{ scale: 0.96 }}
                     className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
                   >
                     Proponer plan
+                  </motion.button>
+                ) : isConnected && isPendingConnection ? (
+                  // Conexión PENDING: solicitud ya enviada, no se puede hacer nada más
+                  <motion.button
+                    disabled
+                    className="flex-1 p-4 rounded-2xl bg-muted text-muted-foreground font-display font-bold cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    ¡Solicitud enviada! 🎉
                   </motion.button>
                 ) : fromRequest && connectionId ? (
                   // Viene de /social solicitudes: Aceptar y Rechazar
@@ -379,11 +406,11 @@ const ProfileScreen = () => {
                     </motion.button>
                   </>
                 ) : fromConnect ? (
-                  // Viene de /connect: Conectar funcional + Proponer plan
+                  // Viene de /connect o /communities: Conectar funcional + Proponer plan
                   <>
                     <motion.button
                       whileTap={{ scale: 0.96 }}
-                      disabled={connectionSent || createConnection.isPending}
+                      disabled={connectionSent || isPendingConnection || createConnection.isPending}
                       onClick={() => {
                         if (!currentAuthUser?.id || !id) return;
                         createConnection.mutate(
@@ -395,7 +422,7 @@ const ProfileScreen = () => {
                     >
                       {createConnection.isPending ? (
                         <Loader2 size={18} className="animate-spin" />
-                      ) : connectionSent ? (
+                      ) : connectionSent || isPendingConnection ? (
                         '¡Solicitud enviada! 🎉'
                       ) : (
                         'Conectar 🤝'
@@ -409,14 +436,19 @@ const ProfileScreen = () => {
                     </motion.button>
                   </>
                 ) : (
-                  // Vista normal sin conexión
+                  // Vista normal: si hay solicitud pendiente mostrar estado, sino botón conectar
                   <>
                     <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => navigate('/chats')}
-                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold"
+                      whileTap={isPendingConnection ? {} : { scale: 0.96 }}
+                      disabled={isPendingConnection}
+                      onClick={() => !isPendingConnection && navigate('/chats')}
+                      className={`flex-1 p-4 rounded-2xl font-display font-bold ${
+                        isPendingConnection
+                          ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                          : 'bg-primary text-primary-foreground'
+                      }`}
                     >
-                      Conectar 🤝
+                      {isPendingConnection ? '¡Solicitud enviada! 🎉' : 'Conectar 🤝'}
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.96 }}

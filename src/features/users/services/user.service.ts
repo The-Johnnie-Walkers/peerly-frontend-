@@ -62,6 +62,23 @@ export const userService = {
     }
   },
 
+  async discoverUsers(userId: string): Promise<UserProfile[]> {
+    try {
+      return await userApi.request<UserProfile[]>(`${USERS_API_BASE}/${userId}/discover`);
+    } catch {
+      return [];
+    }
+  },
+
+  async getCompatibility(userId: string, otherId: string): Promise<number> {
+    try {
+      const result = await userApi.request<{ score: number }>(`${USERS_API_BASE}/${userId}/compatibility/${otherId}`);
+      return result.score;
+    } catch {
+      return 0;
+    }
+  },
+
   async updateUser(id: string, data: UserUpdatePayload): Promise<UserProfile> {
     const token = authService.getToken();
     const headers: Record<string, string> = {};
