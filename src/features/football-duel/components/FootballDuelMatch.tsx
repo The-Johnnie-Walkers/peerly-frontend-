@@ -18,6 +18,86 @@ const FIELD_MARGIN = 20;
 const PLAYER_RADIUS = 20;
 const FALLBACK_RETURN_DELAY_MS = 10_000;
 
+// ─── Mobile Joystick ──────────────────────────────────────────────────────────
+const JOY_RADIUS = 56;
+const JOY_KNOB = 24;
+
+interface DuelJoystickProps {
+  onMove: (dx: number, dy: number) => void;
+}
+
+const DuelJoystick: React.FC<DuelJoystickProps> = ({ onMove }) => {
+  const baseRef = useRef<HTMLDivElement>(null);
+  const knobRef = useRef<HTMLDivElement>(null);
+  const activeId = useRef<number | null>(null);
+
+  const calc = (cx: number, cy: number, clientX: number, clientY: number) => {
+    const rawDx = clientX - cx;
+    const rawDy = clientY - cy;
+    const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+    const max = JOY_RADIUS - JOY_KNOB;
+    const clamped = Math.min(dist, max);
+    const angle = Math.atan2(rawDy, rawDx);
+    return {
+      dx: dist > 0 ? (Math.cos(angle) * clamped) / max : 0,
+      dy: dist > 0 ? (Math.sin(angle) * clamped) / max : 0,
+      kx: Math.cos(angle) * clamped,
+      ky: Math.sin(angle) * clamped,
+    };
+  };
+
+  const setKnob = (kx: number, ky: number) => {
+    if (knobRef.current) knobRef.current.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (activeId.current !== null) return;
+    const t = e.changedTouches[0];
+    activeId.current = t.identifier;
+    const rect = baseRef.current!.getBoundingClientRect();
+    const { dx, dy, kx, ky } = calc(rect.left + rect.width / 2, rect.top + rect.height / 2, t.clientX, t.clientY);
+    setKnob(kx, ky); onMove(dx, dy);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const t = Array.from(e.changedTouches).find(x => x.identifier === activeId.current);
+    if (!t) return;
+    e.preventDefault();
+    const rect = baseRef.current!.getBoundingClientRect();
+    const { dx, dy, kx, ky } = calc(rect.left + rect.width / 2, rect.top + rect.height / 2, t.clientX, t.clientY);
+    setKnob(kx, ky); onMove(dx, dy);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!Array.from(e.changedTouches).find(x => x.identifier === activeId.current)) return;
+    activeId.current = null;
+    setKnob(0, 0); onMove(0, 0);
+  };
+
+  return (
+    <div
+      ref={baseRef}
+      className="relative select-none touch-none"
+      style={{ width: JOY_RADIUS * 2, height: JOY_RADIUS * 2, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.25)' }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      aria-label="Joystick de movimiento"
+    >
+      <div
+        ref={knobRef}
+        style={{
+          position: 'absolute', top: '50%', left: '50%',
+          width: JOY_KNOB * 2, height: JOY_KNOB * 2, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.9)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          transform: 'translate(-50%, -50%)', pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+};
+
 interface FootballDuelMatchProps {
   matchId: string;
   localPlayer: { userId: string; name: string; role: 1 | 2 };
@@ -36,7 +116,10 @@ const FootballDuelMatch: React.FC<FootballDuelMatchProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>();
   const keysRef = useRef<Record<string, boolean>>({});
+  const joystickRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const kickPendingRef = useRef(false);
 
+  const [isMobile, setIsMobile] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
   const [overlayText, setOverlayText] = useState('');
   const [score, setScore] = useState<Record<string, number>>({
@@ -48,6 +131,13 @@ const FootballDuelMatch: React.FC<FootballDuelMatchProps> = ({
 
   // Spawn position received from server
   const spawnRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // ── Initial positions based on role ──────────────────────────────────────
   const initialX = localPlayer.role === 1 ? 200 : 600;
@@ -149,20 +239,31 @@ const FootballDuelMatch: React.FC<FootballDuelMatchProps> = ({
   useEffect(() => {
     const loop = () => {
       if (!matchEnded) {
-        // 1. Read input
+        // 1. Read input (keyboard + joystick)
         const keys = keysRef.current;
-        const dx =
-          (keys.d || keys.ArrowRight ? 1 : 0) - (keys.a || keys.ArrowLeft ? 1 : 0);
-        const dy =
-          (keys.s || keys.ArrowDown ? 1 : 0) - (keys.w || keys.ArrowUp ? 1 : 0);
+        const joy = joystickRef.current;
+        const DEAD = 0.25;
+
+        const kbDx = (keys.d || keys.ArrowRight ? 1 : 0) - (keys.a || keys.ArrowLeft ? 1 : 0);
+        const kbDy = (keys.s || keys.ArrowDown ? 1 : 0) - (keys.w || keys.ArrowUp ? 1 : 0);
+        const jDx = Math.abs(joy.dx) > DEAD ? Math.sign(joy.dx) : 0;
+        const jDy = Math.abs(joy.dy) > DEAD ? Math.sign(joy.dy) : 0;
+
+        const dx = kbDx !== 0 ? kbDx : jDx;
+        const dy = kbDy !== 0 ? kbDy : jDy;
 
         if (dx !== 0 || dy !== 0) {
-          applyInput({ action: 'move', dx, dy });
-          emitPlayerInput({ action: 'move', dx, dy });
+          // Normalise diagonal so the server applies consistent speed
+          const mag = Math.sqrt(dx * dx + dy * dy);
+          const ndx = dx / mag;
+          const ndy = dy / mag;
+          applyInput({ action: 'move', dx: ndx, dy: ndy });
+          emitPlayerInput({ action: 'move', dx: ndx, dy: ndy });
         }
 
-        if (keys[' '] || keys.Space) {
+        if (keys[' '] || keys.Space || kickPendingRef.current) {
           emitPlayerInput({ action: 'kick' });
+          kickPendingRef.current = false;
         }
 
         // 2. Step local physics
@@ -321,12 +422,12 @@ const FootballDuelMatch: React.FC<FootballDuelMatchProps> = ({
       </div>
 
       {/* Canvas */}
-      <div className="relative">
+      <div className="relative w-full max-w-[800px]">
         <canvas
           ref={canvasRef}
           width={MATCH_CANVAS_WIDTH}
           height={MATCH_CANVAS_HEIGHT}
-          className="block"
+          className="block w-full h-auto"
           style={{ imageRendering: 'pixelated' }}
         />
 
@@ -353,10 +454,24 @@ const FootballDuelMatch: React.FC<FootballDuelMatchProps> = ({
         )}
       </div>
 
-      {/* Controls hint */}
-      <div className="mt-2 text-white/40 text-xs">
-        WASD / ↑↓←→ para mover &nbsp;·&nbsp; Espacio para patear
-      </div>
+      {/* Controls */}
+      {isMobile ? (
+        <div className="flex items-center justify-between w-full max-w-[800px] px-6 py-3 bg-black/40">
+          <DuelJoystick onMove={(dx, dy) => { joystickRef.current = { dx, dy }; }} />
+          <button
+            type="button"
+            className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/40 text-white text-2xl font-black active:bg-white/40 transition-colors select-none touch-none"
+            onTouchStart={(e) => { e.preventDefault(); kickPendingRef.current = true; }}
+            aria-label="Patear"
+          >
+            ⚽
+          </button>
+        </div>
+      ) : (
+        <div className="mt-2 text-white/40 text-xs">
+          WASD / ↑↓←→ para mover &nbsp;·&nbsp; Espacio para patear
+        </div>
+      )}
     </div>
   );
 };

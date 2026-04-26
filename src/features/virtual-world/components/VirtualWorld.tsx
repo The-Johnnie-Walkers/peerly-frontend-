@@ -10,10 +10,107 @@ import { drawDuelPads } from '@/features/football-duel/components/DuelPads';
 import { drawCrown } from '@/features/football-duel/components/Crown';
 import { PadId, PAD_AREAS, PadState, CrownState, DuelStartedPayload } from '@/features/football-duel/types/football-duel.types';
 import FootballDuelMatch from '@/features/football-duel/components/FootballDuelMatch';
+import Minimap from './Minimap';
 
 interface ChatBubble extends ChatMessage {
   id: string;
 }
+
+// ─── Joystick ─────────────────────────────────────────────────────────────────
+
+interface VirtualJoystickProps {
+  onMove: (dx: number, dy: number) => void;
+}
+
+const JOYSTICK_RADIUS = 52;
+const KNOB_RADIUS = 22;
+
+const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
+  const baseRef = useRef<HTMLDivElement>(null);
+  const activeTouch = useRef<number | null>(null);
+  const knobRef = useRef<HTMLDivElement>(null);
+
+  const getOffset = (clientX: number, clientY: number) => {
+    const rect = baseRef.current!.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const rawDx = clientX - cx;
+    const rawDy = clientY - cy;
+    const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+    const clamped = Math.min(dist, JOYSTICK_RADIUS - KNOB_RADIUS);
+    const angle = Math.atan2(rawDy, rawDx);
+    return {
+      dx: (Math.cos(angle) * clamped) / (JOYSTICK_RADIUS - KNOB_RADIUS),
+      dy: (Math.sin(angle) * clamped) / (JOYSTICK_RADIUS - KNOB_RADIUS),
+      kx: Math.cos(angle) * clamped,
+      ky: Math.sin(angle) * clamped,
+    };
+  };
+
+  const setKnob = (kx: number, ky: number) => {
+    if (knobRef.current) {
+      knobRef.current.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+    }
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (activeTouch.current !== null) return;
+    const t = e.changedTouches[0];
+    activeTouch.current = t.identifier;
+    const { dx, dy, kx, ky } = getOffset(t.clientX, t.clientY);
+    setKnob(kx, ky);
+    onMove(dx, dy);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const t = Array.from(e.changedTouches).find(x => x.identifier === activeTouch.current);
+    if (!t) return;
+    e.preventDefault();
+    const { dx, dy, kx, ky } = getOffset(t.clientX, t.clientY);
+    setKnob(kx, ky);
+    onMove(dx, dy);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const t = Array.from(e.changedTouches).find(x => x.identifier === activeTouch.current);
+    if (!t) return;
+    activeTouch.current = null;
+    setKnob(0, 0);
+    onMove(0, 0);
+  };
+
+  return (
+    <div
+      ref={baseRef}
+      className="relative select-none touch-none"
+      style={{ width: JOYSTICK_RADIUS * 2, height: JOYSTICK_RADIUS * 2, borderRadius: '50%', background: 'rgba(0,0,0,0.18)', border: '2px solid rgba(255,255,255,0.18)' }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      aria-label="Joystick de movimiento"
+    >
+      <div
+        ref={knobRef}
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: KNOB_RADIUS * 2,
+          height: KNOB_RADIUS * 2,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.85)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          transform: 'translate(-50%, -50%)',
+          transition: 'transform 0.05s',
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const CANVAS_THEME = {
   grid: 'hsl(43 35% 82%)',
@@ -91,6 +188,7 @@ const VirtualWorld: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [nearbyUser, setNearbyUser] = useState<UserInMap | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [minimapVisible, setMinimapVisible] = useState(true);
   const [activeMatch, setActiveMatch] = useState<{
     matchId: string;
     role: 1 | 2;
@@ -166,10 +264,14 @@ const VirtualWorld: React.FC = () => {
 
     if (!isChatFocusedRef.current) {
       const k = keysPressed.current;
-      if (k.w || k.ArrowUp    || k['btn-up'])    dy -= MOVEMENT_SPEED;
-      if (k.s || k.ArrowDown  || k['btn-down'])  dy += MOVEMENT_SPEED;
-      if (k.a || k.ArrowLeft  || k['btn-left'])  dx -= MOVEMENT_SPEED;
-      if (k.d || k.ArrowRight || k['btn-right']) dx += MOVEMENT_SPEED;
+      let rawDx = 0, rawDy = 0;
+      if (k.w || k.ArrowUp    || k['btn-up'])    rawDy -= 1;
+      if (k.s || k.ArrowDown  || k['btn-down'])  rawDy += 1;
+      if (k.a || k.ArrowLeft  || k['btn-left'])  rawDx -= 1;
+      if (k.d || k.ArrowRight || k['btn-right']) rawDx += 1;
+      // Normalise diagonal so speed is always MOVEMENT_SPEED
+      const mag = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+      if (mag > 0) { dx = (rawDx / mag) * MOVEMENT_SPEED; dy = (rawDy / mag) * MOVEMENT_SPEED; }
     }
 
     if (dx !== 0 || dy !== 0) {
@@ -357,7 +459,12 @@ const VirtualWorld: React.FC = () => {
 
   // ── Start/stop RAF ────────────────────────────────────────────────────────
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.key] = true; };
+    const onKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current[e.key] = true;
+      if ((e.key === 'm' || e.key === 'M') && !isChatFocusedRef.current) {
+        setMinimapVisible(v => !v);
+      }
+    };
     const onKeyUp   = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup',   onKeyUp);
@@ -374,6 +481,15 @@ const VirtualWorld: React.FC = () => {
   const handleMobileControl = (key: string, pressed: boolean) => {
     keysPressed.current[key] = pressed;
   };
+
+  // Joystick handler: receives normalised dx/dy (-1..1) from the joystick
+  const handleJoystickMove = useCallback((dx: number, dy: number) => {
+    const DEAD = 0.25;
+    keysPressed.current['btn-up']    = dy < -DEAD;
+    keysPressed.current['btn-down']  = dy >  DEAD;
+    keysPressed.current['btn-left']  = dx < -DEAD;
+    keysPressed.current['btn-right'] = dx >  DEAD;
+  }, []);
 
   const emitConnectAttempt = useCallback(async (targetUserId: string) => {
     if (!currentUser?.id) return;
@@ -450,30 +566,18 @@ const VirtualWorld: React.FC = () => {
               </button>
             </div>
           )}
+          <Minimap
+            playerX={player.x}
+            playerY={player.y}
+            remoteUsers={renderedUsersRef.current}
+            visible={minimapVisible}
+            onToggle={() => setMinimapVisible(v => !v)}
+          />
         </div>
 
         {isMobile && (
-          <div className="flex justify-between items-center mt-4 px-2">
-            <div className="grid grid-cols-3 gap-1 bg-card p-3 rounded-2xl border border-border shadow-sm">
-              <div />
-              {(['btn-up', 'btn-left', 'btn-down', 'btn-right'] as const).map((key, i) => {
-                const labels = ['↑', '←', '↓', '→'];
-                const ariaLabels = ['Mover arriba', 'Mover izquierda', 'Mover abajo', 'Mover derecha'];
-                return (
-                  <button key={key} type="button"
-                    className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
-                    aria-label={ariaLabels[i]}
-                    onTouchStart={() => handleMobileControl(key, true)}
-                    onTouchEnd={() => handleMobileControl(key, false)}
-                    onMouseDown={() => handleMobileControl(key, true)}
-                    onMouseUp={() => handleMobileControl(key, false)}
-                  >{labels[i]}</button>
-                );
-              })}
-            </div>
-            <div className="text-xs text-muted-foreground font-bold uppercase tracking-tighter text-right leading-tight">
-              Controles virtuales
-            </div>
+          <div className="flex justify-start items-center mt-4 px-2">
+            <VirtualJoystick onMove={handleJoystickMove} />
           </div>
         )}
 
