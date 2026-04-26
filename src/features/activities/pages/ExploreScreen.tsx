@@ -25,10 +25,13 @@ const ExploreScreen = () => {
 
   const userActivityIds = useMemo(() => new Set(userActivities.map((a) => a.id)), [userActivities]);
 
+  const BROWSABLE_STATUSES = new Set(['OPEN', 'FULL', 'IN_PROGRESS']);
+
   const filteredActivities = useMemo(
     () =>
       activities.filter((activity) => {
         if (userActivityIds.has(activity.id)) return false;
+        if (!BROWSABLE_STATUSES.has(activity.status ?? 'OPEN')) return false;
 
         const searchTerm = search.trim().toLowerCase();
         if (!searchTerm) return true;
@@ -91,6 +94,7 @@ const ExploreScreen = () => {
                       >
                         <ActivityCard
                           activity={activity}
+                          isOwner={activity.creatorId === userId}
                           onClick={() => navigate(`/activity/${activity.id}`)}
                         />
                       </motion.div>

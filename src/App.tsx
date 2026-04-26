@@ -20,6 +20,7 @@ import EditProfileScreen from "./features/users/pages/EditProfileScreen";
 import ExploreScreen from "./features/activities/pages/ExploreScreen";
 import ActivityDetailScreen from "./features/activities/pages/ActivityDetailScreen";
 import CreateActivityScreen from "./features/activities/pages/CreateActivityScreen";
+import EditActivityScreen from "./features/activities/pages/EditActivityScreen";
 import VirtualWorldScreen from "./features/virtual-world/pages/VirtualWorldScreen";
 import NotFound from "./shared/pages/NotFound";
 import LandingPage from "./features/landing/pages/LandingPage";
@@ -73,6 +74,7 @@ const AppLayout = () => {
       <Route path="/profile/:id" element={<ProtectedRoute> <ProfileScreen/> </ProtectedRoute>}/>
       <Route path="/explore" element={<ProtectedRoute> <ExploreScreen/> </ProtectedRoute>}/>
       <Route path="/activity/:id" element={<ProtectedRoute> <ActivityDetailScreen/> </ProtectedRoute>}/>
+      <Route path="/activity/:id/edit" element={<ProtectedRoute> <EditActivityScreen/> </ProtectedRoute>}/>
       <Route path="/create-activity" element={<ProtectedRoute> <CreateActivityScreen/> </ProtectedRoute>}/>
       <Route path="/virtual-world" element={<ProtectedRoute> <VirtualWorldScreen/> </ProtectedRoute>}/>
       <Route path="*" element={<NotFound />} />

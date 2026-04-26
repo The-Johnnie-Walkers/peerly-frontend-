@@ -51,8 +51,8 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
               interests: user.interests?.map(i => i.id) || [],
               availability: user.freeTimeSchedule?.map(f => ({
                 day: f.dayOfTheWeek,
-                start: f.startsAt.substring(11, 16),
-                end: f.endsAt.substring(11, 16),
+                start: f.startsAt?.substring(11, 16) ?? '',
+                end: f.endsAt?.substring(11, 16) ?? '',
               })) || [],
             });
           }

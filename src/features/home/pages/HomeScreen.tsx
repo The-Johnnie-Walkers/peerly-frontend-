@@ -18,7 +18,12 @@ const HomeScreen = () => {
     queryKey: ['activities'],
     queryFn: () => activityService.getAllActivities(),
   });
-  const activities = fetchedActivities ?? [];
+  const activities = useMemo(
+    () => (fetchedActivities ?? []).filter(
+      (a) => a.status !== 'ENDED' && a.status !== 'CANCELLED',
+    ),
+    [fetchedActivities],
+  );
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">

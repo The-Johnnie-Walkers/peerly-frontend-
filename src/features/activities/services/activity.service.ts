@@ -3,9 +3,11 @@ import { ACTIVITIES_API_BASE, activityApi, userApi } from '@/shared/lib/api';
 export type ActivityStatus = 'OPEN' | 'FULL' | 'IN_PROGRESS' | 'ENDED' | 'CANCELLED';
 
 export interface ActivityLocationPayload {
+  osmId: string;
+  osmType: string;
+  displayName: string;
   latitude: number;
   longitude: number;
-  placeId: string;
   address: string;
   accuracy: number;
 }
@@ -24,6 +26,17 @@ export interface Activity {
   endsAtISO?: string;
   availablePlaces?: number;
   status?: 'OPEN' | 'FULL' | 'IN_PROGRESS' | 'ENDED' | 'CANCELLED';
+  locationPayload?: ActivityLocationPayload;
+}
+
+export interface UpdateActivityPayload {
+  name: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+  status: ActivityStatus;
+  location: ActivityLocationPayload;
+  totalPlaces: number;
 }
 
 interface ActivityResponseDto {
@@ -114,6 +127,7 @@ const mapActivityDtoToViewModel = (activity: ActivityResponseDto): Activity => {
     endsAtISO: activity.endsAt,
     availablePlaces: activity.availablePlaces,
     status,
+    locationPayload: activity.location,
   };
 };
 
@@ -145,6 +159,11 @@ export const activityService = {
     });
 
     return assertActivityCommandSucceeded(response, 'No fue posible crear la actividad.');
+  },
+
+  async searchLocations(query: string): Promise<ActivityLocationPayload[]> {
+    const searchParams = new URLSearchParams({ q: query });
+    return activityApi.request<ActivityLocationPayload[]>(`locations/search?${searchParams.toString()}`);
   },
 
   async getActivityById(id: string): Promise<Activity> {
@@ -189,5 +208,18 @@ export const activityService = {
     });
 
     return assertActivityCommandSucceeded(response, 'No fue posible salir de la actividad.');
+  },
+
+  async updateActivity(id: string, payload: UpdateActivityPayload): Promise<ActivityCommandResponse> {
+    const response = await userApi.request<ActivityCommandResponse>(`${ACTIVITIES_API_BASE}/${id}`, {
+      method: 'PUT',
+      body: payload,
+    });
+
+    return assertActivityCommandSucceeded(response, 'No fue posible actualizar la actividad.');
+  },
+
+  async deleteActivity(id: string): Promise<void> {
+    await userApi.requestVoid(`${ACTIVITIES_API_BASE}/${id}`, { method: 'DELETE' });
   },
 };
