@@ -243,7 +243,7 @@ const HomeScreen = () => {
                     <div className="mt-6 space-y-3.5 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-primary" />
-                        <span className="truncate">{activity.location}</span>
+                        <span className="truncate">{activity.locationPayload.displayName}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <span className="flex items-center gap-2">
