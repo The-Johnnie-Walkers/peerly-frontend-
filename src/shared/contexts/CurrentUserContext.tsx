@@ -80,6 +80,8 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
                 end: toTime(f.endsAt),
               })) || [],
             });
+            // Marcar como online al cargar la sesión
+            userService.updatePresence(userId, true);
           } else {
             console.warn("[CurrentUserContext] User not found in backend for ID:", userId);
           }

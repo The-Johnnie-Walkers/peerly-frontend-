@@ -3,12 +3,14 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Edit3, Loader2, UserCheck, UserX } from 'lucide-react';
 import { userService } from '@/features/users/services/user.service';
+import { activityService } from '@/features/activities/services/activity.service';
 import type { BackendInterest } from '@/features/users/services/interest.service';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { connectionsService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
 import { useCreateConnection, useUpdateConnection } from '@/features/connections/hooks/useConnections';
+import { translateProgram } from '@/shared/utils/programTranslations';
 
 // Tipo local del perfil mostrado en pantalla
 type ProfileStudent = {
@@ -23,48 +25,6 @@ type ProfileStudent = {
   availability: { day: string; start: string; end: string }[];
   isOnline: boolean;
 };
-
-// Traducción de programas académicos del backend (inglés) al español
-const PROGRAM_TRANSLATIONS: Record<string, string> = {
-  SYSTEMS_ENGINEERING: 'Ingeniería de Sistemas',
-  ELECTRICAL_ENGINEERING: 'Ingeniería Eléctrica',
-  CIVIL_ENGINEERING: 'Ingeniería Civil',
-  MECHANICAL_ENGINEERING: 'Ingeniería Mecánica',
-  INDUSTRIAL_ENGINEERING: 'Ingeniería Industrial',
-  ELECTRONIC_ENGINEERING: 'Ingeniería Electrónica',
-  BIOMEDICAL_ENGINEERING: 'Ingeniería Biomédica',
-  COMPUTER_SCIENCE: 'Ciencias de la Computación',
-  MATHEMATICS: 'Matemáticas',
-  PHYSICS: 'Física',
-  CHEMISTRY: 'Química',
-  BIOLOGY: 'Biología',
-  MEDICINE: 'Medicina',
-  LAW: 'Derecho',
-  ECONOMICS: 'Economía',
-  BUSINESS_ADMINISTRATION: 'Administración de Empresas',
-  PSYCHOLOGY: 'Psicología',
-  SOCIOLOGY: 'Sociología',
-  ARCHITECTURE: 'Arquitectura',
-  DESIGN: 'Diseño',
-  COMMUNICATION: 'Comunicación Social',
-  EDUCATION: 'Educación',
-  PHILOSOPHY: 'Filosofía',
-  HISTORY: 'Historia',
-  LITERATURE: 'Literatura',
-  ARTS: 'Artes',
-  NURSING: 'Enfermería',
-  PHARMACY: 'Farmacia',
-  DENTISTRY: 'Odontología',
-  VETERINARY: 'Veterinaria',
-};
-
-// Traduce el código de programa o lo formatea si no está en el mapa
-const translateProgram = (program: string): string =>
-  PROGRAM_TRANSLATIONS[program] ??
-  program
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 // Traduce nombres de días del backend (inglés) a abreviaturas en español
 const DAY_TRANSLATIONS: Record<string, string> = {
@@ -119,6 +79,8 @@ const ProfileScreen = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isPendingConnection, setIsPendingConnection] = useState(false);
   const [compatibilityScore, setCompatibilityScore] = useState<number | null>(null);
+  const [connectionCount, setConnectionCount] = useState<number | null>(null);
+  const [activityCount, setActivityCount] = useState<number | null>(null);
   const [connectionSent, setConnectionSent] = useState(false);
   const createConnection = useCreateConnection();
   const updateConnection = useUpdateConnection();
@@ -160,7 +122,7 @@ const ProfileScreen = () => {
               end: parseTime(f.endsAt),
             })) || [],
             compatibility: isOwnProfile ? 100 : 0, // se actualiza abajo
-            isOnline: true,
+            isOnline: data.isOnline ?? false,
           });
 
           // Calcular compatibilidad real desde el backend (solo para perfiles ajenos)
@@ -171,8 +133,7 @@ const ProfileScreen = () => {
             } catch {
               setCompatibilityScore(null);
             }
-          }
-        }
+          }        }
       } catch (error) {
         console.error('[ProfileScreen] Error fetching profile:', error);
       } finally {
@@ -182,6 +143,30 @@ const ProfileScreen = () => {
 
     fetchProfile();
   }, [id, currentAuthUser?.id, isContextLoading, isOwnProfile]);
+
+  // Calcular compatibilidad — useEffect separado para evitar race condition
+  useEffect(() => {
+    if (isOwnProfile || !id || !currentAuthUser?.id) return;
+    userService.getCompatibility(currentAuthUser.id, id)
+      .then(score => setCompatibilityScore(score))
+      .catch(() => setCompatibilityScore(null));
+  }, [id, currentAuthUser?.id, isOwnProfile]);
+
+  // Cargar stats del perfil (conexiones y actividades)
+  useEffect(() => {
+    const profileUserId = id || currentAuthUser?.id;
+    if (!profileUserId) return;
+
+    // Conexiones aceptadas
+    connectionsService.findAll(profileUserId, ConnectionStatus.ACCEPTED)
+      .then(conns => setConnectionCount(conns.length))
+      .catch(() => setConnectionCount(0));
+
+    // Actividades en las que ha participado
+    activityService.getJoinedActivityIdsByUserId(profileUserId)
+      .then(ids => setActivityCount(ids.length))
+      .catch(() => setActivityCount(0));
+  }, [id, currentAuthUser?.id]);
 
   // Verificar conexión — useEffect separado para evitar race condition con currentAuthUser
   useEffect(() => {
@@ -231,15 +216,17 @@ const ProfileScreen = () => {
     <div className="min-h-svh flex flex-col bg-background">
       {/* Centered column on desktop, full width on mobile */}
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        {/* Header */}
+        {/* Header — solo muestra botón volver en perfiles ajenos */}
         <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
-            className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
-          >
-            <ArrowLeft size={18} />
-          </motion.button>
+          {!isOwnProfile && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate(-1)}
+              className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
+            >
+              <ArrowLeft size={18} />
+            </motion.button>
+          )}
         </header>
 
         <div className="flex-1 overflow-y-auto pb-24 px-4 sm:px-6">
@@ -267,12 +254,16 @@ const ProfileScreen = () => {
             {isOwnProfile && (
               <div className="flex items-center justify-center gap-6 md:gap-8 my-4">
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">0</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">
+                    {connectionCount ?? <Loader2 size={16} className="animate-spin inline" />}
+                  </p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Conexiones</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">0</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">
+                    {activityCount ?? <Loader2 size={16} className="animate-spin inline" />}
+                  </p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Actividades</p>
                 </div>
                 <div className="w-px h-8 bg-border" />

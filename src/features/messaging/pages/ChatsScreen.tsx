@@ -1,22 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Send, Calendar, Phone, Video, MessageSquarePlus, Search, X, User, Users, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Calendar, Phone, Video, Search, User, Users, Loader2 } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
-import { cn } from '@/shared/lib/utils';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { connectionsService, communitiesService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
 import { userService, UserProfile } from '@/features/users/services/user.service';
 import { useQuery } from '@tanstack/react-query';
 import type { Community } from '@/features/connections/types';
-
-// Mensajes mock para la vista de chat
-const MOCK_MESSAGES = [
-  { id: '1', senderId: 'other', text: '¡Hola! ¿Cómo vas con el proyecto?', timestamp: '10:30' },
-  { id: '2', senderId: 'me', text: 'Bien, terminando los últimos detalles 🚀', timestamp: '10:32' },
-  { id: '3', senderId: 'other', text: '¿Nos vemos en la biblioteca esta tarde?', timestamp: '10:33' },
-];
+import { useChatSocket } from '../hooks/useChatSocket';
+import { getPersonalRoomId, getCommunityRoomId } from '../types/chat.types';
 
 type ChatContact = {
   id: string;
@@ -29,25 +23,46 @@ type ChatContact = {
 };
 
 // ─── Vista de chat individual ────────────────────────────────────────────────
-const ChatView = ({ contact, onBack }: { contact: ChatContact; onBack: () => void }) => {
+const ChatView = ({
+  contact,
+  currentUserId,
+  currentUserName,
+  onBack,
+}: {
+  contact: ChatContact;
+  currentUserId: string;
+  currentUserName: string;
+  onBack: () => void;
+}) => {
   const navigate = useNavigate();
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const roomId = contact.type === 'personal'
+    ? getPersonalRoomId(currentUserId, contact.id)
+    : getCommunityRoomId(contact.id);
+
+  const { messages, sendMessage, isConnected, isLoading } = useChatSocket(roomId, currentUserName);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    setMessages(prev => [...prev, { id: `new-${Date.now()}`, senderId: 'me', text: message.trim(), timestamp: 'Ahora' }]);
-    setMessage('');
+  const handleSend = () => {
+    if (!input.trim()) return;
+    sendMessage(input.trim());
+    setInput('');
+  };
+
+  const formatTime = (ts: string | Date) => {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
   return (
     <div className="min-h-svh flex flex-col bg-background pb-20 md:pb-4">
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto min-h-0">
+        {/* Header */}
         <header className="flex-shrink-0 px-4 sm:px-6 py-3 flex items-center gap-3 bg-card/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-10">
           <motion.button whileTap={{ scale: 0.95 }} onClick={onBack}
             className="p-2.5 rounded-xl bg-muted/90 hover:bg-muted text-foreground"
@@ -78,7 +93,11 @@ const ChatView = ({ contact, onBack }: { contact: ChatContact; onBack: () => voi
             <div className="min-w-0 flex-1">
               <p className="font-bold text-base text-foreground truncate">{contact.name}</p>
               <p className="text-xs text-muted-foreground">
-                {contact.type === 'community' ? 'Comunidad' : contact.isOnline ? <span className="text-success">En línea</span> : 'Desconectado'}
+                {contact.type === 'community'
+                  ? 'Comunidad'
+                  : isConnected
+                  ? contact.isOnline ? <span className="text-success">En línea</span> : 'Desconectado'
+                  : 'Conectando...'}
               </p>
             </div>
           </button>
@@ -107,40 +126,82 @@ const ChatView = ({ contact, onBack }: { contact: ChatContact; onBack: () => voi
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto min-h-0 bg-muted/40 p-4 space-y-3 pb-6">
-          {messages.map(msg => {
-            const isMe = msg.senderId === 'me';
-            return (
-              <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm ${
-                  isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border border-border/80 rounded-bl-md'
-                }`}>
-                  <p className="text-sm leading-relaxed break-words">{msg.text}</p>
-                  <p className={`text-xs mt-1 ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{msg.timestamp}</p>
-                </div>
-              </motion.div>
-            );
-          })}
-          <div ref={messagesEndRef} />
+        {/* Mensajes */}
+        <div className="flex-1 overflow-y-auto min-h-0 bg-muted/40 p-4 pb-6">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-full py-16">
+              <Loader2 size={28} className="animate-spin text-primary" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-16 text-center text-muted-foreground">
+              <p className="text-sm">No hay mensajes aún.</p>
+              <p className="text-xs mt-1">¡Sé el primero en escribir! 🐾</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map(msg => {
+                const isMe = msg.senderId === currentUserId;
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm ${
+                      isMe
+                        ? 'bg-primary text-primary-foreground rounded-br-md'
+                        : 'bg-card border border-border/80 rounded-bl-md'
+                    }`}>
+                      {/* Nombre del remitente en chats de comunidad */}
+                      {contact.type === 'community' && !isMe && (
+                        <p className="text-[10px] font-bold text-primary mb-1">{msg.senderName}</p>
+                      )}
+                      <p className="text-sm leading-relaxed break-words">{msg.text}</p>
+                      <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <p className={`text-xs ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          {formatTime(msg.timestamp)}
+                        </p>
+                        {isMe && (
+                          <span className={`text-[10px] ${msg.read ? 'text-primary-foreground/70' : 'text-primary-foreground/40'}`}>
+                            {msg.read ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
 
+        {/* Input */}
         <div className="flex-shrink-0 p-4 bg-card/98 border-t border-border/80">
           <div className="flex gap-2 items-end">
             <input
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               className="flex-1 min-h-[44px] px-4 py-3 rounded-2xl bg-muted/50 border border-border/90 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 text-sm"
               placeholder="Escribe un mensaje..."
+              disabled={!isConnected}
             />
-            <motion.button whileTap={{ scale: 0.95 }} onClick={sendMessage} disabled={!message.trim()}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSend}
+              disabled={!input.trim() || !isConnected}
               className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md disabled:opacity-50"
             >
               <Send size={20} />
             </motion.button>
           </div>
+          {!isConnected && (
+            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
+              <Loader2 size={12} className="animate-spin" /> Conectando al chat...
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -156,7 +217,7 @@ const ChatsScreen = () => {
   const [selectedContact, setSelectedContact] = useState<ChatContact | null>(null);
   const [search, setSearch] = useState('');
 
-  // Conexiones aceptadas → contactos personales
+  // Conexiones aceptadas
   const { data: connections = [], isLoading: loadingConnections } = useQuery({
     queryKey: ['connections', userData?.id, 'ACCEPTED'],
     queryFn: () => connectionsService.findAll(userData!.id, ConnectionStatus.ACCEPTED),
@@ -170,7 +231,9 @@ const ChatsScreen = () => {
     enabled: !!userData?.id,
   });
 
-  const myCommunities = allCommunities.filter(c => userData?.id && (c.memberIds ?? []).includes(userData.id));
+  const myCommunities = allCommunities.filter(c =>
+    userData?.id && (c.memberIds ?? []).includes(userData.id),
+  );
 
   // Resolver perfiles de conexiones
   const { data: connectedProfiles = [], isLoading: loadingProfiles } = useQuery<UserProfile[]>({
@@ -185,30 +248,30 @@ const ChatsScreen = () => {
     enabled: connections.length > 0 && !!userData?.id,
   });
 
-  // Construir lista de contactos personales
   const personalContacts: ChatContact[] = connectedProfiles.map(p => ({
     id: p.id,
     name: `${p.name} ${p.lastname}`.trim(),
     photo: p.profilePicURL,
-    isOnline: true,
+    isOnline: p.isOnline ?? false,
     lastMessage: 'Toca para chatear',
     lastMessageTime: '',
     type: 'personal',
   }));
 
-  // Construir lista de comunidades
   const communityContacts: ChatContact[] = myCommunities.map(c => ({
     id: c.id,
     name: c.name,
     photo: undefined,
     isOnline: false,
-    lastMessage: `${c.memberIds.length} miembros`,
+    lastMessage: `${(c.memberIds ?? []).length} miembros`,
     lastMessageTime: '',
     type: 'community',
   }));
 
   const currentList = activeTab === 'personal' ? personalContacts : communityContacts;
-  const filtered = currentList.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = currentList.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()),
+  );
   const isLoading = loadingConnections || loadingProfiles || loadingCommunities;
 
   // Navegar directo a un contacto si viene con state
@@ -221,7 +284,7 @@ const ChatsScreen = () => {
           id: profile.id,
           name: `${profile.name} ${profile.lastname}`.trim(),
           photo: profile.profilePicURL,
-          isOnline: true,
+          isOnline: profile.isOnline ?? false,
           lastMessage: '',
           lastMessageTime: '',
           type: 'personal',
@@ -230,8 +293,15 @@ const ChatsScreen = () => {
     }
   }, [location.state, connectedProfiles]);
 
-  if (selectedContact) {
-    return <ChatView contact={selectedContact} onBack={() => setSelectedContact(null)} />;
+  if (selectedContact && userData?.id) {
+    return (
+      <ChatView
+        contact={selectedContact}
+        currentUserId={userData.id}
+        currentUserName={`${userData.name} ${userData.lastname ?? ''}`.trim()}
+        onBack={() => setSelectedContact(null)}
+      />
+    );
   }
 
   return (
@@ -241,7 +311,7 @@ const ChatsScreen = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-display font-extrabold text-foreground">Mensajes</h1>
-              <p className="text-sm text-muted-foreground mt-1">Propón un plan, no muerdas 🐾</p>
+              <p className="text-sm text-muted-foreground mt-1">Un espacio para hablar con quien quieres</p>
             </div>
           </div>
 

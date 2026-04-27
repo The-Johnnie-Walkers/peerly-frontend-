@@ -20,6 +20,8 @@ export interface UserProfile {
   status: string;
   programs: string[];
   role: string;
+  isOnline?: boolean;
+  lastTimeConnected?: string;
 }
 
 export interface UserUpdatePayload extends Omit<Partial<UserProfile>, 'interests'> {
@@ -76,6 +78,17 @@ export const userService = {
       return result.score;
     } catch {
       return 0;
+    }
+  },
+
+  async updatePresence(userId: string, isOnline: boolean): Promise<void> {
+    try {
+      await userApi.request(`${USERS_API_BASE}/${userId}/presence`, {
+        method: 'PATCH',
+        body: { isOnline },
+      });
+    } catch {
+      // silencioso — no crítico
     }
   },
 

@@ -9,6 +9,7 @@ import { useUser } from '@/features/users/hooks/useUser';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { useConnections, useCreateConnection } from '../hooks/useConnections';
 import { ConnectionStatus } from '../types';
+import { translateProgram } from '@/shared/utils/programTranslations';
 
 // Subcomponente para cada miembro
 const MemberRow = ({
@@ -61,7 +62,7 @@ const MemberRow = ({
           {isCreator && <Crown size={12} className="text-primary flex-shrink-0" />}
         </div>
         {user?.programs?.[0] && (
-          <p className="text-xs text-muted-foreground truncate">{user.programs[0]}</p>
+          <p className="text-xs text-muted-foreground truncate">{translateProgram(user.programs[0])}</p>
         )}
       </div>
       {selectable && selected && <Check size={18} className="text-primary flex-shrink-0" />}

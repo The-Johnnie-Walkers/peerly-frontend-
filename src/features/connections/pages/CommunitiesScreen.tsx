@@ -1,11 +1,129 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Users, Loader2, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Users, Loader2, AlertTriangle, Check } from 'lucide-react';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { communitiesService } from '../services/connections.service';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Community } from '../types';
+import { useUser } from '@/features/users/hooks/useUser';
+import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
+
+// Fila de miembro seleccionable con nombre real
+const MemberOption = ({
+  userId,
+  selected,
+  onSelect,
+}: {
+  userId: string;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) => {
+  const { data: user } = useUser(userId);
+  const displayName = user ? `${user.name} ${user.lastname}`.trim() : userId;
+
+  return (
+    <button
+      onClick={() => onSelect(userId)}
+      className={`w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+        selected ? 'bg-primary/10 text-primary border-2 border-primary' : 'hover:bg-muted/40 border-2 border-transparent'
+      }`}
+    >
+      <SafeRemoteImage
+        src={user?.profilePicURL}
+        alt={displayName}
+        fallback="pastel-icon"
+        className="w-8 h-8 rounded-full object-cover border border-border/50 flex-shrink-0"
+      />
+      <span className="flex-1 truncate">{displayName}</span>
+      {selected && <Check size={16} className="text-primary flex-shrink-0" />}
+    </button>
+  );
+};
+
+// Diálogo de confirmación para salir de una comunidad
+const LeaveConfirmDialog = ({
+  community,
+  userId,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  community: Community;
+  userId: string;
+  onConfirm: (newCreatorId?: string) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) => {
+  const [selectedNewCreator, setSelectedNewCreator] = useState<string | null>(null);
+  const memberIds = community.memberIds ?? [];
+  const isLastMember = memberIds.length <= 1;
+  const isCreator = community.creatorId === userId;
+  const otherMembers = memberIds.filter(id => id !== userId);
+  const needsCreatorSelection = isCreator && !isLastMember && otherMembers.length > 1;
+  const canConfirm = !needsCreatorSelection || !!selectedNewCreator;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-sm bg-card rounded-3xl p-6 shadow-elevated"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={24} className="text-destructive" />
+          </div>
+          <h3 className="font-display font-bold text-foreground">
+            {isLastMember ? '¿Eliminar comunidad?' : isCreator ? 'Transferir liderazgo' : '¿Abandonar comunidad?'}
+          </h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          {isLastMember
+            ? 'Eres el único miembro. Si sales, la comunidad será eliminada permanentemente.'
+            : needsCreatorSelection
+            ? 'Eres el creador. Elige quién tomará el liderazgo antes de salir:'
+            : isCreator
+            ? 'El liderazgo pasará automáticamente al otro miembro.'
+            : `Dejarás de ser miembro de "${community.name}".`}
+        </p>
+        {needsCreatorSelection && (
+          <div className="space-y-1 mb-4 border border-border rounded-2xl p-2 max-h-40 overflow-y-auto">
+            {otherMembers.map(memberId => (
+              <MemberOption
+                key={memberId}
+                userId={memberId}
+                selected={selectedNewCreator === memberId}
+                onSelect={setSelectedNewCreator}
+              />
+            ))}
+          </div>
+        )}
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 p-3 rounded-2xl bg-muted text-muted-foreground font-bold text-sm">
+            Cancelar
+          </button>
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            disabled={isPending || !canConfirm}
+            onClick={() => onConfirm(selectedNewCreator ?? undefined)}
+            className="flex-1 p-3 rounded-2xl bg-destructive text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isPending ? <Loader2 size={16} className="animate-spin" /> : isLastMember ? 'Eliminar' : 'Salir'}
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 const CommunitiesScreen = () => {
   const navigate = useNavigate();
@@ -13,6 +131,7 @@ const CommunitiesScreen = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'explore' | 'mine'>('explore');
+  const [leavingCommunity, setLeavingCommunity] = useState<Community | null>(null);
 
   const { data: allCommunities = [], isLoading } = useQuery<Community[]>({
     queryKey: ['communities'],
@@ -26,9 +145,12 @@ const CommunitiesScreen = () => {
   });
 
   const leaveMutation = useMutation({
-    mutationFn: ({ communityId, userId }: { communityId: string; userId: string }) =>
-      communitiesService.leave(communityId, userId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['communities'] }),
+    mutationFn: ({ communityId, userId, newCreatorId }: { communityId: string; userId: string; newCreatorId?: string }) =>
+      communitiesService.leave(communityId, userId, newCreatorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['communities'] });
+      setLeavingCommunity(null);
+    },
   });
 
   const myCommunities = allCommunities.filter(c => userData?.id && (c.memberIds ?? []).includes(userData.id));
@@ -44,6 +166,7 @@ const CommunitiesScreen = () => {
   const isMember = (c: Community) => !!userData?.id && (c.memberIds ?? []).includes(userData.id);
 
   return (
+    <>
     <div className="min-h-svh flex flex-col bg-background pb-20">
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
         <header className="px-6 pt-8 pb-4 flex flex-col gap-4">
@@ -164,9 +287,8 @@ const CommunitiesScreen = () => {
                       <div className="flex-shrink-0">
                         {isMember(community) ? (
                           <button
-                            onClick={() => leaveMutation.mutate({ communityId: community.id, userId: userData.id })}
-                            disabled={leaveMutation.isPending}
-                            className="px-3 py-1.5 text-xs font-bold rounded-xl border-2 border-muted-foreground text-muted-foreground hover:border-destructive hover:text-destructive transition-colors disabled:opacity-50"
+                            onClick={() => setLeavingCommunity(community)}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl border-2 border-muted-foreground text-muted-foreground hover:border-destructive hover:text-destructive transition-colors"
                           >
                             Salir
                           </button>
@@ -189,6 +311,21 @@ const CommunitiesScreen = () => {
         </main>
       </div>
     </div>
+
+    <AnimatePresence>
+      {leavingCommunity && userData?.id && (
+        <LeaveConfirmDialog
+          community={leavingCommunity}
+          userId={userData.id}
+          isPending={leaveMutation.isPending}
+          onCancel={() => setLeavingCommunity(null)}
+          onConfirm={(newCreatorId) =>
+            leaveMutation.mutate({ communityId: leavingCommunity.id, userId: userData.id, newCreatorId })
+          }
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 };
 
