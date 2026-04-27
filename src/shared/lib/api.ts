@@ -1,6 +1,6 @@
 const USER_MGMT_URL = 'https://peerly-user-management-cdduhkfehcb8aag2.canadacentral-01.azurewebsites.net';
 const AUTH_MGMT_URL = 'https://peerly-authentication-management-gfddasemeyhudxe3.canadacentral-01.azurewebsites.net';
-const ACTIVITIES_MGMT_URL = 'http://localhost:3005';
+const ACTIVITIES_MGMT_URL = 'https://peerly-activities-management-ffg3d6emc7c8gver.canadacentral-01.azurewebsites.net';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
