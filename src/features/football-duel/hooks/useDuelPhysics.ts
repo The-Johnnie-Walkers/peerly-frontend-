@@ -4,8 +4,8 @@ import { PlayerInput, PLAYER_SPEED, lerp } from '../types/football-duel.types';
 
 const FIELD_W = 800;
 const FIELD_H = 500;
-const CORRECTION_FRAMES = 3;
-const RECONCILE_THRESHOLD = 5; // pixels
+const CORRECTION_FRAMES = 8; // Más frames para correcciones más suaves
+const RECONCILE_THRESHOLD = 40; // Píxeles - solo corregir drift grande
 
 interface Position {
   x: number;

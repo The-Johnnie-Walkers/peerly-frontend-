@@ -11,6 +11,9 @@ import { drawCrown } from '@/features/football-duel/components/Crown';
 import { PadId, PAD_AREAS, PadState, CrownState, DuelStartedPayload } from '@/features/football-duel/types/football-duel.types';
 import FootballDuelMatch from '@/features/football-duel/components/FootballDuelMatch';
 import Minimap from './Minimap';
+import { drawShooterZone } from '@/features/arena-shooter/components/ShooterZone';
+import ArenaShooter from '@/features/arena-shooter/components/ArenaShooter';
+import { SHOOTER_ZONE_AREA, ShooterPlayerInfo } from '@/features/arena-shooter/types/arena-shooter.types';
 
 interface ChatBubble extends ChatMessage {
   id: string;
@@ -154,6 +157,7 @@ const VirtualWorld: React.FC = () => {
     checkDuelPads,
     clearActiveDuel,
     rejoinMap,
+    joinMapWithPosition,
   } = useRealtimeMap();
 
   // ── All mutable state that the RAF loop reads goes into refs ──────────────
@@ -194,6 +198,25 @@ const VirtualWorld: React.FC = () => {
     role: 1 | 2;
     opponent: { userId: string; name: string };
   } | null>(null);
+
+  // ── Shooter Zone state ────────────────────────────────────────────────────
+  const [shooterZoneState, setShooterZoneState] = useState<'available' | 'highlighted' | 'locked'>('available');
+  const [shooterProgress, setShooterProgress] = useState(0);
+  const [shooterActivePlayers, setShooterActivePlayers] = useState(0);
+  const [inShooterArena, setInShooterArena] = useState(false);
+  const [shooterRoomId, setShooterRoomId] = useState<string | null>(null);
+  const [shooterInitialPlayers, setShooterInitialPlayers] = useState<ShooterPlayerInfo[]>([]);
+
+  // Refs para acceder al estado del shooter dentro del RAF
+  const shooterZoneStateRef = useRef<'available' | 'highlighted' | 'locked'>('available');
+  const shooterProgressRef = useRef(0);
+  const shooterActivePlayersRef = useRef(0);
+  const inShooterArenaRef = useRef(false);
+
+  useEffect(() => { shooterZoneStateRef.current = shooterZoneState; }, [shooterZoneState]);
+  useEffect(() => { shooterProgressRef.current = shooterProgress; }, [shooterProgress]);
+  useEffect(() => { shooterActivePlayersRef.current = shooterActivePlayers; }, [shooterActivePlayers]);
+  useEffect(() => { inShooterArenaRef.current = inShooterArena; }, [inShooterArena]);
 
   const bubblesRef = useRef<ChatBubble[]>([]);
   const renderedUsersRef = useRef<UserInMap[]>([]);
@@ -243,6 +266,12 @@ const VirtualWorld: React.FC = () => {
     }
   }, [chatHistory, addBubble]);
 
+  // ── Send initial position when socket connects ────────────────────────────
+  useEffect(() => {
+    if (!socket?.connected) return;
+    joinMapWithPosition(playerRef.current.x, playerRef.current.y);
+  }, [socket, joinMapWithPosition]);
+
   // ── Duel transition ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeDuel) return;
@@ -257,6 +286,132 @@ const VirtualWorld: React.FC = () => {
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     if (socket?.connected) socket.emit('leaveMap');
   }, [activeDuel, socket]);
+
+  // ── Shooter Zone socket listeners ─────────────────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+
+    // El servidor confirma que el jugador entró a la arena
+    const onShooterJoined = (payload: { roomId: string; players: ShooterPlayerInfo[] }) => {
+      console.log('[VirtualWorld] 🔫 shooterJoined event received!', payload);
+      if (inShooterArenaRef.current) {
+        console.log('[VirtualWorld] Already in arena, ignoring event');
+        return;
+      }
+
+      // Limpiar timeouts y estados de zona
+      if (zoneFallbackTimerRef.current) {
+        console.log('[VirtualWorld] Clearing fallback timer');
+        clearTimeout(zoneFallbackTimerRef.current);
+        zoneFallbackTimerRef.current = null;
+      }
+      zoneEntryStartRef.current = null;
+      setShooterProgress(0);
+
+      // Guardar estado inicial para ArenaShooter
+      console.log('[VirtualWorld] Setting initial players:', payload.players);
+      setShooterRoomId(payload.roomId);
+      setShooterInitialPlayers(payload.players ?? []);
+      setInShooterArena(true);
+      inShooterArenaRef.current = true;
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+
+    // La zona está bloqueada (sala llena)
+    const onZoneBlocked = () => {
+      setShooterZoneState('locked');
+    };
+
+    // Estado de la sala del shooter (jugadores activos, etc.)
+    const onRoomState = (payload: { activePlayers: number; players: ShooterPlayerInfo[] }) => {
+      setShooterActivePlayers(payload.activePlayers);
+      setShooterInitialPlayers(payload.players ?? []);
+      if (payload.activePlayers >= 6) {
+        setShooterZoneState('locked');
+      } else {
+        setShooterZoneState(prev => prev === 'locked' ? 'available' : prev);
+      }
+    };
+
+    socket.on('shooterJoined', onShooterJoined);
+    socket.on('zoneBlocked', onZoneBlocked);
+    socket.on('roomState', onRoomState);
+
+    return () => {
+      socket.off('shooterJoined', onShooterJoined);
+      socket.off('zoneBlocked', onZoneBlocked);
+      socket.off('roomState', onRoomState);
+    };
+  }, [socket]);
+
+  // ── Shooter Zone overlap check (cada 200 ms) ──────────────────────────────
+  // entryStart en ref para que no se resetee cuando el socket reconecta
+  const zoneEntryStartRef = useRef<number | null>(null);
+  const zoneFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastZoneEmitRef = useRef<number>(0);
+
+  useEffect(() => {
+    const ENTRY_MS = 2000;
+
+    const interval = setInterval(() => {
+      if (inShooterArenaRef.current) return;
+      const px = playerRef.current.x;
+      const py = playerRef.current.y;
+      const z = SHOOTER_ZONE_AREA;
+
+      const inside =
+        px >= z.x && px <= z.x + z.width &&
+        py >= z.y && py <= z.y + z.height;
+
+      if (inside) {
+        if (zoneEntryStartRef.current === null) zoneEntryStartRef.current = Date.now();
+        const elapsed = Date.now() - zoneEntryStartRef.current;
+        const progress = Math.min(1, elapsed / ENTRY_MS);
+        setShooterProgress(progress);
+        setShooterZoneState('highlighted');
+
+        // Emitir al socket del mapa para que el servidor valide la entrada
+        if (socket?.connected) {
+          // Re-emit cada 500ms aprox para evitar spam pero mantener vivo el tracker del server
+          if (!lastZoneEmitRef.current || Date.now() - lastZoneEmitRef.current > 500) {
+            console.log('[VirtualWorld] Emitting checkShooterZone at', { x: px, y: py });
+            socket.emit('checkShooterZone', { x: px, y: py });
+            lastZoneEmitRef.current = Date.now();
+          }
+        }
+
+        // Fallback: si el progreso llega a 100% y el servidor no responde
+        // en 500ms, entrar directamente (evita bloqueo por latencia)
+        if (progress >= 1 && !zoneFallbackTimerRef.current) {
+          zoneFallbackTimerRef.current = setTimeout(() => {
+            zoneFallbackTimerRef.current = null;
+            if (!inShooterArenaRef.current) {
+              console.warn('[VirtualWorld] shooterJoined timeout — entering arena directly');
+              zoneEntryStartRef.current = null;
+              setShooterProgress(0);
+              setShooterRoomId('arena-main');
+              setShooterInitialPlayers([]);
+              setInShooterArena(true);
+              if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            }
+          }, 500);
+        }
+      } else {
+        zoneEntryStartRef.current = null;
+        if (zoneFallbackTimerRef.current) {
+          clearTimeout(zoneFallbackTimerRef.current);
+          zoneFallbackTimerRef.current = null;
+        }
+        setShooterZoneState(prev => prev === 'highlighted' ? 'available' : prev);
+        setShooterProgress(0);
+      }
+    }, 200);
+
+    return () => {
+      clearInterval(interval);
+      if (zoneFallbackTimerRef.current) clearTimeout(zoneFallbackTimerRef.current);
+    };
+  }, [socket]);
 
   // ── Main RAF loop ─────────────────────────────────────────────────────────
   const update = useCallback(() => {
@@ -369,6 +524,15 @@ const VirtualWorld: React.FC = () => {
       return (px - cx) ** 2 + (py - cy) ** 2 <= AVATAR_RADIUS ** 2;
     }) ?? null;
     drawDuelPads({ ctx, padStates: padsToRender, localPlayerOverlap: localOverlap });
+
+    // Shooter Zone
+    drawShooterZone({
+      ctx,
+      zone: SHOOTER_ZONE_AREA,
+      state: shooterZoneStateRef.current,
+      progress: shooterProgressRef.current,
+      activePlayers: shooterActivePlayersRef.current,
+    });
 
     // Remote users
     renderedUsersRef.current.forEach(user => {
@@ -518,9 +682,40 @@ const VirtualWorld: React.FC = () => {
     }, 0);
   }, [clearActiveDuel, rejoinMap, update]);
 
+  // ── Shooter return handler ────────────────────────────────────────────────
+  const handleShooterReturn = useCallback((spawnX: number, spawnY: number) => {
+    const next = { ...playerRef.current, x: spawnX, y: spawnY };
+    playerRef.current = next;
+    setPlayer(next);
+    updateCamera(spawnX, spawnY);
+    setInShooterArena(false);
+    setShooterRoomId(null);
+    setShooterZoneState('available');
+    setShooterProgress(0);
+    // Notify server to clear triggered state so player can re-enter
+    socket?.emit('clearShooterZone');
+    rejoinMap();
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    setTimeout(() => {
+      requestRef.current = requestAnimationFrame(update);
+    }, 0);
+  }, [rejoinMap, update, socket]);
+
   // Nearby user button position in viewport space
   const nearbyViewX = nearbyUser ? nearbyUser.x - cameraRef.current.x : 0;
   const nearbyViewY = nearbyUser ? nearbyUser.y - cameraRef.current.y : 0;
+
+  // ── Shooter Arena screen ──────────────────────────────────────────────────
+  if (inShooterArena && shooterRoomId) {
+    return (
+      <ArenaShooter
+        roomId={shooterRoomId}
+        localPlayer={{ userId: myAuthIdRef.current ?? '', name: currentUser?.name ?? 'Tú' }}
+        initialPlayers={shooterInitialPlayers}
+        onReturn={handleShooterReturn}
+      />
+    );
+  }
 
   // ── Match screen ──────────────────────────────────────────────────────────
   if (activeMatch) {

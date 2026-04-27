@@ -95,10 +95,10 @@ export interface ReturnToVirtualWorldPayload {
 export const MATCH_CANVAS_WIDTH = 800;
 export const MATCH_CANVAS_HEIGHT = 500;
 
-/** Pad positions on the 800×600 virtual-world canvas */
+/** Pad positions on the 1600×1200 virtual-world canvas */
 export const PAD_AREAS: Record<PadId, { x: number; y: number; width: number; height: number }> = {
-  'pad-a': { x: 300, y: 460, width: 90, height: 90 },
-  'pad-b': { x: 410, y: 460, width: 90, height: 90 },
+  'pad-a': { x: 620, y: 540, width: 120, height: 120 },
+  'pad-b': { x: 760, y: 540, width: 120, height: 120 },
 };
 
 export const GOAL_AREAS = {
@@ -110,7 +110,7 @@ export const AVATAR_RADIUS = 20;
 export const BALL_RADIUS = 12;
 export const KICK_RADIUS = 60;
 export const PLAYER_SPEED = 5;
-export const PAD_ZONE_CENTER = { x: 400, y: 460 };
+export const PAD_ZONE_CENTER = { x: 800, y: 600 };
 
 /** Format seconds as MM:SS */
 export function formatTime(seconds: number): string {

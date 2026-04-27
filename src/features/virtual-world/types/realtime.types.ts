@@ -53,6 +53,10 @@ export interface ServerToClientEvents {
   duelStarted: (payload: import('@/features/football-duel/types/football-duel.types').DuelStartedPayload) => void;
   crownUpdate: (state: import('@/features/football-duel/types/football-duel.types').CrownState) => void;
   padBlocked: (payload: { padId: string }) => void;
+  // Arena Shooter events
+  shooterJoined: (payload: { roomId: string; players: import('@/features/arena-shooter/types/arena-shooter.types').ShooterPlayerInfo[] }) => void;
+  zoneBlocked: () => void;
+  roomState: (payload: { activePlayers: number; players: import('@/features/arena-shooter/types/arena-shooter.types').ShooterPlayerInfo[] }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -62,4 +66,6 @@ export interface ClientToServerEvents {
   sendChat: (payload: { message: string }) => void;
   // Football Duel events
   checkDuelPads: (position: Position) => void;
+  // Arena Shooter events
+  checkShooterZone: (position: Position) => void;
 }

@@ -47,27 +47,6 @@ export function drawDuelPads({ ctx, padStates, localPlayerOverlap }: DrawDuelPad
     ctx.fillStyle = '#333';
     ctx.fillText(PAD_NAMES[pad.padId], area.x + area.width / 2, area.y - 6);
 
-    // ── Activation progress bar ──────────────────────────────────────────────
-    if (progress > 0) {
-      const barH = 6;
-      const barY = area.y + area.height + 4;
-      const barW = area.width;
-
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(area.x, barY, barW, barH);
-
-      ctx.fillStyle = '#f1c40f';
-      ctx.fillRect(area.x, barY, barW * progress, barH);
-
-      const secondsLeft = Math.ceil((1 - progress) * 2);
-      ctx.font = 'bold 10px "DM Sans", system-ui, sans-serif';
-      ctx.fillStyle = '#e67e22';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${secondsLeft}s`, area.x + area.width / 2, barY + barH + 10);
-
-      drawActivationParticles(ctx, area, progress);
-    }
-
     // ── Occupant name ────────────────────────────────────────────────────────
     if (pad.occupantName && pad.status === 'occupied') {
       ctx.font = '9px "DM Sans", system-ui, sans-serif';
@@ -160,27 +139,3 @@ function drawLockedPad(
   ctx.fillText(pad.padId === 'pad-a' ? 'Cancha A' : 'Cancha B', cx, area.y - 6);
 }
 
-function drawActivationParticles(
-  ctx: CanvasRenderingContext2D,
-  area: { x: number; y: number; width: number; height: number },
-  progress: number,
-): void {
-  const count = Math.floor(progress * 8);
-  const cx = area.x + area.width / 2;
-  const cy = area.y + area.height / 2;
-  const radius = area.width * 0.6;
-  const now = Date.now() / 300;
-
-  ctx.save();
-  for (let i = 0; i < count; i++) {
-    const angle = (i / 8) * Math.PI * 2 + now;
-    const px = cx + Math.cos(angle) * radius;
-    const py = cy + Math.sin(angle) * radius;
-    const alpha = 0.4 + 0.6 * progress;
-    ctx.beginPath();
-    ctx.arc(px, py, 3, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(241, 196, 15, ${alpha})`;
-    ctx.fill();
-  }
-  ctx.restore();
-}
