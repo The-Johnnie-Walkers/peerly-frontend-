@@ -1,4 +1,4 @@
-const USER_MGMT_URL = 'http://localhost:3001';
+const USER_MGMT_URL = 'https://peerly-user-management-cdduhkfehcb8aag2.canadacentral-01.azurewebsites.net';
 const AUTH_MGMT_URL = 'https://peerly-authentication-management-gfddasemeyhudxe3.canadacentral-01.azurewebsites.net';
 const ACTIVITIES_MGMT_URL = 'http://localhost:3005';
 
