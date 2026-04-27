@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { reportService, Report, ReportStatus } from '../services/report.service';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { ShieldAlert, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 const statusLabels: Record<ReportStatus, string> = {
   PENDING: 'Pendiente',
@@ -60,27 +61,30 @@ export default function AdminReportsScreen() {
   const handleResolve = async (id: string) => {
     try {
       await reportService.resolveReport(id);
+      toast.success('Reporte resuelto correctamente.');
       loadReports();
     } catch (err) {
-      console.error('Error al resolver reporte', err);
+      toast.error('Error al resolver el reporte. Intenta de nuevo.');
     }
   };
 
   const handleReject = async (id: string) => {
     try {
       await reportService.rejectReport(id);
+      toast.success('Reporte rechazado.');
       loadReports();
     } catch (err) {
-      console.error('Error al rechazar reporte', err);
+      toast.error('Error al rechazar el reporte. Intenta de nuevo.');
     }
   };
 
   const handleInProgress = async (id: string) => {
     try {
       await reportService.markInProgress(id);
+      toast.success('Reporte marcado como en proceso.');
       loadReports();
     } catch (err) {
-      console.error('Error al marcar en progreso', err);
+      toast.error('Error al actualizar el reporte. Intenta de nuevo.');
     }
   };
 
@@ -93,6 +97,7 @@ export default function AdminReportsScreen() {
     PENDING: reports.filter(r => r.status === 'PENDING').length,
     IN_PROGRESS: reports.filter(r => r.status === 'IN_PROGRESS').length,
     RESOLVED: reports.filter(r => r.status === 'RESOLVED').length,
+    REJECTED: reports.filter(r => r.status === 'REJECTED').length,
   };
 
   if (loading) {
@@ -139,10 +144,10 @@ export default function AdminReportsScreen() {
 
         <div className="mb-8">
           <div className="flex flex-wrap gap-3">
-            {(['ALL', 'PENDING', 'IN_PROGRESS', 'RESOLVED'] as const).map((status) => {
+            {(['ALL', 'PENDING', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'] as const).map((status) => {
               const isActive = filter === status;
               const count = counts[status];
-              const labels = { ALL: 'Todos', PENDING: 'Pendientes', IN_PROGRESS: 'En Proceso', RESOLVED: 'Resueltos' };
+              const labels = { ALL: 'Todos', PENDING: 'Pendientes', IN_PROGRESS: 'En Proceso', RESOLVED: 'Resueltos', REJECTED: 'Rechazados' };
               
               return (
                 <button
