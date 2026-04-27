@@ -14,6 +14,7 @@ import Minimap from './Minimap';
 import { drawShooterZone } from '@/features/arena-shooter/components/ShooterZone';
 import ArenaShooter from '@/features/arena-shooter/components/ArenaShooter';
 import { SHOOTER_ZONE_AREA, ShooterPlayerInfo } from '@/features/arena-shooter/types/arena-shooter.types';
+import { drawWorldDecor } from './WorldDecor';
 
 interface ChatBubble extends ChatMessage {
   id: string;
@@ -420,9 +421,9 @@ const VirtualWorld: React.FC = () => {
     if (!isChatFocusedRef.current) {
       const k = keysPressed.current;
       let rawDx = 0, rawDy = 0;
-      if (k.w || k.ArrowUp    || k['btn-up'])    rawDy -= 1;
-      if (k.s || k.ArrowDown  || k['btn-down'])  rawDy += 1;
-      if (k.a || k.ArrowLeft  || k['btn-left'])  rawDx -= 1;
+      if (k.w || k.ArrowUp || k['btn-up']) rawDy -= 1;
+      if (k.s || k.ArrowDown || k['btn-down']) rawDy += 1;
+      if (k.a || k.ArrowLeft || k['btn-left']) rawDx -= 1;
       if (k.d || k.ArrowRight || k['btn-right']) rawDx += 1;
       // Normalise diagonal so speed is always MOVEMENT_SPEED
       const mag = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
@@ -430,7 +431,7 @@ const VirtualWorld: React.FC = () => {
     }
 
     if (dx !== 0 || dy !== 0) {
-      const nx = Math.max(AVATAR_RADIUS, Math.min(WORLD_WIDTH  - AVATAR_RADIUS, playerRef.current.x + dx));
+      const nx = Math.max(AVATAR_RADIUS, Math.min(WORLD_WIDTH - AVATAR_RADIUS, playerRef.current.x + dx));
       const ny = Math.max(AVATAR_RADIUS, Math.min(WORLD_HEIGHT - AVATAR_RADIUS, playerRef.current.y + dy));
       if (nx !== playerRef.current.x || ny !== playerRef.current.y) {
         const next = { ...playerRef.current, x: nx, y: ny };
@@ -494,22 +495,8 @@ const VirtualWorld: React.FC = () => {
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
 
-    // Grid (only draw visible portion for performance)
-    ctx.strokeStyle = CANVAS_THEME.grid;
-    ctx.lineWidth = 1;
-    const startX = Math.floor(cam.x / GRID_SIZE) * GRID_SIZE;
-    const startY = Math.floor(cam.y / GRID_SIZE) * GRID_SIZE;
-    for (let x = startX; x <= cam.x + VIEWPORT_WIDTH; x += GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(x, cam.y); ctx.lineTo(x, cam.y + VIEWPORT_HEIGHT); ctx.stroke();
-    }
-    for (let y = startY; y <= cam.y + VIEWPORT_HEIGHT; y += GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(cam.x, y); ctx.lineTo(cam.x + VIEWPORT_WIDTH, y); ctx.stroke();
-    }
-
-    // World border
-    ctx.strokeStyle = 'hsl(43 35% 70%)';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    // World decorations: grass, paths, buildings, trees, lamps, benches
+    drawWorldDecor(ctx, cam.x, cam.y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, Date.now());
 
     // Duel pads
     const padsToRender: PadState[] = pads.length > 0 ? pads : [
@@ -550,28 +537,51 @@ const VirtualWorld: React.FC = () => {
   };
 
   const drawAvatar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, name: string, isMe = false) => {
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'hsl(30 20% 30% / 0.12)';
+    // Ground shadow ellipse
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(x + 2, y + AVATAR_RADIUS - 2, AVATAR_RADIUS * 0.85, AVATAR_RADIUS * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Avatar circle
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(0,0,0,0.38)';
     ctx.shadowOffsetY = 3;
     ctx.beginPath();
     ctx.arc(x, y, AVATAR_RADIUS, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = CANVAS_THEME.surface;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.fillStyle = CANVAS_THEME.foreground;
+
+    // Name tag pill background
     ctx.font = 'bold 10px "DM Sans", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, x, y - AVATAR_RADIUS - 6);
+    const textW = ctx.measureText(name).width;
+    const tagH = 14, tagW = textW + 10;
+    const tagX = x - tagW / 2, tagY = y - AVATAR_RADIUS - 20;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(tagX, tagY, tagW, tagH, 4);
+    else ctx.rect(tagX, tagY, tagW, tagH);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name, x, tagY + tagH - 3);
+
+    // "Me" ring with pulsing glow
     if (isMe) {
-      ctx.strokeStyle = CANVAS_THEME.primary;
-      ctx.lineWidth = 2;
+      const pulse = 0.65 + 0.35 * Math.sin(Date.now() / 500);
+      ctx.strokeStyle = `rgba(255, 185, 30, ${pulse})`;
+      ctx.lineWidth = 2.5;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(255,185,30,0.7)';
       ctx.beginPath();
-      ctx.arc(x, y, AVATAR_RADIUS + 4, 0, Math.PI * 2);
+      ctx.arc(x, y, AVATAR_RADIUS + 5, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
   };
 
@@ -629,15 +639,15 @@ const VirtualWorld: React.FC = () => {
         setMinimapVisible(v => !v);
       }
     };
-    const onKeyUp   = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
+    const onKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup',   onKeyUp);
+    window.addEventListener('keyup', onKeyUp);
     // Initialise camera on mount
     updateCamera(playerRef.current.x, playerRef.current.y);
     requestRef.current = requestAnimationFrame(update);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup',   onKeyUp);
+      window.removeEventListener('keyup', onKeyUp);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, [update]);
@@ -649,10 +659,10 @@ const VirtualWorld: React.FC = () => {
   // Joystick handler: receives normalised dx/dy (-1..1) from the joystick
   const handleJoystickMove = useCallback((dx: number, dy: number) => {
     const DEAD = 0.25;
-    keysPressed.current['btn-up']    = dy < -DEAD;
-    keysPressed.current['btn-down']  = dy >  DEAD;
-    keysPressed.current['btn-left']  = dx < -DEAD;
-    keysPressed.current['btn-right'] = dx >  DEAD;
+    keysPressed.current['btn-up'] = dy < -DEAD;
+    keysPressed.current['btn-down'] = dy > DEAD;
+    keysPressed.current['btn-left'] = dx < -DEAD;
+    keysPressed.current['btn-right'] = dx > DEAD;
   }, []);
 
   const emitConnectAttempt = useCallback(async (targetUserId: string) => {
@@ -744,7 +754,7 @@ const VirtualWorld: React.FC = () => {
             ref={canvasRef}
             width={VIEWPORT_WIDTH}
             height={VIEWPORT_HEIGHT}
-            className="cursor-crosshair bg-card block w-full h-full"
+            className="cursor-crosshair block w-full h-full" style={{ background: '#5a8c3a' }}
           />
           <Minimap
             playerX={player.x}
