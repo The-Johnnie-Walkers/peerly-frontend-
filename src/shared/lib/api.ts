@@ -1,5 +1,5 @@
 const USER_MGMT_URL = 'http://localhost:3001';
-const AUTH_MGMT_URL = 'http://localhost:3000';
+const AUTH_MGMT_URL = 'https://peerly-authentication-management-gfddasemeyhudxe3.canadacentral-01.azurewebsites.net';
 const ACTIVITIES_MGMT_URL = 'http://localhost:3005';
 
 interface RequestOptions {
