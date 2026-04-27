@@ -746,21 +746,6 @@ const VirtualWorld: React.FC = () => {
             height={VIEWPORT_HEIGHT}
             className="cursor-crosshair bg-card block w-full h-full"
           />
-          {nearbyUser && (
-            <div
-              className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full animate-bounce"
-              style={{ left: nearbyViewX, top: nearbyViewY }}
-            >
-              <button
-                type="button"
-                onClick={() => emitConnectAttempt(nearbyUser.userId)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold shadow-md flex items-center gap-2 transition-colors border-2 border-card whitespace-nowrap"
-              >
-                <UserPlus size={16} />
-                Conectar con {nearbyUser.name}
-              </button>
-            </div>
-          )}
           <Minimap
             playerX={player.x}
             playerY={player.y}

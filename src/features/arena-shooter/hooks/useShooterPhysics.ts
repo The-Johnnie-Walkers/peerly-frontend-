@@ -1,7 +1,8 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, MutableRefObject } from 'react';
 import {
   Vec2,
   ShooterInput,
+  CoverStructure,
   lerp,
   PLAYER_SPEED,
   ARENA_WIDTH,
@@ -16,41 +17,41 @@ interface Position extends Vec2 {}
 interface UseShooterPhysicsOptions {
   initialX: number;
   initialY: number;
+  /** Ref externo con las estructuras de cobertura para colisión cliente */
+  structuresRef?: MutableRefObject<CoverStructure[]>;
 }
 
 interface UseShooterPhysicsReturn {
   getLocalPlayerPos: () => Position;
-  /** Última dirección de movimiento registrada (para disparos sin movimiento activo) */
   getLastDirection: () => Vec2;
   applyInput: (input: ShooterInput) => void;
-  /** Avanza la simulación local un frame */
   stepPhysics: () => void;
-  /**
-   * Server reconciliation: si la posición autoritativa difiere más de
-   * RECONCILE_THRESHOLD px, inicia corrección suave en CORRECTION_FRAMES frames.
-   */
   reconcile: (serverPos: Position, tick: number) => void;
 }
 
-/**
- * Client-side prediction para el jugador local del Arena Shooter.
- * Sin Matter.js — movimiento lineal simple (igual que el servidor).
- *
- * Diferencias respecto a useDuelPhysics:
- * - No usa Matter.js (movimiento lineal directo)
- * - Mantiene última dirección para disparos sin movimiento activo
- * - Clamp manual a límites de arena
- */
+/** Resuelve colisión círculo-AABB, devuelve posición corregida */
+function resolveStructureCollision(pos: Vec2, s: CoverStructure, radius: number): Vec2 {
+  const closestX = Math.max(s.x, Math.min(pos.x, s.x + s.width));
+  const closestY = Math.max(s.y, Math.min(pos.y, s.y + s.height));
+  const dx = pos.x - closestX;
+  const dy = pos.y - closestY;
+  const distSq = dx * dx + dy * dy;
+  if (distSq === 0 || distSq >= radius * radius) return pos;
+  const dist = Math.sqrt(distSq);
+  const overlap = radius - dist;
+  return { x: pos.x + (dx / dist) * overlap, y: pos.y + (dy / dist) * overlap };
+}
+
 export function useShooterPhysics({
   initialX,
   initialY,
+  structuresRef,
 }: UseShooterPhysicsOptions): UseShooterPhysicsReturn {
   const posRef = useRef<Position>({ x: initialX, y: initialY });
   const velRef = useRef<Vec2>({ x: 0, y: 0 });
   const lastDirRef = useRef<Vec2>({ x: 1, y: 0 });
   const lastStepTimeRef = useRef<number>(0);
 
-  // Estado de corrección suave
   const correctionRef = useRef<{
     target: Position;
     framesLeft: number;
@@ -58,16 +59,9 @@ export function useShooterPhysics({
 
   const applyInput = useCallback((input: ShooterInput) => {
     if (input.action !== 'move') return;
-
     const dx = input.dx ?? 0;
     const dy = input.dy ?? 0;
-
-    velRef.current = {
-      x: dx * PLAYER_SPEED,
-      y: dy * PLAYER_SPEED,
-    };
-
-    // Guardar última dirección solo si hay movimiento activo
+    velRef.current = { x: dx * PLAYER_SPEED, y: dy * PLAYER_SPEED };
     if (dx !== 0 || dy !== 0) {
       lastDirRef.current = { x: dx, y: dy };
     }
@@ -75,16 +69,11 @@ export function useShooterPhysics({
 
   const stepPhysics = useCallback(() => {
     const now = performance.now();
-    // Delta en segundos desde el último step, clampeado a máx 100ms para evitar
-    // saltos grandes si el tab estuvo en background
     const rawDelta = lastStepTimeRef.current ? now - lastStepTimeRef.current : 16.67;
     const deltaMs = Math.min(rawDelta, 100);
     lastStepTimeRef.current = now;
 
-    // Escalar velocidad por delta real (la velocidad está en px/tick a 30tps = px/33ms)
-    // Multiplicamos por deltaMs/33.33 para que sea frame-rate independent
     const scale = deltaMs / 33.33;
-
     const pos = posRef.current;
     const vel = velRef.current;
 
@@ -95,6 +84,15 @@ export function useShooterPhysics({
     nx = Math.max(PLAYER_RADIUS, Math.min(ARENA_WIDTH - PLAYER_RADIUS, nx));
     ny = Math.max(PLAYER_RADIUS, Math.min(ARENA_HEIGHT - PLAYER_RADIUS, ny));
 
+    // Resolver colisiones con estructuras (client-side)
+    if (structuresRef?.current) {
+      for (const s of structuresRef.current) {
+        const resolved = resolveStructureCollision({ x: nx, y: ny }, s, PLAYER_RADIUS);
+        nx = resolved.x;
+        ny = resolved.y;
+      }
+    }
+
     // Aplicar corrección suave si está activa
     if (correctionRef.current && correctionRef.current.framesLeft > 0) {
       const { target, framesLeft } = correctionRef.current;
@@ -102,13 +100,11 @@ export function useShooterPhysics({
       nx = lerp(nx, target.x, t);
       ny = lerp(ny, target.y, t);
       correctionRef.current.framesLeft--;
-      if (correctionRef.current.framesLeft === 0) {
-        correctionRef.current = null;
-      }
+      if (correctionRef.current.framesLeft === 0) correctionRef.current = null;
     }
 
     posRef.current = { x: nx, y: ny };
-  }, []);
+  }, [structuresRef]);
 
   const reconcile = useCallback((serverPos: Position, _tick: number) => {
     const pos = posRef.current;
@@ -117,26 +113,14 @@ export function useShooterPhysics({
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist > RECONCILE_THRESHOLD) {
-      // Drift grande (teletransporte, anti-cheat) — corregir en CORRECTION_FRAMES
       correctionRef.current = { target: serverPos, framesLeft: CORRECTION_FRAMES };
     } else if (dist > 2) {
-      // Drift pequeño — snap suave directo sin animación de corrección
-      // Mezcla 15% hacia la posición del servidor cada reconciliación
-      posRef.current = {
-        x: pos.x + dx * 0.15,
-        y: pos.y + dy * 0.15,
-      };
+      posRef.current = { x: pos.x + dx * 0.15, y: pos.y + dy * 0.15 };
     }
-    // < 2px: ignorar — ruido de floating point
   }, []);
 
-  const getLocalPlayerPos = useCallback((): Position => {
-    return { ...posRef.current };
-  }, []);
-
-  const getLastDirection = useCallback((): Vec2 => {
-    return { ...lastDirRef.current };
-  }, []);
+  const getLocalPlayerPos = useCallback((): Position => ({ ...posRef.current }), []);
+  const getLastDirection = useCallback((): Vec2 => ({ ...lastDirRef.current }), []);
 
   return { getLocalPlayerPos, getLastDirection, applyInput, stepPhysics, reconcile };
 }

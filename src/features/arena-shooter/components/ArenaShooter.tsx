@@ -11,6 +11,7 @@ import {
   ARENA_HEIGHT,
   PLAYER_RADIUS,
   PROJECTILE_RADIUS,
+  CoverStructure,
   ShooterPlayerInfo,
   ShooterSnapshot,
   PlayerHitPayload,
@@ -48,6 +49,12 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
   
   const particleSystemRef = useRef(new ParticleSystem());
   const screenShakeRef = useRef(0);
+  const structuresRef = useRef<CoverStructure[]>([]);
+  // Viewport (cámara) — sigue al jugador local
+  const cameraRef = useRef({ x: 0, y: 0 });
+  // Tamaño del canvas visible (viewport fijo 800×600)
+  const VIEWPORT_W = 800;
+  const VIEWPORT_H = 600;
 
   const { pushSnapshot, getInterpolatedPlayer, getInterpolatedProjectiles, getLatestPlayers } =
     useShooterSnapshot();
@@ -55,6 +62,7 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
   const { getLocalPlayerPos, getLastDirection, applyInput, stepPhysics, reconcile } = useShooterPhysics({
     initialX: ARENA_WIDTH / 2,
     initialY: ARENA_HEIGHT / 2,
+    structuresRef,
   });
 
   const [localStats, setLocalStats] = useState<ShooterPlayerInfo>({
@@ -97,14 +105,22 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
     if (leaving) addNotification(`${leaving.name} salió del juego`, 2000);
   }, [leaderboard, addNotification]);
 
-  const handleRoomState = useCallback((payload: { players: ShooterPlayerInfo[]; activePlayers: number }) => {
+  const handleRoomState = useCallback((payload: { players: ShooterPlayerInfo[]; structures?: CoverStructure[]; activePlayers: number }) => {
     setLeaderboard(payload.players);
     const me = payload.players.find(p => p.userId === localPlayer.userId);
     if (me) setLocalStats(me);
+    if (payload.structures && payload.structures.length > 0) {
+      structuresRef.current = payload.structures;
+    }
   }, [localPlayer.userId]);
 
   const handleSnapshot = useCallback((snapshot: ShooterSnapshot) => {
     pushSnapshot(snapshot);
+
+    // Guardar estructuras si vienen en el snapshot (solo tick 1)
+    if (snapshot.structures && snapshot.structures.length > 0) {
+      structuresRef.current = snapshot.structures;
+    }
     
     // Update leaderboard with latest player stats from snapshot (throttled to avoid excessive re-renders)
     // Only update every 10 ticks (~333ms at 30 ticks/sec)
@@ -298,8 +314,12 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
         let aimDx = 0; let aimDy = 0;
 
         if (!isMobileDevice && (mouseAim.x !== 0 || mouseAim.y !== 0)) {
-          const adx = mouseAim.x - localPos.x;
-          const ady = mouseAim.y - localPos.y;
+          // Convertir coords de viewport → coords de mundo sumando el offset de cámara
+          const cam = cameraRef.current;
+          const worldMouseX = mouseAim.x + cam.x;
+          const worldMouseY = mouseAim.y + cam.y;
+          const adx = worldMouseX - localPos.x;
+          const ady = worldMouseY - localPos.y;
           const mag = Math.sqrt(adx * adx + ady * ady);
           if (mag > 0) { aimDx = adx/mag; aimDy = ady/mag; }
         } else {
@@ -343,29 +363,77 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const localPos = getLocalPlayerPos();
+
+    // ── Actualizar cámara (centrada en el jugador, clampeada al mapa) ──────
+    const camX = Math.max(0, Math.min(ARENA_WIDTH - VIEWPORT_W, localPos.x - VIEWPORT_W / 2));
+    const camY = Math.max(0, Math.min(ARENA_HEIGHT - VIEWPORT_H, localPos.y - VIEWPORT_H / 2));
+    cameraRef.current = { x: camX, y: camY };
+
     ctx.save();
+
+    // Screen shake
     if (screenShakeRef.current > 0) {
-      ctx.translate((Math.random() - 0.5) * screenShakeRef.current, (Math.random() - 0.5) * screenShakeRef.current);
+      ctx.translate(
+        (Math.random() - 0.5) * screenShakeRef.current,
+        (Math.random() - 0.5) * screenShakeRef.current,
+      );
     }
 
+    // Aplicar transformación de cámara
+    ctx.translate(-camX, -camY);
+
+    // ── Fondo ──────────────────────────────────────────────────────────────
     ctx.fillStyle = '#111122';
-    ctx.fillRect(0, 0, ARENA_WIDTH, ARENA_HEIGHT);
-    
+    ctx.fillRect(camX, camY, VIEWPORT_W, VIEWPORT_H);
+
+    // Grid (solo en el viewport visible)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
-    for (let x = 0; x < ARENA_WIDTH; x += 40) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ARENA_HEIGHT); ctx.stroke();
+    const gridStart = { x: Math.floor(camX / 40) * 40, y: Math.floor(camY / 40) * 40 };
+    for (let x = gridStart.x; x < camX + VIEWPORT_W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, camY); ctx.lineTo(x, camY + VIEWPORT_H); ctx.stroke();
     }
-    for (let y = 0; y < ARENA_HEIGHT; y += 40) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(ARENA_WIDTH, y); ctx.stroke();
+    for (let y = gridStart.y; y < camY + VIEWPORT_H; y += 40) {
+      ctx.beginPath(); ctx.moveTo(camX, y); ctx.lineTo(camX + VIEWPORT_W, y); ctx.stroke();
     }
 
-    const now = Date.now();
-    
-    // Reset shadow before drawing
+    // ── Estructuras de cobertura ───────────────────────────────────────────
+    const structures = structuresRef.current;
+    for (const s of structures) {
+      // Solo dibujar si está en el viewport
+      if (
+        s.x + s.width < camX || s.x > camX + VIEWPORT_W ||
+        s.y + s.height < camY || s.y > camY + VIEWPORT_H
+      ) continue;
+
+      // Sombra
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+
+      // Cuerpo de la estructura
+      ctx.fillStyle = '#3d4a5c';
+      ctx.fillRect(s.x, s.y, s.width, s.height);
+
+      // Borde
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#5a6a7e';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(s.x, s.y, s.width, s.height);
+
+      // Detalle interior (línea diagonal para dar sensación de caja/pared)
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s.x + 4, s.y + 4);
+      ctx.lineTo(s.x + s.width - 4, s.y + s.height - 4);
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
-    ctx.shadowColor = 'transparent';
-    
+
+    const now = Date.now();
+
+    // ── Proyectiles ────────────────────────────────────────────────────────
     const projectiles = getInterpolatedProjectiles(now);
     projectiles.forEach(proj => {
       ctx.save();
@@ -378,12 +446,14 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
       ctx.restore();
     });
 
+    // ── Partículas ─────────────────────────────────────────────────────────
     particleSystemRef.current.draw(ctx);
 
+    // ── Jugadores ──────────────────────────────────────────────────────────
     const latestPlayers = getLatestPlayers();
     latestPlayers.forEach(p => {
       const isLocal = p.userId === localPlayer.userId;
-      const pos = isLocal ? getLocalPlayerPos() : getInterpolatedPlayer(p.userId, now);
+      const pos = isLocal ? localPos : getInterpolatedPlayer(p.userId, now);
       drawPlayer(ctx, pos.x, pos.y, p.name, isLocal);
     });
 
@@ -425,8 +495,8 @@ export const ArenaShooter: React.FC<ArenaShooterProps> = ({
       <div style={{ position: 'relative', maxWidth: '100%', padding: '0 10px' }}>
           <canvas
             ref={canvasRef}
-            width={ARENA_WIDTH}
-            height={ARENA_HEIGHT}
+            width={VIEWPORT_W}
+            height={VIEWPORT_H}
             style={{ 
               borderRadius: '12px', 
               boxShadow: '0 0 50px rgba(0,0,0,0.5)', 

@@ -29,6 +29,17 @@ export interface Projectile extends PhysicsBody {
   ownerId: string;  // userId del disparador
 }
 
+// ─── Estructura de cobertura ──────────────────────────────────────────────────
+
+export interface CoverStructure {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: 'square' | 'rectangle';
+}
+
 // ─── Snapshot (servidor → cliente, cada 33 ms) ────────────────────────────────
 
 export interface ShooterSnapshot {
@@ -37,6 +48,7 @@ export interface ShooterSnapshot {
   timestamp: number;
   players: ShooterPlayerState[];
   projectiles: Projectile[];
+  structures?: CoverStructure[];
 }
 
 // ─── Input (cliente → servidor) ──────────────────────────────────────────────
@@ -73,6 +85,7 @@ export interface PlayerLeftPayload {
 export interface RoomStatePayload {
   roomId: string;
   players: ShooterPlayerInfo[];
+  structures?: CoverStructure[];
   activePlayers: number;
 }
 
@@ -92,8 +105,8 @@ export interface ArenaShooterProps {
 
 // ─── Constantes de juego ──────────────────────────────────────────────────────
 
-export const ARENA_WIDTH = 800;
-export const ARENA_HEIGHT = 600;
+export const ARENA_WIDTH = 1600;
+export const ARENA_HEIGHT = 1200;
 export const PLAYER_RADIUS = 20;
 export const PROJECTILE_RADIUS = 6;
 export const PROJECTILE_SPEED = 8;        // px/tick

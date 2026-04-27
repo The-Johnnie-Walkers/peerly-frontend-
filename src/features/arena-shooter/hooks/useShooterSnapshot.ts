@@ -73,8 +73,8 @@ export function useShooterSnapshot(): UseShooterSnapshotReturn {
         const scale = extraMs / 33.33;
         return {
           ...nextPlayer,
-          x: Math.max(20, Math.min(780, nextPlayer.x + nextPlayer.vx * scale)),
-          y: Math.max(20, Math.min(580, nextPlayer.y + nextPlayer.vy * scale)),
+          x: Math.max(20, Math.min(1580, nextPlayer.x + nextPlayer.vx * scale)),
+          y: Math.max(20, Math.min(1180, nextPlayer.y + nextPlayer.vy * scale)),
         };
       }
     },
