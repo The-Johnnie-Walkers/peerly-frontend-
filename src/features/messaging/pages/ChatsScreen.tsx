@@ -6,6 +6,9 @@ import { MOCK_CONNECTIONS, MOCK_CHAT_MESSAGES, MOCK_STUDENTS, Student, Connectio
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { cn } from '@/shared/lib/utils';
 import { useLocation } from 'react-router-dom';
+import { useCall } from '../hooks/useCall';
+import { CallModal } from '../components/CallModal';
+import { authService } from '@/features/auth/services/auth.service';
 
 const PREVIEW_MAX_CHARS = 52;
 
@@ -25,6 +28,13 @@ const ChatsScreen = () => {
   const [messages, setMessages] = useState(MOCK_CHAT_MESSAGES);
   const [activeConnections, setActiveConnections] = useState<Connection[]>(MOCK_CONNECTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const currentUser = authService.getCurrentUser();
+  const { callState, callType, incomingCall, remoteStream, localStreamRef, initiateCall, acceptCall, rejectCall, endCall } = useCall(
+    currentUser?.id ?? '',
+    currentUser?.name ?? '',
+    authService.getToken() ?? '',
+  );
 
   // Efecto para manejar navegación desde otras pantallas (ej: ConnectionsScreen)
   useEffect(() => {
@@ -69,6 +79,17 @@ const ChatsScreen = () => {
 
   if (selectedConnectionId && connection) {
     return (
+      <>
+      <CallModal
+        callState={callState}
+        callType={callType}
+        incomingCall={incomingCall}
+        remoteStream={remoteStream}
+        localStreamRef={localStreamRef}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+        onEnd={endCall}
+      />
       <div className="min-h-svh flex flex-col bg-peerly-background pb-20 md:pb-4">
         <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto min-h-0">
           <header className="flex-shrink-0 px-4 sm:px-6 py-3 flex items-center gap-3 bg-peerly-surface/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-10">
@@ -115,7 +136,7 @@ const ChatsScreen = () => {
                 whileTap={{ scale: 0.95 }}
                 className="p-2 sm:p-2.5 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Llamada de voz"
-                onClick={() => console.log('Iniciar llamada de voz')}
+                onClick={() => initiateCall(connection.student.id, 'audio')}
               >
                 <Phone size={20} />
               </motion.button>
@@ -123,7 +144,7 @@ const ChatsScreen = () => {
                 whileTap={{ scale: 0.95 }}
                 className="p-2 sm:p-2.5 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Videollamada"
-                onClick={() => console.log('Iniciar videollamada')}
+                onClick={() => initiateCall(connection.student.id, 'video')}
               >
                 <Video size={20} />
               </motion.button>
@@ -202,6 +223,7 @@ const ChatsScreen = () => {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -209,6 +231,17 @@ const ChatsScreen = () => {
   const cream = 'hsl(var(--peerly-background))';
 
   return (
+    <>
+    <CallModal
+      callState={callState}
+      callType={callType}
+      incomingCall={incomingCall}
+      remoteStream={remoteStream}
+      localStreamRef={localStreamRef}
+      onAccept={acceptCall}
+      onReject={rejectCall}
+      onEnd={endCall}
+    />
     <div
       className="min-h-svh flex flex-col font-sans"
       style={{ backgroundColor: cream }}
@@ -369,6 +402,7 @@ const ChatsScreen = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
