@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Calendar, Phone, Video, MessageSquarePlus, Search, X, User } from 'lucide-react';
+import { ArrowLeft, Send, Calendar, Phone, Video, MessageSquarePlus, Search, X, User, Flag } from 'lucide-react';
 import { MOCK_CONNECTIONS, MOCK_CHAT_MESSAGES, MOCK_STUDENTS, Student, Connection } from '@/shared/data/mockData';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { cn } from '@/shared/lib/utils';
 import { useLocation } from 'react-router-dom';
+import { ReportButton } from '@/features/reports/components/ReportButton';
 
 const PREVIEW_MAX_CHARS = 52;
 
@@ -134,6 +135,11 @@ const ChatsScreen = () => {
               >
                 <Calendar size={20} />
               </motion.button>
+              <ReportButton
+                userId={connection.student.id}
+                userName={connection.student.name}
+                userPhoto={connection.student.photo}
+              />
             </div>
           </header>
 

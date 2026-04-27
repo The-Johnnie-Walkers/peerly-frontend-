@@ -1,6 +1,6 @@
-const USER_MGMT_URL = 'http://localhost:3001';
-const AUTH_MGMT_URL = 'http://localhost:3000';
-const ACTIVITIES_MGMT_URL = 'http://localhost:3005';
+const USER_MGMT_URL = 'http://localhost:3000';
+const AUTH_MGMT_URL = 'http://localhost:3002';
+const ACTIVITIES_MGMT_URL = 'http://localhost:3001';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -114,12 +114,30 @@ class ApiClient {
   }
 }
 
-const CONNECTIONS_MGMT_URL = 'http://localhost:3002';
+const CONNECTIONS_MGMT_URL = 'http://localhost:3003';
+const REPORTS_MGMT_URL = import.meta.env.VITE_REPORTS_SERVICE_URL || 'http://localhost:3005';
+
+export const REPORT_TYPE = {
+  USER: 'USER',
+  CONTENT: 'CONTENT',
+};
+
+export const REPORT_REASON = {
+  SPAM: 'SPAM',
+  COMPORTAMIENTO_INAPROPIADO: 'COMPORTAMIENTO_INAPROPIADO',
+  CONTENIDO_OFENSIVO: 'CONTENIDO_OFENSIVO',
+  ACOSO: 'ACOSO',
+  FRAUD: 'FRAUD',
+  INFORMACION_FALSA: 'INFORMACION_FALSA',
+  OTRO: 'OTRO',
+};
 
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
 export const ACTIVITIES_API_BASE = 'activities';
+export const REPORTS_API_BASE = 'reports';
 export const userApi = new ApiClient(USER_MGMT_URL);
 export const authApi = new ApiClient(AUTH_MGMT_URL);
 export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);
 export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);
+export const reportsApi = new ApiClient(REPORTS_MGMT_URL);

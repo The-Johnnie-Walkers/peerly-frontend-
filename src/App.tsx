@@ -22,11 +22,13 @@ import ActivityDetailScreen from "./features/activities/pages/ActivityDetailScre
 import CreateActivityScreen from "./features/activities/pages/CreateActivityScreen";
 import EditActivityScreen from "./features/activities/pages/EditActivityScreen";
 import VirtualWorldScreen from "./features/virtual-world/pages/VirtualWorldScreen";
+import AdminReportsScreen from "./features/reports/pages/AdminReportsScreen";
 import NotFound from "./shared/pages/NotFound";
 import LandingPage from "./features/landing/pages/LandingPage";
 import Login from "./features/auth/pages/Login";
 import { ReactNode } from "react";
 import { authService } from "./features/auth/services/auth.service";
+import { useCurrentUser } from "./shared/contexts/CurrentUserContext";
 
 import { SocketProvider } from "@/shared/contexts/SocketContext";
 
@@ -42,12 +44,20 @@ const appShellMatchers = [
   "/activity",
   "/create-activity",
   "/virtual-world",
+  "/admin-reports",
 ];
 
-const ProtectedRoute = ({ children } : { children: ReactNode }) => {
+const ProtectedRoute = ({ children, requireAdmin = false } : { children: ReactNode, requireAdmin?: boolean }) => {
+  const { userData } = useCurrentUser();
+  
   if(!authService.isAuthenticated()){
     return <Navigate to="/login" replace/>
   }
+  
+  if (requireAdmin && userData?.role !== 'ADMIN') {
+    return <Navigate to="/home" replace/>
+  }
+  
   return<>{children}</>
 }
 
@@ -79,6 +89,7 @@ const AppLayout = () => {
       <Route path="/activity/:id/edit" element={<ProtectedRoute> <EditActivityScreen/> </ProtectedRoute>}/>
       <Route path="/create-activity" element={<ProtectedRoute> <CreateActivityScreen/> </ProtectedRoute>}/>
       <Route path="/virtual-world" element={<ProtectedRoute> <VirtualWorldScreen/> </ProtectedRoute>}/>
+      <Route path="/admin-reports" element={<ProtectedRoute requireAdmin> <AdminReportsScreen/> </ProtectedRoute>}/>
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Loader2, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Edit3, Loader2, UserCheck, UserX, Flag } from 'lucide-react';
 import { userService } from '@/features/users/services/user.service';
 import type { BackendInterest } from '@/features/users/services/interest.service';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { connectionsService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
 import { useCreateConnection, useUpdateConnection } from '@/features/connections/hooks/useConnections';
+import { ReportButton } from '@/features/reports/components/ReportButton';
 
 // Tipo local del perfil mostrado en pantalla
 type ProfileStudent = {
@@ -216,13 +217,22 @@ const ProfileScreen = () => {
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
         {/* Header */}
         <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
-            className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
-          >
-            <ArrowLeft size={18} />
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate(-1)}
+              className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
+            >
+              <ArrowLeft size={18} />
+            </motion.button>
+          </div>
+          {!isOwnProfile && student && (
+            <ReportButton
+              userId={student.id}
+              userName={student.name}
+              userPhoto={student.photo}
+            />
+          )}
         </header>
 
         <div className="flex-1 overflow-y-auto pb-24 px-4 sm:px-6">

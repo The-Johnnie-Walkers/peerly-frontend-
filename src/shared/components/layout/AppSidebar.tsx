@@ -1,9 +1,10 @@
-import { Compass, House, LogOut, MessageCircle, Orbit, PlusSquare, User, UserPlus, Users2 } from "lucide-react";
+import { Compass, House, LogOut, MessageCircle, Orbit, PlusSquare, User, UserPlus, Users2, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PeerlyLogo from "@/assets/peerly-logo.png";
 import { authService } from "@/features/auth/services/auth.service";
 import { NavLink } from "@/shared/components/NavLink";
 import { cn } from "@/shared/lib/utils";
+import { useCurrentUser } from "@/shared/contexts/CurrentUserContext";
 
 const primaryLinks = [
   { to: "/home", label: "Inicio", icon: House },
@@ -21,6 +22,7 @@ const linkBaseClass =
 
 export const AppSidebar = () => {
   const navigate = useNavigate();
+  const { userData } = useCurrentUser();
 
   const handleLogout = () => {
     authService.logout();
@@ -48,6 +50,16 @@ export const AppSidebar = () => {
             <span>{label}</span>
           </NavLink>
         ))}
+        {userData?.role === 'ADMIN' && (
+          <NavLink
+            to="/admin-reports"
+            className={cn(linkBaseClass, "justify-start")}
+            activeClassName="bg-white text-[color:hsl(var(--peerly-primary-dark))] shadow-card"
+          >
+            <ShieldAlert className="h-5 w-5 shrink-0" />
+            <span>Reportes</span>
+          </NavLink>
+        )}
       </nav>
 
       <div className="mt-3 border-t border-[hsl(var(--border))]/70 pt-3">
