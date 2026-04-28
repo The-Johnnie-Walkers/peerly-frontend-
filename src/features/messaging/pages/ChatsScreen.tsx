@@ -3,9 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Send, Calendar, Phone, Video, Search, User, Users, Loader2 } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
-import { useCall } from '../hooks/useCall';
-import { CallModal } from '../components/CallModal';
-import { authService } from '@/features/auth/services/auth.service';
+import { useCallContext } from '@/shared/contexts/CallContext';
 import { useChatSocket } from '../hooks/useChatSocket';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { useQuery } from '@tanstack/react-query';
@@ -39,12 +37,7 @@ const ChatView = ({
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const currentUser = authService.getCurrentUser();
-  const { callState, callType, incomingCall, remoteStream, localStreamRef, initiateCall, acceptCall, rejectCall, endCall } = useCall(
-    currentUser?.id ?? '',
-    currentUser?.name ?? '',
-    authService.getToken() ?? '',
-  );
+  const { initiateCall } = useCallContext();
 
   const roomId = contact.type === 'community'
     ? contact.id
@@ -69,16 +62,6 @@ const ChatView = ({
 
   return (
     <>
-      <CallModal
-        callState={callState}
-        callType={callType}
-        incomingCall={incomingCall}
-        remoteStream={remoteStream}
-        localStreamRef={localStreamRef}
-        onAccept={acceptCall}
-        onReject={rejectCall}
-        onEnd={endCall}
-      />
       <div className="min-h-svh flex flex-col bg-peerly-background pb-20 md:pb-4">
         <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto min-h-0">
           <header className="flex-shrink-0 px-4 sm:px-6 py-3 flex items-center gap-3 bg-peerly-surface/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-10">

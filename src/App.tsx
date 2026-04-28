@@ -32,6 +32,7 @@ import { ReactNode } from "react";
 import { authService } from "./features/auth/services/auth.service";
 
 import { SocketProvider } from "@/shared/contexts/SocketContext";
+import { CallProvider } from "@/shared/contexts/CallContext";
 
 const queryClient = new QueryClient();
 
@@ -115,9 +116,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <CurrentUserProvider>
-          <SocketProvider>
-            <AppLayout />
-          </SocketProvider>
+          <CallProvider>
+            <SocketProvider>
+              <AppLayout />
+            </SocketProvider>
+          </CallProvider>
         </CurrentUserProvider>
       </BrowserRouter>
     </TooltipProvider>
