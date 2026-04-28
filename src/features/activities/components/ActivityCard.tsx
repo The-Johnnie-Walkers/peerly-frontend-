@@ -5,6 +5,7 @@ import type { Activity } from '@/features/activities/services/activity.service';
 interface ActivityCardProps {
   activity: Activity;
   onClick?: () => void;
+  isOwner?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -23,7 +24,7 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-rose-100 text-rose-700',
 };
 
-export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
+export const ActivityCard = ({ activity, onClick, isOwner = false }: ActivityCardProps) => {
   const statusLabel = STATUS_LABELS[activity.status ?? 'OPEN'] ?? 'Disponible';
   const statusStyle = STATUS_STYLES[activity.status ?? 'OPEN'] ?? STATUS_STYLES.OPEN;
 
@@ -33,14 +34,18 @@ export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
       onClick={onClick}
       className="cursor-pointer overflow-hidden rounded-[32px] border border-border bg-card shadow-card"
     >
-      <div className="flex border-b border-border/70 bg-[linear-gradient(135deg,rgba(255,248,242,0.95),rgba(247,241,235,0.92))] px-4 py-2 pb-4">
-        <h4 className="mt-3 font-display text-lg font-bold leading-snug text-foreground">{activity.title}</h4>
-        <div className="flex items-center gap-2 ml-auto pt-3">
-          <span className={`rounded-full px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider ${statusStyle}`}>
+      <div className="flex flex-col border-b border-border/70 bg-[linear-gradient(135deg,rgba(255,248,242,0.95),rgba(247,241,235,0.92))] px-4 py-2 pb-4">
+        <div className="flex items-start justify-between gap-2">
+          <h4 className="mt-3 font-display text-lg font-bold leading-snug text-foreground">{activity.title}</h4>
+          <span className={`mt-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider ${statusStyle}`}>
             {statusLabel}
           </span>
         </div>
-        
+        {isOwner && (
+          <span className="mt-2 w-fit rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-primary">
+            Creada por ti
+          </span>
+        )}
       </div>
       <div className="p-4">
         <p className="mb-4 pl-2 overflow-hidden line-clamp-1 text-sm leading-6 text-muted-foreground">{activity.description}</p>
@@ -48,7 +53,7 @@ export const ActivityCard = ({ activity, onClick }: ActivityCardProps) => {
         <div className="mb-4 grid gap-2.5 text-xs text-muted-foreground">
           <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-2 py-2">
             <MapPin size={14} className="text-primary" />
-            <span className="truncate">{activity.location}</span>
+            <span className="truncate">{activity.locationPayload.displayName}</span>
           </span>
           <div className="grid gap-2 sm:grid-cols-2">
             <span className="flex items-center gap-2 rounded-2xl bg-accent/45 px-2 py-2">

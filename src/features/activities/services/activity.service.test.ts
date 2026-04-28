@@ -27,9 +27,11 @@ const buildActivityDto = (overrides: Partial<Record<string, unknown>> = {}) => (
   endsAt: '2026-04-30T12:00:00.000Z',
   status: 'OPEN',
   location: {
+    osmId: 'osm-1',
+    osmType: 'way',
+    displayName: 'Bloque A, Bogota',
     latitude: 0,
     longitude: 0,
-    placeId: 'place-1',
     address: 'Bloque A',
     accuracy: 1,
   },
@@ -63,9 +65,11 @@ describe('activityService', () => {
         endsAt: '2026-05-01T11:00:00.000Z',
         status: 'OPEN',
         location: {
+          osmId: 'osm-bloque-a',
+          osmType: 'way',
+          displayName: 'Bloque A, Bogota',
           latitude: 4.6,
           longitude: -74.1,
-          placeId: 'bloque-a',
           address: 'Bloque A',
           accuracy: 1,
         },
@@ -87,9 +91,11 @@ describe('activityService', () => {
         endsAt: '2026-05-01T11:00:00.000Z',
         status: 'OPEN',
         location: {
+          osmId: 'osm-bloque-a',
+          osmType: 'way',
+          displayName: 'Bloque A, Bogota',
           latitude: 4.6,
           longitude: -74.1,
-          placeId: 'bloque-a',
           address: 'Bloque A',
           accuracy: 1,
         },
@@ -114,15 +120,38 @@ describe('activityService', () => {
         endsAt: '2026-05-01T11:00:00.000Z',
         status: 'OPEN',
         location: {
+          osmId: 'osm-1',
+          osmType: 'way',
+          displayName: 'Bloque A, Bogota',
           latitude: 0,
           longitude: 0,
-          placeId: 'place-1',
           address: 'Bloque A',
           accuracy: 1,
         },
         totalPlaces: 5,
       }),
     ).rejects.toThrow('create failed');
+  });
+
+  it('searches locations through the activities service', async () => {
+    const locations = [
+      {
+        osmId: 'osm-1',
+        osmType: 'way',
+        displayName: 'Biblioteca Virgilio Barco, Bogota',
+        latitude: 4.6584,
+        longitude: -74.0936,
+        address: 'Biblioteca Virgilio Barco',
+        accuracy: 30,
+      },
+    ];
+    apiMocks.activityRequest.mockResolvedValueOnce(locations);
+
+    await expect(activityService.searchLocations('Biblioteca Virgilio Barco')).resolves.toEqual(locations);
+
+    expect(apiMocks.activityRequest).toHaveBeenCalledWith(
+      'locations/search?q=Biblioteca+Virgilio+Barco',
+    );
   });
 
   it('returns joined activities sorted by start date', async () => {

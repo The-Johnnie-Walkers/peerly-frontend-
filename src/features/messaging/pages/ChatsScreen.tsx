@@ -3,14 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Send, Calendar, Phone, Video, Search, User, Users, Loader2 } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
-import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
-import { connectionsService, communitiesService } from '@/features/connections/services/connections.service';
-import { ConnectionStatus } from '@/features/connections/types';
-import { userService, UserProfile } from '@/features/users/services/user.service';
-import { useQuery } from '@tanstack/react-query';
-import type { Community } from '@/features/connections/types';
-import { useChatSocket } from '../hooks/useChatSocket';
-import { getPersonalRoomId, getCommunityRoomId } from '../types/chat.types';
+import { cn } from '@/shared/lib/utils';
+import { useLocation } from 'react-router-dom';
+import { useCall } from '../hooks/useCall';
+import { CallModal } from '../components/CallModal';
+import { authService } from '@/features/auth/services/auth.service';
 
 type ChatContact = {
   id: string;
@@ -38,9 +35,20 @@ const ChatView = ({
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const roomId = contact.type === 'personal'
-    ? getPersonalRoomId(currentUserId, contact.id)
-    : getCommunityRoomId(contact.id);
+  const currentUser = authService.getCurrentUser();
+  const { callState, callType, incomingCall, remoteStream, localStreamRef, initiateCall, acceptCall, rejectCall, endCall } = useCall(
+    currentUser?.id ?? '',
+    currentUser?.name ?? '',
+    authService.getToken() ?? '',
+  );
+
+  // Efecto para manejar navegación desde otras pantallas (ej: ConnectionsScreen)
+  useEffect(() => {
+    const state = location.state as { studentId?: string } | null;
+    if (state?.studentId) {
+      handleSelectStudent(state.studentId);
+    }
+  }, [location.state]);
 
   const { messages, sendMessage, isConnected, isLoading } = useChatSocket(roomId, currentUserName);
 
@@ -59,60 +67,73 @@ const ChatView = ({
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  return (
-    <div className="min-h-svh flex flex-col bg-background pb-20 md:pb-4">
-      <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto min-h-0">
-        {/* Header */}
-        <header className="flex-shrink-0 px-4 sm:px-6 py-3 flex items-center gap-3 bg-card/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-10">
-          <motion.button whileTap={{ scale: 0.95 }} onClick={onBack}
-            className="p-2.5 rounded-xl bg-muted/90 hover:bg-muted text-foreground"
-            aria-label="Volver"
-          >
-            <ArrowLeft size={20} />
-          </motion.button>
-
-          <button
-            type="button"
-            onClick={() => contact.type === 'personal'
-              ? navigate(`/profile/${contact.id}`)
-              : navigate(`/communities/${contact.id}`)
-            }
-            className="flex-1 flex items-center gap-3 min-w-0 text-left rounded-xl p-1 -m-1"
-          >
-            <div className="relative flex-shrink-0">
-              <SafeRemoteImage
-                src={contact.photo}
-                alt={contact.name}
-                fallback="pastel-icon"
-                className="w-11 h-11 rounded-full object-cover border border-border/80"
-              />
-              {contact.isOnline && (
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-success ring-2 ring-card" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-base text-foreground truncate">{contact.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {contact.type === 'community'
-                  ? 'Comunidad'
-                  : isConnected
-                  ? contact.isOnline ? <span className="text-success">En línea</span> : 'Desconectado'
-                  : 'Conectando...'}
-              </p>
-            </div>
-          </button>
-
-          {contact.type === 'personal' && (
-            <div className="flex items-center gap-1.5">
-              <motion.button whileTap={{ scale: 0.95 }}
-                className="p-2 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/15"
-                aria-label="Llamada"
+  if (selectedConnectionId && connection) {
+    return (
+      <>
+      <CallModal
+        callState={callState}
+        callType={callType}
+        incomingCall={incomingCall}
+        remoteStream={remoteStream}
+        localStreamRef={localStreamRef}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+        onEnd={endCall}
+      />
+      <div className="min-h-svh flex flex-col bg-peerly-background pb-20 md:pb-4">
+        <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto min-h-0">
+          <header className="flex-shrink-0 px-4 sm:px-6 py-3 flex items-center gap-3 bg-peerly-surface/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-10">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setSelectedConnectionId(null)}
+              className="p-2.5 rounded-xl bg-muted/90 hover:bg-muted text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Volver a conversaciones"
+            >
+              <ArrowLeft size={20} />
+            </motion.button>
+            <button
+              type="button"
+              onClick={() => navigate(`/profile/${connection.student.id}`)}
+              className="flex-1 flex items-center gap-3 min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl p-1 -m-1"
+            >
+              <div className="relative flex-shrink-0">
+                <SafeRemoteImage
+                  src={connection.student.photo}
+                  alt={connection.student.name}
+                  fallback="pastel-icon"
+                  className="w-11 h-11 rounded-full object-cover border border-border/80"
+                />
+                {connection.student.isOnline && (
+                  <span
+                    className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-success ring-2 ring-peerly-surface"
+                    aria-hidden
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-sans font-bold text-base text-foreground truncate">{connection.student.name}</p>
+                <p className="text-xs font-normal text-muted-foreground">
+                  {connection.student.isOnline ? (
+                    <span className="text-success">En línea</span>
+                  ) : (
+                    'Desconectado'
+                  )}
+                </p>
+              </div>
+            </button>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="p-2 sm:p-2.5 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Llamada de voz"
+                onClick={() => initiateCall(connection.student.id, 'audio')}
               >
                 <Phone size={20} />
               </motion.button>
               <motion.button whileTap={{ scale: 0.95 }}
                 className="p-2 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15"
                 aria-label="Videollamada"
+                onClick={() => initiateCall(connection.student.id, 'video')}
               >
                 <Video size={20} />
               </motion.button>
@@ -305,7 +326,21 @@ const ChatsScreen = () => {
   }
 
   return (
-    <div className="min-h-svh flex flex-col bg-background pb-20">
+    <>
+    <CallModal
+      callState={callState}
+      callType={callType}
+      incomingCall={incomingCall}
+      remoteStream={remoteStream}
+      localStreamRef={localStreamRef}
+      onAccept={acceptCall}
+      onReject={rejectCall}
+      onEnd={endCall}
+    />
+    <div
+      className="min-h-svh flex flex-col font-sans"
+      style={{ backgroundColor: cream }}
+    >
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
         <header className="px-6 pt-8 pb-4 flex flex-col gap-4">
           <div className="flex justify-between items-center">
@@ -434,6 +469,7 @@ const ChatsScreen = () => {
         </main>
       </div>
     </div>
+    </>
   );
 };
 
