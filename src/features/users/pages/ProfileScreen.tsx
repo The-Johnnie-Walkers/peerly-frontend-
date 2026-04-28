@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Loader2, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Edit3, Loader2, UserCheck, UserX, Flag } from 'lucide-react';
 import { userService } from '@/features/users/services/user.service';
 import { activityService } from '@/features/activities/services/activity.service';
 import type { BackendInterest } from '@/features/users/services/interest.service';
@@ -10,6 +10,7 @@ import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { connectionsService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
 import { useCreateConnection, useUpdateConnection } from '@/features/connections/hooks/useConnections';
+import { ReportButton } from '@/features/reports/components/ReportButton';
 import { translateProgram } from '@/shared/utils/programTranslations';
 
 // Tipo local del perfil mostrado en pantalla
@@ -218,6 +219,7 @@ const ProfileScreen = () => {
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
         {/* Header — solo muestra botón volver en perfiles ajenos */}
         <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2">
           {!isOwnProfile && (
             <motion.button
               whileTap={{ scale: 0.9 }}
@@ -226,6 +228,13 @@ const ProfileScreen = () => {
             >
               <ArrowLeft size={18} />
             </motion.button>
+          </div>
+          {!isOwnProfile && student && (
+            <ReportButton
+              userId={student.id}
+              userName={student.name}
+              userPhoto={student.photo}
+            />
           )}
         </header>
 

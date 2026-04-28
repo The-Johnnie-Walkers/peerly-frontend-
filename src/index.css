@@ -10,6 +10,7 @@
     --peerly-primary: 12 70% 63%;          /* Terracota #E27D60 */
     --peerly-primary-dark: 12 72% 48%;     /* Terracota más profundo */
     --peerly-secondary: 146 53% 69%;       /* Verde salvia #85DCB0 */
+    --peerly-secondary-dark: 146 55% 45%;  /* Verde salvia más oscuro para texto */
     --peerly-background: 43 61% 96%;
     --peerly-surface: 0 0% 100%;           /* Blanco puro #FFFFFF */
     --peerly-text-secondary: 0 0% 36%;     /* Café suave aprox #5C5C5C */

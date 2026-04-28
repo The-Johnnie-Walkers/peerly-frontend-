@@ -1,11 +1,13 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, MessageCircle, Plus, UserPlus, User, Globe } from 'lucide-react';
+import { Search, MessageCircle, Plus, UserPlus, User, ShieldAlert } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 
 const NAV_ITEMS = [
   { path: '/home', icon: Home, label: 'Inicio' },
   { path: '/chats', icon: MessageCircle, label: 'Chats' },
   { path: '/create-activity', icon: Plus, label: 'Crear', isCenter: true },
+  { path: '/connect', icon: UserPlus, label: 'Descubrir' },
   { path: '/communities', icon: Globe, label: 'Comunidades' },
   { path: '/social', icon: UserPlus, label: 'Social' },
   { path: '/profile', icon: User, label: 'Perfil' },
@@ -14,6 +16,7 @@ const NAV_ITEMS = [
 export const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { userData } = useCurrentUser();
 
   return (
     <nav className="fixed bottom-0 left-0 w-full bg-[hsl(var(--peerly-surface))]/95 backdrop-blur-md border-t border-neutral-200/85 py-2.5 flex justify-center z-40 shadow-[0_-4px_24px_-12px_rgba(0,0,0,0.08)]">
@@ -66,6 +69,33 @@ export const BottomNav = () => {
             </motion.button>
           );
         })}
+        {userData?.role === 'ADMIN' && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            onClick={() => navigate('/admin-reports')}
+            className={`relative flex flex-col items-center gap-0.5 px-1 py-1 min-w-[56px] font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl ${
+              location.pathname === '/admin-reports' ? 'text-destructive' : 'text-neutral-400 hover:text-neutral-600'
+            }`}
+          >
+            {location.pathname === '/admin-reports' && (
+              <span
+                className="absolute -top-0.5 left-1/2 -translate-x-1/2 h-0.5 w-7 rounded-full bg-destructive"
+                aria-hidden
+              />
+            )}
+            <span
+              className={`flex items-center justify-center rounded-xl transition-colors ${
+                location.pathname === '/admin-reports' ? 'bg-destructive/12 px-2 py-1' : 'px-2 py-1'
+              }`}
+            >
+              <ShieldAlert size={22} strokeWidth={location.pathname === '/admin-reports' ? 2.25 : 2} />
+            </span>
+            <span className={`text-[10px] font-medium leading-none ${location.pathname === '/admin-reports' ? 'text-destructive' : ''}`}>
+              Reportes
+            </span>
+          </motion.button>
+        )}
       </div>
     </nav>
   );

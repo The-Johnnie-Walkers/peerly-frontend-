@@ -131,6 +131,11 @@ const ChatView = ({
               >
                 <Calendar size={20} />
               </motion.button>
+              <ReportButton
+                userId={connection.student.id}
+                userName={connection.student.name}
+                userPhoto={connection.student.photo}
+              />
             </div>
           </header>
 
