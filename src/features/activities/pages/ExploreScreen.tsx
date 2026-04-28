@@ -103,15 +103,17 @@ const ExploreScreen = () => {
               </p>
             </div>
 
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('/create-activity')}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[hsl(var(--peerly-primary))] px-4 text-sm font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90 sm:self-start lg:self-auto"
-            >
-              <CalendarPlus2 className="h-4 w-4" />
-              Crear actividad
-            </motion.button>
+            <div className='pb-8'>
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/create-activity')}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[hsl(var(--peerly-primary))] px-4 text-sm font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90 sm:self-start lg:self-auto"
+              >
+                <CalendarPlus2 className="h-4 w-4" />
+                Crear actividad
+              </motion.button>
+            </div>
           </header>
 
           <section className="space-y-6">

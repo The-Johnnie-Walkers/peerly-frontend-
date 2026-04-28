@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { useState } from "react";
 import { authService } from "@/features/auth/services/auth.service";
+import { useCurrentUser } from "@/shared/contexts/CurrentUserContext";
 import { toast } from "sonner";
 import BubbleBackground from "@/shared/components/ui/bubble-background";
 
@@ -45,6 +46,7 @@ const Login = () => {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
 
+  const { setUserData } = useCurrentUser();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,7 +57,8 @@ const Login = () => {
 
     setIsLoading(true);
     try {
-      await authService.login({ email, password });
+      const result = await authService.login({ email, password });
+      setUserData(result.userProfile);
       toast.success("¡Bienvenido de nuevo!");
       navigate("/home");
     } catch (error: unknown) {

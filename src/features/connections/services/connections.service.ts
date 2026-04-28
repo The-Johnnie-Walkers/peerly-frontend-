@@ -68,10 +68,10 @@ export const communitiesService = {
     });
   },
 
-  async leave(communityId: string, userId: string): Promise<Community> {
-    return connectionsApi.request<Community>(`communities/${communityId}/leave`, {
+  async leave(communityId: string, userId: string, newCreatorId?: string): Promise<{ deleted: boolean; community?: Community }> {
+    return connectionsApi.request<{ deleted: boolean; community?: Community }>(`communities/${communityId}/leave`, {
       method: 'POST',
-      body: { userId },
+      body: { userId, ...(newCreatorId ? { newCreatorId } : {}) },
     });
   },
 
