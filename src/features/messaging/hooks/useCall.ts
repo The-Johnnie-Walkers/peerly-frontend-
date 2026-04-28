@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-  import SimplePeer from 'simple-peer';
+import SimplePeer from 'simple-peer';
 import { CONNECTIONS_MGMT_URL } from '@/shared/lib/api';
 
   export type CallType  = 'audio' | 'video';
