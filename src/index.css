@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Wellness Collective palette (HSL values) */
+    --peerly-primary: 12 70% 63%;          /* Terracota #E27D60 */
+    --peerly-primary-dark: 12 72% 48%;     /* Terracota más profundo */
+    --peerly-secondary: 146 53% 69%;       /* Verde salvia #85DCB0 */
+    --peerly-secondary-dark: 146 55% 45%;  /* Verde salvia más oscuro para texto */
+    --peerly-background: 43 61% 96%;
+    --peerly-surface: 0 0% 100%;           /* Blanco puro #FFFFFF */
+    --peerly-text-secondary: 0 0% 36%;     /* Café suave aprox #5C5C5C */
+    --peerly-soft-accent: 146 53% 98%;
+    /* Naranja acento fuerte (badges, alertas de atención); complementa terracota */
+    --peerly-accent-strong: 24 95% 54%;
+
+    /* Semantic tokens (used by Tailwind theme) */
+    --background: 43 61% 88%;
+    --foreground: 0 0% 31%;                /* Marrón café #4E4E4E */
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 31%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 31%;
+
+    --primary: 12 70% 63%;                 /* Terracota */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 146 53% 69%;              /* Verde salvia */
+    --secondary-foreground: 0 0% 16%;
+
+    --muted: 43 40% 90%;
+    --muted-foreground: 0 0% 36%;
+
+    --accent: 146 53% 96%;
+    --accent-foreground: 0 0% 31%;
+
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 146 53% 69%;                /* Alinear success con salvia */
+    --success-foreground: 0 0% 16%;
+
+    --border: 43 35% 82%;
+    --input: 43 35% 82%;
+    --ring: 12 70% 63%;
+
+    --radius: 1rem;
+
+    --sidebar-background: 43 61% 88%;
+    --sidebar-foreground: 0 0% 31%;
+    --sidebar-primary: 12 70% 63%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 0 0% 31%;
+    --sidebar-border: 43 35% 82%;
+    --sidebar-ring: 12 70% 63%;
+
+    --font-display: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+
+    /* Soft, minimal shadows para superficies blancas */
+    --shadow-card: 0 6px 18px -8px hsl(30 20% 30% / 0.15);
+    --shadow-elevated: 0 14px 32px -16px hsl(30 20% 25% / 0.18);
+    --shadow-glow: 0 0 0 1px hsl(12 70% 63% / 0.2), 0 10px 26px -14px hsl(12 70% 63% / 0.25);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    overscroll-behavior: none;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
