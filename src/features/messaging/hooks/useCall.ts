@@ -11,22 +11,13 @@ export interface IncomingCallInfo {
   type:       CallType;
 }
 
-const ICE_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    // TURN relay — needed when direct peer-to-peer fails (different NATs in production)
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-  ],
-};
+async function fetchIceServers(token: string): Promise<RTCIceServer[]> {
+  const res = await fetch(`${CONNECTIONS_MGMT_URL}/calls/ice-servers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch ICE servers');
+  return res.json();
+}
 
 const log = (...args: unknown[]) => console.log('[useCall]', ...args);
 const err = (...args: unknown[]) => console.error('[useCall]', ...args);
@@ -67,9 +58,9 @@ export function useCall(userId: string, userName: string, token: string) {
     return stream;
   }, []);
 
-  const buildPeerConnection = useCallback((targetUserId: string): RTCPeerConnection => {
+  const buildPeerConnection = useCallback((targetUserId: string, iceServers: RTCIceServer[]): RTCPeerConnection => {
     log('buildPeerConnection for', targetUserId);
-    const pc = new RTCPeerConnection(ICE_CONFIG);
+    const pc = new RTCPeerConnection({ iceServers });
 
     const tracks = localStreamRef.current?.getTracks() ?? [];
     log('adding local tracks:', tracks.map(t => t.kind));
@@ -138,7 +129,8 @@ export function useCall(userId: string, userName: string, token: string) {
       log('call:accepted — callee:', calleeId, '— creating offer');
       try {
         setRemoteUserId(calleeId);
-        const pc = buildPeerConnection(calleeId);
+        const iceServers = await fetchIceServers(token);
+        const pc = buildPeerConnection(calleeId, iceServers);
         const offer = await pc.createOffer();
         log('offer created, setting local description');
         await pc.setLocalDescription(offer);
@@ -161,7 +153,8 @@ export function useCall(userId: string, userName: string, token: string) {
         if (signal.type === 'offer') {
           log('processing offer — building PC for', fromUserId);
           setRemoteUserId(fromUserId);
-          const pc = buildPeerConnection(fromUserId);
+          const iceServers = await fetchIceServers(token);
+          const pc = buildPeerConnection(fromUserId, iceServers);
           await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: signal.sdp }));
           log('remote description (offer) set — draining ICE queue:', iceCandidateQueueRef.current.length);
           for (const c of iceCandidateQueueRef.current) {
