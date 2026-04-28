@@ -6,7 +6,7 @@ import {
   ClientToChatEvents,
   ServerToChatEvents,
 } from '../types/chat.types';
-import { CONNECTIONS_MGMT_URL } from '@/shared/lib/api';
+import { connectionsURL } from '@/shared/lib/api';
 
 
 type ChatSocket = Socket<ServerToChatEvents, ClientToChatEvents>;
@@ -33,7 +33,7 @@ export function useChatSocket(roomId: string | null, userName?: string): UseChat
     const displayName = userName || storedName || 'Usuario';
     if (!token || !userId) return;
 
-    const socket: ChatSocket = io(`${CONNECTIONS_MGMT_URL}/chats`, {
+    const socket: ChatSocket = io(`${connectionsURL}/chats`, {
       auth: { token, userId, userName: displayName },
       transports: ['websocket'],
       autoConnect: true,

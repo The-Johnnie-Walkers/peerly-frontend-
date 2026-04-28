@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { CONNECTIONS_MGMT_URL } from '@/shared/lib/api';
+import { connectionsURL } from '@/shared/lib/api';
 
 export type CallType  = 'audio' | 'video';
 export type CallState = 'idle' | 'calling' | 'incoming' | 'active';
@@ -12,7 +12,7 @@ export interface IncomingCallInfo {
 }
 
 async function fetchIceServers(token: string): Promise<RTCIceServer[]> {
-  const res = await fetch(`${CONNECTIONS_MGMT_URL}/calls/ice-servers`, {
+  const res = await fetch(`${connectionsURL}/calls/ice-servers`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error('Failed to fetch ICE servers');
@@ -109,7 +109,7 @@ export function useCall(userId: string, userName: string, token: string) {
     if (!userId || !token) return;
 
     log('connecting socket, userId:', userId);
-    const socket = io(`${CONNECTIONS_MGMT_URL}/calls`, {
+    const socket = io(`${connectionsURL}/calls`, {
       auth: { token, userId, userName },
     });
     socketRef.current = socket;

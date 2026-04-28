@@ -1,7 +1,7 @@
-const USER_MGMT_URL = 'https://peerly-user-management-cdduhkfehcb8aag2.canadacentral-01.azurewebsites.net';
-const AUTH_MGMT_URL = 'https://peerly-authentication-management-gfddasemeyhudxe3.canadacentral-01.azurewebsites.net';
-const ACTIVITIES_MGMT_URL = 'https://peerly-activities-management-ffg3d6emc7c8gver.canadacentral-01.azurewebsites.net';
-export const CONNECTIONS_MGMT_URL = 'https://peerly-connections-management-gucyf0bdf7bbehdh.canadacentral-01.azurewebsites.net';
+const usersURL = import.meta.env.VITE_USER_MGMT_URL;
+const authURL = import.meta.env.VITE_AUTH_MGMT_URL;
+const activitiesURL = import.meta.env.VITE_ACTIVITIES_MGMT_URL;
+export const connectionsURL =  import.meta.env.VITE_CONNECTIONS_MGMT_URL;
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -118,7 +118,7 @@ class ApiClient {
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
 export const ACTIVITIES_API_BASE = 'activities';
-export const userApi = new ApiClient(USER_MGMT_URL);
-export const authApi = new ApiClient(AUTH_MGMT_URL);
-export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);
-export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);
+export const userApi = new ApiClient(usersURL);
+export const authApi = new ApiClient(authURL);
+export const activityApi = new ApiClient(activitiesURL);
+export const connectionsApi = new ApiClient(connectionsURL);
