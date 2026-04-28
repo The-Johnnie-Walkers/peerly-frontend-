@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { connectionsService, communitiesService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus, Community } from '@/features/connections/types';
 import { userService, UserProfile } from '@/features/users/services/user.service';
+import { ReportButton } from '@/features/reports/components/ReportButton';
 
 type ChatContact = {
   id: string;
@@ -131,11 +132,13 @@ const ChatView = ({
               >
                 <Calendar size={20} />
               </motion.button>
-              <ReportButton
-                userId={connection.student.id}
-                userName={connection.student.name}
-                userPhoto={connection.student.photo}
-              />
+              {contact.type === 'personal' && (
+                <ReportButton
+                  userId={contact.id}
+                  userName={contact.name}
+                  userPhoto={contact.photo}
+                />
+              )}
             </div>
           </header>
 
