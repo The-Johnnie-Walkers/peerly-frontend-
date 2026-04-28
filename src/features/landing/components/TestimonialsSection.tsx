@@ -63,7 +63,7 @@ export default function TestimonialsSection() {
     return (
         <section className="relative flex items-center overflow-hidden min-h-screen">
             <Aurora className="absolute inset-0 z-0" />
-            <div className="relative z-10 max-w-2xl mx-auto">
+            <div className="relative z-10 max-w-2xl mx-auto w-full px-6 sm:px-8 py-16">
                 <motion.div
                     variants={fadeUp}
                     initial="hidden"
@@ -72,7 +72,7 @@ export default function TestimonialsSection() {
                     transition={{ duration: 0.6, ease: 'easeOut' }}
                     className="mb-12"
                 >
-                    <h2 className="text-4xl font-bold mb-2">
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-2">
                         <span className="text-[#C87C65]">Opiniones</span>
                     </h2>
                     <div className="w-16 h-1 bg-[#C87C65] rounded" />
@@ -97,7 +97,7 @@ export default function TestimonialsSection() {
                                 animate="center"
                                 exit="exit"
                                 transition={{ duration: 0.35, ease: 'easeInOut' }}
-                                className="bg-white rounded-2xl shadow-md p-8 flex flex-col gap-5"
+                                className="bg-white rounded-2xl shadow-md p-5 sm:p-8 flex flex-col gap-5"
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="w-14 h-14 rounded-full bg-[#C87C65]/15 flex items-center justify-center text-[#C87C65] font-bold text-lg flex-shrink-0">
@@ -115,7 +115,7 @@ export default function TestimonialsSection() {
                                     ))}
                                 </div>
 
-                                <p className="text-gray-600 leading-relaxed text-base italic">
+                                <p className="text-gray-600 leading-relaxed text-sm sm:text-base italic">
                                     &ldquo;{current.text}&rdquo;
                                 </p>
                             </motion.div>

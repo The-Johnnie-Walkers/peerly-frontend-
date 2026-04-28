@@ -19,9 +19,9 @@ export default function LandingPage() {
             <NavBar/>
             <div className="relative flex min-h-screen justify-center">
                 <BubbleBackground showGlow />
-                <div className="relative z-10 flex flex-col items-center justify-center">
+                <div className="relative z-10 flex flex-col items-center justify-center px-4">
                     <motion.img
-                        className="w-65 h-60 object-contain"
+                        className="w-36 h-32 sm:w-52 sm:h-48 md:w-64 md:h-60 object-contain"
                         src={PeerlyLogo}
                         alt="peerly-logo"
                         variants={fadeUp}
@@ -30,7 +30,7 @@ export default function LandingPage() {
                         transition={{ duration: 0.6, ease: 'easeOut' }}
                     />
                     <motion.h1
-                        className="text-8xl font-bold pr-6"
+                        className="text-6xl sm:text-7xl md:text-8xl font-bold"
                         variants={fadeUp}
                         initial="hidden"
                         animate="visible"
@@ -51,7 +51,7 @@ export default function LandingPage() {
             </div>
             <section id="what-is" className="relative flex items-center overflow-hidden min-h-screen">
                 <Aurora className="absolute inset-0 z-0" />
-                <div className="relative z-10 max-w-3xl mx-auto">
+                <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 py-16">
                     <motion.div
                         variants={fadeUp}
                         initial="hidden"
@@ -59,7 +59,7 @@ export default function LandingPage() {
                         viewport={{ once: true, amount: 0.3 }}
                         transition={{ duration: 0.6, ease: 'easeOut' }}
                     >
-                        <h2 className="text-4xl font-bold mb-2">
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-2">
                             ¿Qué es{' '}
                             <span className="text-[#C87C65]">Peerly</span>?
                         </h2>
@@ -67,7 +67,7 @@ export default function LandingPage() {
                     </motion.div>
 
                     <motion.p
-                        className="text-gray-600 text-lg leading-relaxed mb-8"
+                        className="text-gray-600 text-base sm:text-lg leading-relaxed mb-8"
                         variants={fadeUp}
                         initial="hidden"
                         whileInView="visible"
@@ -81,7 +81,7 @@ export default function LandingPage() {
                     </motion.p>
 
                     <motion.p
-                        className="border-l-4 border-[#C87C65] pl-5 text-xl font-semibold text-gray-800 leading-relaxed"
+                        className="border-l-4 border-[#C87C65] pl-5 text-base sm:text-xl font-semibold text-gray-800 leading-relaxed"
                         variants={fadeUp}
                         initial="hidden"
                         whileInView="visible"
@@ -93,8 +93,8 @@ export default function LandingPage() {
                     </motion.p>
                 </div>
             </section>
-            <section id="benefits" className="relative flex overflow-hidden items-center min-h-screen p-10">
-                <div className="max-w-5xl mx-auto">
+            <section id="benefits" className="relative flex overflow-hidden items-center min-h-screen px-6 py-16 sm:px-10 sm:py-20">
+                <div className="max-w-5xl mx-auto w-full">
                     <BubbleBackground showGlow />
                     <motion.div
                         variants={fadeUp}
@@ -104,7 +104,7 @@ export default function LandingPage() {
                         transition={{ duration: 0.6, ease: 'easeOut' }}
                         className="mb-12"
                     >
-                        <h2 className="text-4xl font-bold mb-2">
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-2">
                             <span className="text-[#C87C65]">Beneficios</span>
                         </h2>
                         <div className="w-16 h-1 bg-[#C87C65] rounded" />
