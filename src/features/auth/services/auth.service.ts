@@ -1,4 +1,4 @@
-import { userService } from '@/features/users/services/user.service';
+import { userService, type UserProfile } from '@/features/users/services/user.service';
 import { authApi, AUTH_API_BASE } from '@/shared/lib/api';
 
 export interface LoginRequest {
@@ -11,6 +11,7 @@ export interface LoginResponse {
   name: string;
   email: string;
   token: string;
+  userProfile: UserProfile;
 }
 
 export interface RegisterRequest {
@@ -48,7 +49,7 @@ export const authService = {
     localStorage.setItem('user_id', userProfile.id);
     localStorage.setItem('user_data', JSON.stringify(userProfile));
 
-    return response;
+    return { ...response, userProfile };
   },
 
   async register(data: RegisterRequest): Promise<RegisterResponse> {
