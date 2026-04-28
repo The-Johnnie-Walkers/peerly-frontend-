@@ -220,14 +220,15 @@ const ProfileScreen = () => {
         {/* Header — solo muestra botón volver en perfiles ajenos */}
         <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-          {!isOwnProfile && (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => navigate(-1)}
-              className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
-            >
-              <ArrowLeft size={18} />
-            </motion.button>
+            {!isOwnProfile && student && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => navigate(-1)}
+                className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
+              >
+                <ArrowLeft size={18} />
+              </motion.button>
+            )}
           </div>
           {!isOwnProfile && student && (
             <ReportButton

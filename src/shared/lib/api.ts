@@ -3,6 +3,7 @@ const authURL = import.meta.env.VITE_AUTH_MGMT_URL;
 const activitiesURL = import.meta.env.VITE_ACTIVITIES_MGMT_URL;
 export const connectionsURL =  import.meta.env.VITE_CONNECTIONS_MGMT_URL;
 export const realTimeURL = import.meta.env.VITE_VIRTUAL_ENVIRONMENT_URL;
+const reportsURL = import.meta.env.VITE_REPORTS_SERVICE_URL;
 
 
 interface RequestOptions {
@@ -117,9 +118,6 @@ class ApiClient {
   }
 }
 
-const CONNECTIONS_MGMT_URL = 'http://localhost:3003';
-const REPORTS_MGMT_URL = import.meta.env.VITE_REPORTS_SERVICE_URL || 'http://localhost:3005';
-
 export const REPORT_TYPE = {
   USER: 'USER',
   CONTENT: 'CONTENT',
@@ -135,19 +133,13 @@ export const REPORT_REASON = {
   OTRO: 'OTRO',
 };
 
+
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
-export const ACTIVITIES_API_BASE = 'activities';
 export const REPORTS_API_BASE = 'reports';
-export const userApi = new ApiClient(USER_MGMT_URL);
-export const authApi = new ApiClient(AUTH_MGMT_URL);
-export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);
-export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);
-export const reportsApi = new ApiClient(REPORTS_MGMT_URL);
-export const AUTH_API_BASE = 'auth';
-export const USERS_API_BASE = 'users';
 export const ACTIVITIES_API_BASE = 'activities';
 export const userApi = new ApiClient(usersURL);
 export const authApi = new ApiClient(authURL);
 export const activityApi = new ApiClient(activitiesURL);
 export const connectionsApi = new ApiClient(connectionsURL);
+export const reportsApi = new ApiClient(reportsURL);

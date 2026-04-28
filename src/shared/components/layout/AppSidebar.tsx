@@ -1,4 +1,4 @@
-import { Compass, House, LogOut, MessageCircle, Orbit, PlusSquare, User, UserPlus, Users2, ShieldAlert } from "lucide-react";
+import { House, LogOut, MessageCircle, Orbit, PlusSquare, User, UserPlus, Users2, ShieldAlert, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PeerlyLogo from "@/assets/peerly-logo.png";
 import { authService } from "@/features/auth/services/auth.service";

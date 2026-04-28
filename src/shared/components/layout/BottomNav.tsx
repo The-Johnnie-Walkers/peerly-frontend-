@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, MessageCircle, Plus, UserPlus, User, ShieldAlert } from 'lucide-react';
+import { Home, MessageCircle, Plus, UserPlus, User, Globe, ShieldAlert } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 
