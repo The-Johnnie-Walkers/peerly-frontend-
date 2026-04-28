@@ -1,5 +1,5 @@
-import { type FormEvent, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { type FormEvent, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -11,7 +11,7 @@ import {
   Search,
   Users,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { authService } from '@/features/auth/services/auth.service';
 import { activityService, type ActivityLocationPayload } from '@/features/activities/services/activity.service';
@@ -19,8 +19,9 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 
-type CreateActivityFormState = {
+type EditActivityFormState = {
   name: string;
   description: string;
   date: string;
@@ -30,53 +31,95 @@ type CreateActivityFormState = {
   totalPlaces: string;
 };
 
-const INITIAL_FORM: CreateActivityFormState = {
-  name: '',
-  description: '',
-  date: '',
-  startTime: '',
-  endTime: '',
-  locationQuery: '',
-  totalPlaces: '',
-};
-
 const formatDateInputValue = (date: Date) => {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
-
   return `${year}-${month}-${day}`;
+};
+
+const extractTimeFromDate = (date: Date) => {
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+  return `${hours}:${minutes}`;
 };
 
 const buildLocalDateTime = (date: string, time: string) => {
   if (!date || !time) return null;
-
-  const parsedDate = new Date(`${date}T${time}:00`);
-  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  const parsed = new Date(`${date}T${time}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 const formatSchedulePreview = (startsAt: Date | null, endsAt: Date | null) => {
   if (!startsAt || !endsAt) return 'Completa fecha y horario';
-
   const formatter = new Intl.DateTimeFormat('es-CO', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   });
-
   return `${formatter.format(startsAt)} - ${formatter.format(endsAt)}`;
 };
 
-const CreateActivityScreen = () => {
+const EditActivityScreen = () => {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const requesterUserId = authService.getCurrentUser()?.id ?? null;
+  const userId = authService.getCurrentUser()?.id ?? null;
 
-  const [form, setForm] = useState<CreateActivityFormState>(INITIAL_FORM);
+  const [form, setForm] = useState<EditActivityFormState>({
+    name: '',
+    description: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    locationQuery: '',
+    totalPlaces: '',
+  });
   const [selectedLocation, setSelectedLocation] = useState<ActivityLocationPayload | null>(null);
   const [locationResults, setLocationResults] = useState<ActivityLocationPayload[]>([]);
   const [locationSearched, setLocationSearched] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  const activityQuery = useQuery({
+    queryKey: ['activities', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Identificador de actividad no encontrado.');
+      return activityService.getActivityById(id);
+    },
+    enabled: Boolean(id),
+  });
+
+  useEffect(() => {
+    if (!activityQuery.data || initialized) return;
+
+    const activity = activityQuery.data;
+
+    if (userId && activity.creatorId !== userId) {
+      toast.error('Solo el creador puede editar esta actividad.');
+      navigate(`/activity/${id}`);
+      return;
+    }
+
+    const startsAt = activity.startsAtISO ? new Date(activity.startsAtISO) : null;
+    const endsAt = activity.endsAtISO ? new Date(activity.endsAtISO) : null;
+
+    setForm({
+      name: activity.title,
+      description: activity.description,
+      date: startsAt ? formatDateInputValue(startsAt) : '',
+      startTime: startsAt ? extractTimeFromDate(startsAt) : '',
+      endTime: endsAt ? extractTimeFromDate(endsAt) : '',
+      locationQuery: activity.locationPayload?.displayName || activity.location,
+      totalPlaces: String(activity.maxAttendees),
+    });
+
+    if (activity.locationPayload) {
+      setSelectedLocation(activity.locationPayload);
+    }
+
+    setInitialized(true);
+  }, [activityQuery.data, initialized, userId, id, navigate]);
 
   const today = formatDateInputValue(new Date());
   const startsAt = buildLocalDateTime(form.date, form.startTime);
@@ -84,9 +127,7 @@ const CreateActivityScreen = () => {
   const totalPlaces = Number(form.totalPlaces);
 
   let scheduleError = '';
-  if (startsAt && startsAt.getTime() <= Date.now()) {
-    scheduleError = 'La actividad debe iniciar en el futuro.';
-  } else if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
+  if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
     scheduleError = 'La hora de finalizacion debe ser posterior al inicio.';
   } else if (startsAt && endsAt && endsAt.getTime() - startsAt.getTime() < 30 * 60 * 1000) {
     scheduleError = 'La duracion minima es de 30 minutos.';
@@ -96,7 +137,6 @@ const CreateActivityScreen = () => {
 
   const hasValidCapacity = form.totalPlaces.trim() !== '' && Number.isInteger(totalPlaces) && totalPlaces >= 2;
   const isFormComplete =
-    Boolean(requesterUserId) &&
     form.name.trim().length >= 3 &&
     Boolean(startsAt) &&
     Boolean(endsAt) &&
@@ -108,10 +148,7 @@ const CreateActivityScreen = () => {
   const searchLocationMutation = useMutation({
     mutationFn: async () => {
       const query = form.locationQuery.trim();
-      if (query.length < 3) {
-        throw new Error('Escribe al menos 3 caracteres para buscar el lugar.');
-      }
-
+      if (query.length < 3) throw new Error('Escribe al menos 3 caracteres para buscar el lugar.');
       return activityService.searchLocations(query);
     },
     onSuccess: (locations) => {
@@ -124,46 +161,39 @@ const CreateActivityScreen = () => {
     },
   });
 
-  const createActivityMutation = useMutation({
+  const updateActivityMutation = useMutation({
     mutationFn: async () => {
-      if (!requesterUserId || !startsAt || !endsAt || !selectedLocation) {
-        throw new Error('Completa los datos obligatorios antes de publicar.');
+      if (!id || !startsAt || !endsAt || !selectedLocation) {
+        throw new Error('Completa los datos obligatorios antes de guardar.');
       }
-
-      return activityService.createActivity({
-        requesterUserId,
+      return activityService.updateActivity(id, {
         name: form.name.trim(),
         description: form.description.trim(),
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
-        status: 'OPEN',
-        totalPlaces,
+        status: activityQuery.data?.status ?? 'OPEN',
         location: selectedLocation,
+        totalPlaces,
       });
     },
-    onSuccess: async (response) => {
-      const invalidations = [queryClient.invalidateQueries({ queryKey: ['activities'] })];
-
-      if (requesterUserId) {
-        invalidations.push(
-          queryClient.invalidateQueries({ queryKey: ['user-activities', requesterUserId] }),
-          queryClient.invalidateQueries({ queryKey: ['joined-activity-ids', requesterUserId] }),
-        );
-      }
-
-      await Promise.all(invalidations);
-      toast.success('La actividad se publico correctamente.');
-      navigate(`/activity/${response.activityId}`);
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['activities'] }),
+        queryClient.invalidateQueries({ queryKey: ['activities', id] }),
+        queryClient.invalidateQueries({ queryKey: ['user-activities', userId] }),
+        queryClient.invalidateQueries({ queryKey: ['joined-activity-ids', userId] }),
+      ]);
+      toast.success('La actividad se actualizo correctamente.');
+      navigate(`/activity/${id}`);
     },
     onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : 'No fue posible crear la actividad.';
+      const message = error instanceof Error ? error.message : 'No fue posible actualizar la actividad.';
       toast.error(message);
     },
   });
 
-  const updateField = (field: keyof CreateActivityFormState, value: string) => {
+  const updateField = (field: keyof EditActivityFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
-
     if (field === 'locationQuery') {
       setSelectedLocation(null);
       setLocationResults([]);
@@ -171,49 +201,61 @@ const CreateActivityScreen = () => {
     }
   };
 
-  const handleSearchLocation = () => {
-    void searchLocationMutation.mutateAsync();
-  };
-
   const handleSelectLocation = (location: ActivityLocationPayload) => {
     setSelectedLocation(location);
-    setForm((current) => ({
-      ...current,
-      locationQuery: location.displayName || location.address,
-    }));
+    setForm((current) => ({ ...current, locationQuery: location.displayName || location.address }));
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!requesterUserId) {
-      toast.error('Necesitas una sesion activa para crear actividades.');
-      return;
-    }
-
-    if (scheduleError) {
-      toast.error(scheduleError);
-      return;
-    }
-
-    if (!selectedLocation) {
-      toast.error('Busca y selecciona una ubicacion de la lista.');
-      return;
-    }
-
-    if (!isFormComplete) {
-      toast.error('Completa los campos obligatorios del formulario.');
-      return;
-    }
-
-    void createActivityMutation.mutateAsync();
+    if (scheduleError) { toast.error(scheduleError); return; }
+    if (!selectedLocation) { toast.error('Busca y selecciona una ubicacion de la lista.'); return; }
+    if (!isFormComplete) { toast.error('Completa los campos obligatorios del formulario.'); return; }
+    void updateActivityMutation.mutateAsync();
   };
 
-  const locationStatus = selectedLocation ? 'Ubicacion seleccionada' : 'Ubicacion pendiente';
   const schedulePreview = formatSchedulePreview(startsAt, endsAt);
   const activitySummary = form.name.trim() || 'Tu actividad';
   const addressSummary = selectedLocation?.displayName || form.locationQuery.trim() || 'Lugar pendiente';
   const capacitySummary = hasValidCapacity ? `${totalPlaces} cupos` : 'Cupos pendientes';
+  const coordinatesSummary = selectedLocation
+    ? `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
+    : 'Ubicacion pendiente';
+
+  if (activityQuery.isPending) {
+    return (
+      <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 py-8 sm:px-8 sm:py-9 lg:px-10 lg:py-10 xl:px-12">
+          <Skeleton className="h-40 rounded-[32px]" />
+          <Skeleton className="h-96 rounded-[28px]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (activityQuery.isError || !activityQuery.data) {
+    return (
+      <div className="min-h-svh bg-background px-4 py-6">
+        <div className="mx-auto max-w-[1320px] px-6 py-8">
+          <p className="text-sm text-destructive">No fue posible cargar la actividad.</p>
+          <Button type="button" variant="outline" className="mt-4 rounded-full" onClick={() => navigate(-1)}>
+            Volver
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!initialized) {
+    return (
+      <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 py-8 sm:px-8 sm:py-9 lg:px-10 lg:py-10 xl:px-12">
+          <Skeleton className="h-40 rounded-[32px]" />
+          <Skeleton className="h-96 rounded-[28px]" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
@@ -224,7 +266,7 @@ const CreateActivityScreen = () => {
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.96 }}
-                onClick={() => navigate(-1)}
+                onClick={() => navigate(`/activity/${id}`)}
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/90 text-foreground shadow-card transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Volver"
               >
@@ -233,13 +275,13 @@ const CreateActivityScreen = () => {
 
               <div className="min-w-0">
                 <p className="text-[11px] font-mono font-bold uppercase tracking-[0.22em] text-primary">
-                  Crear actividad
+                  Editar actividad
                 </p>
                 <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight text-[color:hsl(var(--peerly-primary-dark))]">
-                  Cuéntanos lo esencial
+                  Actualiza los datos
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                  Nombre, horario, lugar y cupos. Lo tecnico se completa en segundo plano o solo cuando haga falta.
+                  Los cambios se aplicaran de inmediato. Los participantes ya inscritos veran la version actualizada.
                 </p>
               </div>
             </div>
@@ -251,7 +293,7 @@ const CreateActivityScreen = () => {
                 <div className="mb-5">
                   <h2 className="font-display text-2xl font-bold text-foreground">Actividad</h2>
                   <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                    Usa un nombre claro y una descripcion corta para que se entienda rapido.
+                    Nombre y descripcion visibles para todos los participantes.
                   </p>
                 </div>
 
@@ -266,9 +308,6 @@ const CreateActivityScreen = () => {
                       maxLength={100}
                       required
                     />
-                    <p className="text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
-                      Es lo primero que vera la gente cuando explore actividades.
-                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -282,7 +321,7 @@ const CreateActivityScreen = () => {
                       className="min-h-[146px]"
                     />
                     <div className="flex justify-between gap-3 text-xs text-[color:hsl(var(--peerly-text-secondary))]">
-                      <span>Opcional, pero ayuda a que la gente entienda el plan.</span>
+                      <span>Opcional.</span>
                       <span>{form.description.length}/500</span>
                     </div>
                   </div>
@@ -293,9 +332,6 @@ const CreateActivityScreen = () => {
                 <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
                   <div className="mb-4">
                     <h2 className="font-display text-2xl font-bold text-foreground">Cuando sera</h2>
-                    <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                      Elige una fecha y un horario simple en el mismo dia.
-                    </p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-3">
@@ -351,9 +387,6 @@ const CreateActivityScreen = () => {
                 <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
                   <div className="mb-4">
                     <h2 className="font-display text-2xl font-bold text-foreground">Cupos</h2>
-                    <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                      Define cuantas personas pueden unirse.
-                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -378,7 +411,7 @@ const CreateActivityScreen = () => {
                       {hasValidCapacity ? totalPlaces : '--'}
                     </p>
                     <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                      {hasValidCapacity ? 'Cupos listos para publicar' : 'Minimo 2 cupos'}
+                      {hasValidCapacity ? 'Cupos listos' : 'Minimo 2 cupos'}
                     </p>
                   </div>
                 </section>
@@ -388,7 +421,7 @@ const CreateActivityScreen = () => {
                 <div className="mb-4">
                   <h2 className="font-display text-2xl font-bold text-foreground">Donde sera</h2>
                   <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                    Escribe el nombre del lugar y elige una opcion real para guardar la ubicacion exacta.
+                    Puedes mantener el lugar actual o buscar uno nuevo.
                   </p>
                 </div>
 
@@ -406,7 +439,7 @@ const CreateActivityScreen = () => {
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             event.preventDefault();
-                            handleSearchLocation();
+                            void searchLocationMutation.mutateAsync();
                           }
                         }}
                         placeholder="Ej: Biblioteca Virgilio Barco"
@@ -417,9 +450,9 @@ const CreateActivityScreen = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleSearchLocation}
+                      onClick={() => void searchLocationMutation.mutateAsync()}
                       disabled={searchLocationMutation.isPending}
-                      className="mt-0 h-11 self-end rounded-full border-border/80 bg-white px-4 lg:mt-4"
+                      className="mt-0 h-11 self-end rounded-full border-border/80 bg-white px-4 lg:mt-8"
                     >
                       {searchLocationMutation.isPending ? (
                         <>
@@ -436,11 +469,13 @@ const CreateActivityScreen = () => {
                   </div>
 
                   <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-3">
-                    <p className="text-sm font-medium text-foreground">{locationStatus}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {selectedLocation ? 'Ubicacion seleccionada' : 'Ubicacion pendiente'}
+                    </p>
                     <p className="mt-1 text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
                       {selectedLocation
                         ? selectedLocation.displayName
-                        : 'Elige una opcion para completar coordenadas e identificadores OSM.'}
+                        : 'Busca y elige una opcion de la lista.'}
                     </p>
                   </div>
 
@@ -496,7 +531,7 @@ const CreateActivityScreen = () => {
                 </p>
                 <h2 className="mt-2 font-display text-2xl font-bold text-foreground">{activitySummary}</h2>
                 <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                  Revisa rapido lo esencial antes de publicar.
+                  Revisa los cambios antes de guardar.
                 </p>
 
                 <div className="mt-5 grid gap-3">
@@ -508,6 +543,7 @@ const CreateActivityScreen = () => {
                   <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-4">
                     <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">Lugar</p>
                     <p className="mt-2 text-sm font-medium text-foreground">{addressSummary}</p>
+                    <p className="mt-1 text-xs text-[color:hsl(var(--peerly-text-secondary))]">{coordinatesSummary}</p>
                   </div>
 
                   <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-4">
@@ -518,24 +554,27 @@ const CreateActivityScreen = () => {
 
                 <Button
                   type="submit"
-                  disabled={!isFormComplete || createActivityMutation.isPending}
+                  disabled={!isFormComplete || updateActivityMutation.isPending}
                   className="mt-5 h-12 w-full rounded-2xl bg-[hsl(var(--peerly-primary))] px-6 text-white hover:bg-[hsl(var(--peerly-primary))]/90"
                 >
-                  {createActivityMutation.isPending ? (
+                  {updateActivityMutation.isPending ? (
                     <>
                       <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Publicando...
+                      Guardando...
                     </>
                   ) : (
-                    'Publicar actividad'
+                    'Guardar cambios'
                   )}
                 </Button>
 
-                {!isFormComplete ? (
-                  <p className="mt-3 text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
-                    Completa nombre, horario, lugar, ubicacion y al menos 2 cupos para continuar.
-                  </p>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate(`/activity/${id}`)}
+                  className="mt-3 h-11 w-full rounded-2xl border-border/80 bg-white"
+                >
+                  Cancelar
+                </Button>
               </div>
             </aside>
           </form>
@@ -545,4 +584,4 @@ const CreateActivityScreen = () => {
   );
 };
 
-export default CreateActivityScreen;
+export default EditActivityScreen;

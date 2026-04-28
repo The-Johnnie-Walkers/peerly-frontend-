@@ -3,9 +3,11 @@ import { ACTIVITIES_API_BASE, activityApi, userApi } from '@/shared/lib/api';
 export type ActivityStatus = 'OPEN' | 'FULL' | 'IN_PROGRESS' | 'ENDED' | 'CANCELLED';
 
 export interface ActivityLocationPayload {
+  osmId: string;
+  osmType: string;
+  displayName: string;
   latitude: number;
   longitude: number;
-  placeId: string;
   address: string;
   accuracy: number;
 }
@@ -24,10 +26,22 @@ export interface Activity {
   endsAtISO?: string;
   availablePlaces?: number;
   status?: 'OPEN' | 'FULL' | 'IN_PROGRESS' | 'ENDED' | 'CANCELLED';
+  locationPayload?: ActivityLocationPayload;
+}
+
+export interface UpdateActivityPayload {
+  name: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+  status: ActivityStatus;
+  location: ActivityLocationPayload;
+  totalPlaces: number;
 }
 
 interface ActivityResponseDto {
   id: string;
+  requesterId: string;
   name: string;
   description: string;
   startsAt: string;
@@ -108,11 +122,12 @@ const mapActivityDtoToViewModel = (activity: ActivityResponseDto): Activity => {
       (_, index) => `activity-attendee-${activity.id}-${index + 1}`,
     ),
     description: activity.description,
-    creatorId: '',
+    creatorId: activity.requesterId,
     startsAtISO: activity.startsAt,
     endsAtISO: activity.endsAt,
     availablePlaces: activity.availablePlaces,
     status,
+    locationPayload: activity.location,
   };
 };
 
@@ -146,6 +161,11 @@ export const activityService = {
     return assertActivityCommandSucceeded(response, 'No fue posible crear la actividad.');
   },
 
+  async searchLocations(query: string): Promise<ActivityLocationPayload[]> {
+    const searchParams = new URLSearchParams({ q: query });
+    return activityApi.request<ActivityLocationPayload[]>(`locations/search?${searchParams.toString()}`);
+  },
+
   async getActivityById(id: string): Promise<Activity> {
     const activity = await activityApi.request<ActivityResponseDto>(`${ACTIVITIES_API_BASE}/${id}`);
     return mapActivityDtoToViewModel(activity);
@@ -160,16 +180,11 @@ export const activityService = {
 
   async getUserActivitiesById(id: string): Promise<Activity[]> {
     const activityIds = [...new Set(await this.getJoinedActivityIdsByUserId(id))];
-
     if (!activityIds.length) return [];
 
-    const activities = await Promise.all(
-      activityIds.map((activityId) =>
-        activityApi.request<ActivityResponseDto>(`${ACTIVITIES_API_BASE}/${activityId}`),
-      ),
-    );
-
-    return sortActivitiesByStartDate(activities.map(mapActivityDtoToViewModel));
+    const allActivities = await this.getAllActivities();
+    const idSet = new Set(activityIds);
+    return allActivities.filter((a) => idSet.has(a.id));
   },
 
   async joinActivity(activityId: string, userId: string): Promise<ActivityParticipationResponse> {
@@ -188,5 +203,18 @@ export const activityService = {
     });
 
     return assertActivityCommandSucceeded(response, 'No fue posible salir de la actividad.');
+  },
+
+  async updateActivity(id: string, payload: UpdateActivityPayload): Promise<ActivityCommandResponse> {
+    const response = await userApi.request<ActivityCommandResponse>(`${ACTIVITIES_API_BASE}/${id}`, {
+      method: 'PUT',
+      body: payload,
+    });
+
+    return assertActivityCommandSucceeded(response, 'No fue posible actualizar la actividad.');
+  },
+
+  async deleteActivity(id: string): Promise<void> {
+    await userApi.requestVoid(`${ACTIVITIES_API_BASE}/${id}`, { method: 'DELETE' });
   },
 };

@@ -1,6 +1,7 @@
-const USER_MGMT_URL = 'http://localhost:3001';
-const AUTH_MGMT_URL = 'http://localhost:3000';
-const ACTIVITIES_MGMT_URL = 'http://localhost:3005';
+const USER_MGMT_URL = 'https://peerly-user-management-cdduhkfehcb8aag2.canadacentral-01.azurewebsites.net';
+const AUTH_MGMT_URL = 'https://peerly-authentication-management-gfddasemeyhudxe3.canadacentral-01.azurewebsites.net';
+const ACTIVITIES_MGMT_URL = 'https://peerly-activities-management-ffg3d6emc7c8gver.canadacentral-01.azurewebsites.net';
+const CONNECTIONS_MGMT_URL = 'https://peerly-connections-management-gucyf0bdf7bbehdh.canadacentral-01.azurewebsites.net';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -51,7 +52,7 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    
+
     try {
       const response = await fetch(url, config);
 
@@ -63,7 +64,7 @@ class ApiClient {
 
       const textResponse = await response.text();
       return JSON.parse(textResponse) as T;
-      
+
     } catch (error) {
       throw error;
     }
@@ -92,7 +93,7 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    
+
     try {
       const response = await fetch(url, config);
 
@@ -100,7 +101,7 @@ class ApiClient {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
         throw new Error(error.message || `Request failed with status ${response.status}`);
       }
-      
+
     } catch (error) {
       throw error;
     }
@@ -113,8 +114,6 @@ class ApiClient {
     }
   }
 }
-
-const CONNECTIONS_MGMT_URL = 'http://localhost:3002';
 
 export const AUTH_API_BASE = 'auth';
 export const USERS_API_BASE = 'users';
