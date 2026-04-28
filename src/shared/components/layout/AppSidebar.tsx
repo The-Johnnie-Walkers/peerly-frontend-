@@ -11,6 +11,7 @@ const primaryLinks = [
   { to: "/connect", label: "Descubrir", icon: UserPlus },
   { to: "/explore", label: "Actividades", icon: PlusSquare },
   { to: "/social", label: "Red", icon: Users2 },
+  { to: "/communities", label: "Comunidades", icon: Globe },
   { to: "/chats", label: "Chats", icon: MessageCircle },
   { to: "/virtual-world", label: "Mundo virtual", icon: Orbit },
 ];

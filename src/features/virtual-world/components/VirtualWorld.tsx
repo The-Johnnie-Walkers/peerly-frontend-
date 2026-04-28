@@ -10,10 +10,111 @@ import { drawDuelPads } from '@/features/football-duel/components/DuelPads';
 import { drawCrown } from '@/features/football-duel/components/Crown';
 import { PadId, PAD_AREAS, PadState, CrownState, DuelStartedPayload } from '@/features/football-duel/types/football-duel.types';
 import FootballDuelMatch from '@/features/football-duel/components/FootballDuelMatch';
+import Minimap from './Minimap';
+import { drawShooterZone } from '@/features/arena-shooter/components/ShooterZone';
+import ArenaShooter from '@/features/arena-shooter/components/ArenaShooter';
+import { SHOOTER_ZONE_AREA, ShooterPlayerInfo } from '@/features/arena-shooter/types/arena-shooter.types';
+import { drawWorldDecor } from './WorldDecor';
 
 interface ChatBubble extends ChatMessage {
   id: string;
 }
+
+// ─── Joystick ─────────────────────────────────────────────────────────────────
+
+interface VirtualJoystickProps {
+  onMove: (dx: number, dy: number) => void;
+}
+
+const JOYSTICK_RADIUS = 52;
+const KNOB_RADIUS = 22;
+
+const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
+  const baseRef = useRef<HTMLDivElement>(null);
+  const activeTouch = useRef<number | null>(null);
+  const knobRef = useRef<HTMLDivElement>(null);
+
+  const getOffset = (clientX: number, clientY: number) => {
+    const rect = baseRef.current!.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const rawDx = clientX - cx;
+    const rawDy = clientY - cy;
+    const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+    const clamped = Math.min(dist, JOYSTICK_RADIUS - KNOB_RADIUS);
+    const angle = Math.atan2(rawDy, rawDx);
+    return {
+      dx: (Math.cos(angle) * clamped) / (JOYSTICK_RADIUS - KNOB_RADIUS),
+      dy: (Math.sin(angle) * clamped) / (JOYSTICK_RADIUS - KNOB_RADIUS),
+      kx: Math.cos(angle) * clamped,
+      ky: Math.sin(angle) * clamped,
+    };
+  };
+
+  const setKnob = (kx: number, ky: number) => {
+    if (knobRef.current) {
+      knobRef.current.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+    }
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (activeTouch.current !== null) return;
+    const t = e.changedTouches[0];
+    activeTouch.current = t.identifier;
+    const { dx, dy, kx, ky } = getOffset(t.clientX, t.clientY);
+    setKnob(kx, ky);
+    onMove(dx, dy);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const t = Array.from(e.changedTouches).find(x => x.identifier === activeTouch.current);
+    if (!t) return;
+    e.preventDefault();
+    const { dx, dy, kx, ky } = getOffset(t.clientX, t.clientY);
+    setKnob(kx, ky);
+    onMove(dx, dy);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const t = Array.from(e.changedTouches).find(x => x.identifier === activeTouch.current);
+    if (!t) return;
+    activeTouch.current = null;
+    setKnob(0, 0);
+    onMove(0, 0);
+  };
+
+  return (
+    <div
+      ref={baseRef}
+      className="relative select-none touch-none"
+      style={{ width: JOYSTICK_RADIUS * 2, height: JOYSTICK_RADIUS * 2, borderRadius: '50%', background: 'rgba(0,0,0,0.18)', border: '2px solid rgba(255,255,255,0.18)' }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      aria-label="Joystick de movimiento"
+    >
+      <div
+        ref={knobRef}
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: KNOB_RADIUS * 2,
+          height: KNOB_RADIUS * 2,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.85)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          transform: 'translate(-50%, -50%)',
+          transition: 'transform 0.05s',
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const CANVAS_THEME = {
   grid: 'hsl(43 35% 82%)',
@@ -57,6 +158,7 @@ const VirtualWorld: React.FC = () => {
     checkDuelPads,
     clearActiveDuel,
     rejoinMap,
+    joinMapWithPosition,
   } = useRealtimeMap();
 
   // ── All mutable state that the RAF loop reads goes into refs ──────────────
@@ -91,11 +193,31 @@ const VirtualWorld: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [nearbyUser, setNearbyUser] = useState<UserInMap | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [minimapVisible, setMinimapVisible] = useState(true);
   const [activeMatch, setActiveMatch] = useState<{
     matchId: string;
     role: 1 | 2;
     opponent: { userId: string; name: string };
   } | null>(null);
+
+  // ── Shooter Zone state ────────────────────────────────────────────────────
+  const [shooterZoneState, setShooterZoneState] = useState<'available' | 'highlighted' | 'locked'>('available');
+  const [shooterProgress, setShooterProgress] = useState(0);
+  const [shooterActivePlayers, setShooterActivePlayers] = useState(0);
+  const [inShooterArena, setInShooterArena] = useState(false);
+  const [shooterRoomId, setShooterRoomId] = useState<string | null>(null);
+  const [shooterInitialPlayers, setShooterInitialPlayers] = useState<ShooterPlayerInfo[]>([]);
+
+  // Refs para acceder al estado del shooter dentro del RAF
+  const shooterZoneStateRef = useRef<'available' | 'highlighted' | 'locked'>('available');
+  const shooterProgressRef = useRef(0);
+  const shooterActivePlayersRef = useRef(0);
+  const inShooterArenaRef = useRef(false);
+
+  useEffect(() => { shooterZoneStateRef.current = shooterZoneState; }, [shooterZoneState]);
+  useEffect(() => { shooterProgressRef.current = shooterProgress; }, [shooterProgress]);
+  useEffect(() => { shooterActivePlayersRef.current = shooterActivePlayers; }, [shooterActivePlayers]);
+  useEffect(() => { inShooterArenaRef.current = inShooterArena; }, [inShooterArena]);
 
   const bubblesRef = useRef<ChatBubble[]>([]);
   const renderedUsersRef = useRef<UserInMap[]>([]);
@@ -145,6 +267,12 @@ const VirtualWorld: React.FC = () => {
     }
   }, [chatHistory, addBubble]);
 
+  // ── Send initial position when socket connects ────────────────────────────
+  useEffect(() => {
+    if (!socket?.connected) return;
+    joinMapWithPosition(playerRef.current.x, playerRef.current.y);
+  }, [socket, joinMapWithPosition]);
+
   // ── Duel transition ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeDuel) return;
@@ -160,20 +288,150 @@ const VirtualWorld: React.FC = () => {
     if (socket?.connected) socket.emit('leaveMap');
   }, [activeDuel, socket]);
 
+  // ── Shooter Zone socket listeners ─────────────────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+
+    // El servidor confirma que el jugador entró a la arena
+    const onShooterJoined = (payload: { roomId: string; players: ShooterPlayerInfo[] }) => {
+      console.log('[VirtualWorld] 🔫 shooterJoined event received!', payload);
+      if (inShooterArenaRef.current) {
+        console.log('[VirtualWorld] Already in arena, ignoring event');
+        return;
+      }
+
+      // Limpiar timeouts y estados de zona
+      if (zoneFallbackTimerRef.current) {
+        console.log('[VirtualWorld] Clearing fallback timer');
+        clearTimeout(zoneFallbackTimerRef.current);
+        zoneFallbackTimerRef.current = null;
+      }
+      zoneEntryStartRef.current = null;
+      setShooterProgress(0);
+
+      // Guardar estado inicial para ArenaShooter
+      console.log('[VirtualWorld] Setting initial players:', payload.players);
+      setShooterRoomId(payload.roomId);
+      setShooterInitialPlayers(payload.players ?? []);
+      setInShooterArena(true);
+      inShooterArenaRef.current = true;
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+
+    // La zona está bloqueada (sala llena)
+    const onZoneBlocked = () => {
+      setShooterZoneState('locked');
+    };
+
+    // Estado de la sala del shooter (jugadores activos, etc.)
+    const onRoomState = (payload: { activePlayers: number; players: ShooterPlayerInfo[] }) => {
+      setShooterActivePlayers(payload.activePlayers);
+      setShooterInitialPlayers(payload.players ?? []);
+      if (payload.activePlayers >= 6) {
+        setShooterZoneState('locked');
+      } else {
+        setShooterZoneState(prev => prev === 'locked' ? 'available' : prev);
+      }
+    };
+
+    socket.on('shooterJoined', onShooterJoined);
+    socket.on('zoneBlocked', onZoneBlocked);
+    socket.on('roomState', onRoomState);
+
+    return () => {
+      socket.off('shooterJoined', onShooterJoined);
+      socket.off('zoneBlocked', onZoneBlocked);
+      socket.off('roomState', onRoomState);
+    };
+  }, [socket]);
+
+  // ── Shooter Zone overlap check (cada 200 ms) ──────────────────────────────
+  // entryStart en ref para que no se resetee cuando el socket reconecta
+  const zoneEntryStartRef = useRef<number | null>(null);
+  const zoneFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastZoneEmitRef = useRef<number>(0);
+
+  useEffect(() => {
+    const ENTRY_MS = 2000;
+
+    const interval = setInterval(() => {
+      if (inShooterArenaRef.current) return;
+      const px = playerRef.current.x;
+      const py = playerRef.current.y;
+      const z = SHOOTER_ZONE_AREA;
+
+      const inside =
+        px >= z.x && px <= z.x + z.width &&
+        py >= z.y && py <= z.y + z.height;
+
+      if (inside) {
+        if (zoneEntryStartRef.current === null) zoneEntryStartRef.current = Date.now();
+        const elapsed = Date.now() - zoneEntryStartRef.current;
+        const progress = Math.min(1, elapsed / ENTRY_MS);
+        setShooterProgress(progress);
+        setShooterZoneState('highlighted');
+
+        // Emitir al socket del mapa para que el servidor valide la entrada
+        if (socket?.connected) {
+          // Re-emit cada 500ms aprox para evitar spam pero mantener vivo el tracker del server
+          if (!lastZoneEmitRef.current || Date.now() - lastZoneEmitRef.current > 500) {
+            console.log('[VirtualWorld] Emitting checkShooterZone at', { x: px, y: py });
+            socket.emit('checkShooterZone', { x: px, y: py });
+            lastZoneEmitRef.current = Date.now();
+          }
+        }
+
+        // Fallback: si el progreso llega a 100% y el servidor no responde
+        // en 500ms, entrar directamente (evita bloqueo por latencia)
+        if (progress >= 1 && !zoneFallbackTimerRef.current) {
+          zoneFallbackTimerRef.current = setTimeout(() => {
+            zoneFallbackTimerRef.current = null;
+            if (!inShooterArenaRef.current) {
+              console.warn('[VirtualWorld] shooterJoined timeout — entering arena directly');
+              zoneEntryStartRef.current = null;
+              setShooterProgress(0);
+              setShooterRoomId('arena-main');
+              setShooterInitialPlayers([]);
+              setInShooterArena(true);
+              if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            }
+          }, 500);
+        }
+      } else {
+        zoneEntryStartRef.current = null;
+        if (zoneFallbackTimerRef.current) {
+          clearTimeout(zoneFallbackTimerRef.current);
+          zoneFallbackTimerRef.current = null;
+        }
+        setShooterZoneState(prev => prev === 'highlighted' ? 'available' : prev);
+        setShooterProgress(0);
+      }
+    }, 200);
+
+    return () => {
+      clearInterval(interval);
+      if (zoneFallbackTimerRef.current) clearTimeout(zoneFallbackTimerRef.current);
+    };
+  }, [socket]);
+
   // ── Main RAF loop ─────────────────────────────────────────────────────────
   const update = useCallback(() => {
     let dx = 0, dy = 0;
 
     if (!isChatFocusedRef.current) {
       const k = keysPressed.current;
-      if (k.w || k.ArrowUp    || k['btn-up'])    dy -= MOVEMENT_SPEED;
-      if (k.s || k.ArrowDown  || k['btn-down'])  dy += MOVEMENT_SPEED;
-      if (k.a || k.ArrowLeft  || k['btn-left'])  dx -= MOVEMENT_SPEED;
-      if (k.d || k.ArrowRight || k['btn-right']) dx += MOVEMENT_SPEED;
+      let rawDx = 0, rawDy = 0;
+      if (k.w || k.ArrowUp || k['btn-up']) rawDy -= 1;
+      if (k.s || k.ArrowDown || k['btn-down']) rawDy += 1;
+      if (k.a || k.ArrowLeft || k['btn-left']) rawDx -= 1;
+      if (k.d || k.ArrowRight || k['btn-right']) rawDx += 1;
+      // Normalise diagonal so speed is always MOVEMENT_SPEED
+      const mag = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+      if (mag > 0) { dx = (rawDx / mag) * MOVEMENT_SPEED; dy = (rawDy / mag) * MOVEMENT_SPEED; }
     }
 
     if (dx !== 0 || dy !== 0) {
-      const nx = Math.max(AVATAR_RADIUS, Math.min(WORLD_WIDTH  - AVATAR_RADIUS, playerRef.current.x + dx));
+      const nx = Math.max(AVATAR_RADIUS, Math.min(WORLD_WIDTH - AVATAR_RADIUS, playerRef.current.x + dx));
       const ny = Math.max(AVATAR_RADIUS, Math.min(WORLD_HEIGHT - AVATAR_RADIUS, playerRef.current.y + dy));
       if (nx !== playerRef.current.x || ny !== playerRef.current.y) {
         const next = { ...playerRef.current, x: nx, y: ny };
@@ -237,22 +495,8 @@ const VirtualWorld: React.FC = () => {
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
 
-    // Grid (only draw visible portion for performance)
-    ctx.strokeStyle = CANVAS_THEME.grid;
-    ctx.lineWidth = 1;
-    const startX = Math.floor(cam.x / GRID_SIZE) * GRID_SIZE;
-    const startY = Math.floor(cam.y / GRID_SIZE) * GRID_SIZE;
-    for (let x = startX; x <= cam.x + VIEWPORT_WIDTH; x += GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(x, cam.y); ctx.lineTo(x, cam.y + VIEWPORT_HEIGHT); ctx.stroke();
-    }
-    for (let y = startY; y <= cam.y + VIEWPORT_HEIGHT; y += GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(cam.x, y); ctx.lineTo(cam.x + VIEWPORT_WIDTH, y); ctx.stroke();
-    }
-
-    // World border
-    ctx.strokeStyle = 'hsl(43 35% 70%)';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    // World decorations: grass, paths, buildings, trees, lamps, benches
+    drawWorldDecor(ctx, cam.x, cam.y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, Date.now());
 
     // Duel pads
     const padsToRender: PadState[] = pads.length > 0 ? pads : [
@@ -267,6 +511,15 @@ const VirtualWorld: React.FC = () => {
       return (px - cx) ** 2 + (py - cy) ** 2 <= AVATAR_RADIUS ** 2;
     }) ?? null;
     drawDuelPads({ ctx, padStates: padsToRender, localPlayerOverlap: localOverlap });
+
+    // Shooter Zone
+    drawShooterZone({
+      ctx,
+      zone: SHOOTER_ZONE_AREA,
+      state: shooterZoneStateRef.current,
+      progress: shooterProgressRef.current,
+      activePlayers: shooterActivePlayersRef.current,
+    });
 
     // Remote users
     renderedUsersRef.current.forEach(user => {
@@ -284,28 +537,51 @@ const VirtualWorld: React.FC = () => {
   };
 
   const drawAvatar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, name: string, isMe = false) => {
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'hsl(30 20% 30% / 0.12)';
+    // Ground shadow ellipse
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(x + 2, y + AVATAR_RADIUS - 2, AVATAR_RADIUS * 0.85, AVATAR_RADIUS * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Avatar circle
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(0,0,0,0.38)';
     ctx.shadowOffsetY = 3;
     ctx.beginPath();
     ctx.arc(x, y, AVATAR_RADIUS, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = CANVAS_THEME.surface;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.fillStyle = CANVAS_THEME.foreground;
+
+    // Name tag pill background
     ctx.font = 'bold 10px "DM Sans", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, x, y - AVATAR_RADIUS - 6);
+    const textW = ctx.measureText(name).width;
+    const tagH = 14, tagW = textW + 10;
+    const tagX = x - tagW / 2, tagY = y - AVATAR_RADIUS - 20;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(tagX, tagY, tagW, tagH, 4);
+    else ctx.rect(tagX, tagY, tagW, tagH);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name, x, tagY + tagH - 3);
+
+    // "Me" ring with pulsing glow
     if (isMe) {
-      ctx.strokeStyle = CANVAS_THEME.primary;
-      ctx.lineWidth = 2;
+      const pulse = 0.65 + 0.35 * Math.sin(Date.now() / 500);
+      ctx.strokeStyle = `rgba(255, 185, 30, ${pulse})`;
+      ctx.lineWidth = 2.5;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(255,185,30,0.7)';
       ctx.beginPath();
-      ctx.arc(x, y, AVATAR_RADIUS + 4, 0, Math.PI * 2);
+      ctx.arc(x, y, AVATAR_RADIUS + 5, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
   };
 
@@ -357,16 +633,21 @@ const VirtualWorld: React.FC = () => {
 
   // ── Start/stop RAF ────────────────────────────────────────────────────────
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.key] = true; };
-    const onKeyUp   = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
+    const onKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current[e.key] = true;
+      if ((e.key === 'm' || e.key === 'M') && !isChatFocusedRef.current) {
+        setMinimapVisible(v => !v);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.key] = false; };
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup',   onKeyUp);
+    window.addEventListener('keyup', onKeyUp);
     // Initialise camera on mount
     updateCamera(playerRef.current.x, playerRef.current.y);
     requestRef.current = requestAnimationFrame(update);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup',   onKeyUp);
+      window.removeEventListener('keyup', onKeyUp);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, [update]);
@@ -374,6 +655,15 @@ const VirtualWorld: React.FC = () => {
   const handleMobileControl = (key: string, pressed: boolean) => {
     keysPressed.current[key] = pressed;
   };
+
+  // Joystick handler: receives normalised dx/dy (-1..1) from the joystick
+  const handleJoystickMove = useCallback((dx: number, dy: number) => {
+    const DEAD = 0.25;
+    keysPressed.current['btn-up'] = dy < -DEAD;
+    keysPressed.current['btn-down'] = dy > DEAD;
+    keysPressed.current['btn-left'] = dx < -DEAD;
+    keysPressed.current['btn-right'] = dx > DEAD;
+  }, []);
 
   const emitConnectAttempt = useCallback(async (targetUserId: string) => {
     if (!currentUser?.id) return;
@@ -402,9 +692,40 @@ const VirtualWorld: React.FC = () => {
     }, 0);
   }, [clearActiveDuel, rejoinMap, update]);
 
+  // ── Shooter return handler ────────────────────────────────────────────────
+  const handleShooterReturn = useCallback((spawnX: number, spawnY: number) => {
+    const next = { ...playerRef.current, x: spawnX, y: spawnY };
+    playerRef.current = next;
+    setPlayer(next);
+    updateCamera(spawnX, spawnY);
+    setInShooterArena(false);
+    setShooterRoomId(null);
+    setShooterZoneState('available');
+    setShooterProgress(0);
+    // Notify server to clear triggered state so player can re-enter
+    socket?.emit('clearShooterZone');
+    rejoinMap();
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    setTimeout(() => {
+      requestRef.current = requestAnimationFrame(update);
+    }, 0);
+  }, [rejoinMap, update, socket]);
+
   // Nearby user button position in viewport space
   const nearbyViewX = nearbyUser ? nearbyUser.x - cameraRef.current.x : 0;
   const nearbyViewY = nearbyUser ? nearbyUser.y - cameraRef.current.y : 0;
+
+  // ── Shooter Arena screen ──────────────────────────────────────────────────
+  if (inShooterArena && shooterRoomId) {
+    return (
+      <ArenaShooter
+        roomId={shooterRoomId}
+        localPlayer={{ userId: myAuthIdRef.current ?? '', name: currentUser?.name ?? 'Tú' }}
+        initialPlayers={shooterInitialPlayers}
+        onReturn={handleShooterReturn}
+      />
+    );
+  }
 
   // ── Match screen ──────────────────────────────────────────────────────────
   if (activeMatch) {
@@ -433,47 +754,20 @@ const VirtualWorld: React.FC = () => {
             ref={canvasRef}
             width={VIEWPORT_WIDTH}
             height={VIEWPORT_HEIGHT}
-            className="cursor-crosshair bg-card block w-full h-full"
+            className="cursor-crosshair block w-full h-full" style={{ background: '#5a8c3a' }}
           />
-          {nearbyUser && (
-            <div
-              className="absolute z-20 transition-all duration-300 transform -translate-x-1/2 -translate-y-full animate-bounce"
-              style={{ left: nearbyViewX, top: nearbyViewY }}
-            >
-              <button
-                type="button"
-                onClick={() => emitConnectAttempt(nearbyUser.userId)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold shadow-md flex items-center gap-2 transition-colors border-2 border-card whitespace-nowrap"
-              >
-                <UserPlus size={16} />
-                Conectar con {nearbyUser.name}
-              </button>
-            </div>
-          )}
+          <Minimap
+            playerX={player.x}
+            playerY={player.y}
+            remoteUsers={renderedUsersRef.current}
+            visible={minimapVisible}
+            onToggle={() => setMinimapVisible(v => !v)}
+          />
         </div>
 
         {isMobile && (
-          <div className="flex justify-between items-center mt-4 px-2">
-            <div className="grid grid-cols-3 gap-1 bg-card p-3 rounded-2xl border border-border shadow-sm">
-              <div />
-              {(['btn-up', 'btn-left', 'btn-down', 'btn-right'] as const).map((key, i) => {
-                const labels = ['↑', '←', '↓', '→'];
-                const ariaLabels = ['Mover arriba', 'Mover izquierda', 'Mover abajo', 'Mover derecha'];
-                return (
-                  <button key={key} type="button"
-                    className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg active:bg-primary active:text-primary-foreground transition-colors"
-                    aria-label={ariaLabels[i]}
-                    onTouchStart={() => handleMobileControl(key, true)}
-                    onTouchEnd={() => handleMobileControl(key, false)}
-                    onMouseDown={() => handleMobileControl(key, true)}
-                    onMouseUp={() => handleMobileControl(key, false)}
-                  >{labels[i]}</button>
-                );
-              })}
-            </div>
-            <div className="text-xs text-muted-foreground font-bold uppercase tracking-tighter text-right leading-tight">
-              Controles virtuales
-            </div>
+          <div className="flex justify-start items-center mt-4 px-2">
+            <VirtualJoystick onMove={handleJoystickMove} />
           </div>
         )}
 

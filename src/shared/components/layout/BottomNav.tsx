@@ -4,10 +4,12 @@ import { motion } from 'framer-motion';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 
 const NAV_ITEMS = [
-  { path: '/home', icon: Search, label: 'Inicio' },
+  { path: '/home', icon: Home, label: 'Inicio' },
   { path: '/chats', icon: MessageCircle, label: 'Chats' },
   { path: '/create-activity', icon: Plus, label: 'Crear', isCenter: true },
   { path: '/connect', icon: UserPlus, label: 'Descubrir' },
+  { path: '/communities', icon: Globe, label: 'Comunidades' },
+  { path: '/social', icon: UserPlus, label: 'Social' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
 

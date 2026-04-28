@@ -1,6 +1,9 @@
-const USER_MGMT_URL = 'http://localhost:3000';
-const AUTH_MGMT_URL = 'http://localhost:3002';
-const ACTIVITIES_MGMT_URL = 'http://localhost:3001';
+const usersURL = import.meta.env.VITE_USER_MGMT_URL;
+const authURL = import.meta.env.VITE_AUTH_MGMT_URL;
+const activitiesURL = import.meta.env.VITE_ACTIVITIES_MGMT_URL;
+export const connectionsURL =  import.meta.env.VITE_CONNECTIONS_MGMT_URL;
+export const realTimeURL = import.meta.env.VITE_VIRTUAL_ENVIRONMENT_URL;
+
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -51,7 +54,7 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    
+
     try {
       const response = await fetch(url, config);
 
@@ -63,7 +66,7 @@ class ApiClient {
 
       const textResponse = await response.text();
       return JSON.parse(textResponse) as T;
-      
+
     } catch (error) {
       throw error;
     }
@@ -92,7 +95,7 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    
+
     try {
       const response = await fetch(url, config);
 
@@ -100,7 +103,7 @@ class ApiClient {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
         throw new Error(error.message || `Request failed with status ${response.status}`);
       }
-      
+
     } catch (error) {
       throw error;
     }
@@ -141,3 +144,10 @@ export const authApi = new ApiClient(AUTH_MGMT_URL);
 export const activityApi = new ApiClient(ACTIVITIES_MGMT_URL);
 export const connectionsApi = new ApiClient(CONNECTIONS_MGMT_URL);
 export const reportsApi = new ApiClient(REPORTS_MGMT_URL);
+export const AUTH_API_BASE = 'auth';
+export const USERS_API_BASE = 'users';
+export const ACTIVITIES_API_BASE = 'activities';
+export const userApi = new ApiClient(usersURL);
+export const authApi = new ApiClient(authURL);
+export const activityApi = new ApiClient(activitiesURL);
+export const connectionsApi = new ApiClient(connectionsURL);

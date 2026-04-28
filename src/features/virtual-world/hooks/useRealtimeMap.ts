@@ -85,7 +85,7 @@ export const useRealtimeMap = () => {
   const hasJoinedMap = useRef<boolean>(false);
   const THROTTLE_MS = 60;
   const lastPadCheckSent = useRef<number>(0);
-  const PAD_CHECK_THROTTLE_MS = 200;
+  const PAD_CHECK_THROTTLE_MS = 100; // Send pad position checks frequently for reliable detection
 
   // ── Decode auth userId from JWT synchronously ─────────────────────────────
   const myAuthId = useRef<string | null>((() => {
@@ -147,8 +147,7 @@ export const useRealtimeMap = () => {
       dispatch({ type: 'SET_INITIAL_POSITIONS', users });
     };
 
-    const onUserJoined = (payload: { userId: string; name: string; email: string; timestamp: number }) => {
-      console.log('[useRealtimeMap] 👤 userJoined received:', payload);
+    const onUserJoined = (payload: { userId: string; name: string; email: string; x: number; y: number; timestamp: number }) => {
       if (payload.userId === myAuthId.current) return;
 
       const newUser: UserInMap = {
@@ -156,12 +155,12 @@ export const useRealtimeMap = () => {
         name: payload.name,
         email: payload.email,
         color: '#6366f1',
-        x: 400,
-        y: 300,
+        x: payload.x ?? 400,
+        y: payload.y ?? 300,
         timestamp: payload.timestamp,
       };
 
-      targetPositions.current[payload.userId] = { x: 400, y: 300 };
+      targetPositions.current[payload.userId] = { x: newUser.x, y: newUser.y };
       dispatch({ type: 'USER_JOINED', user: newUser });
 
       toast({
@@ -241,29 +240,19 @@ export const useRealtimeMap = () => {
     if (!socket) return;
 
     if (socketConnected) {
-      console.log('[useRealtimeMap] ✅ Socket connected — joining map');
       dispatch({ type: 'CONNECTED' });
       if (!hasJoinedMap.current) {
+        // Position will be sent by VirtualWorld via joinMapWithPosition
         socket.emit('joinMap');
         hasJoinedMap.current = true;
       }
     } else {
-      console.log('[useRealtimeMap] ❌ Socket disconnected');
-      // If socket exists but is not connected, try to reconnect
       if (!socket.connected && socket.disconnected) {
-        console.log('[useRealtimeMap] 🔄 Attempting to reconnect socket...');
         socket.connect();
       }
       dispatch({ type: 'DISCONNECTED' });
       hasJoinedMap.current = false;
     }
-
-    return () => {
-      // Only emit leaveMap when truly unmounting (socket still connected)
-      // This cleanup runs when socketConnected changes or socket changes.
-      // We only want leaveMap on component unmount, handled in the mount effect above
-      // via the socket.emit('leaveMap') below.
-    };
   }, [socket, socketConnected]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -295,13 +284,19 @@ export const useRealtimeMap = () => {
     setActiveDuel(null);
   }, []);
 
+  const joinMapWithPosition = useCallback((x: number, y: number) => {
+    if (!socket?.connected) return;
+    hasJoinedMap.current = false;
+    socket.emit('joinMap', { x: Math.round(x), y: Math.round(y) });
+    hasJoinedMap.current = true;
+  }, [socket]);
+
   const rejoinMap = useCallback(() => {
     if (!socket?.connected) return;
     setTimeout(() => {
       hasJoinedMap.current = false;
       socket.emit('joinMap');
       hasJoinedMap.current = true;
-      console.log('[useRealtimeMap] 🔄 rejoinMap — emitted joinMap after duel transition');
     }, 100);
   }, [socket]);
 
@@ -319,5 +314,6 @@ export const useRealtimeMap = () => {
     checkDuelPads,
     clearActiveDuel,
     rejoinMap,
+    joinMapWithPosition,
   };
 };

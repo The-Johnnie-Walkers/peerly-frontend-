@@ -26,11 +26,15 @@ import AdminReportsScreen from "./features/reports/pages/AdminReportsScreen";
 import NotFound from "./shared/pages/NotFound";
 import LandingPage from "./features/landing/pages/LandingPage";
 import Login from "./features/auth/pages/Login";
+import CommunitiesScreen from "./features/connections/pages/CommunitiesScreen";
+import CommunityDetailScreen from "./features/connections/pages/CommunityDetailScreen";
+import CreateCommunityScreen from "./features/connections/pages/CreateCommunityScreen";
 import { ReactNode } from "react";
 import { authService } from "./features/auth/services/auth.service";
 import { useCurrentUser } from "./shared/contexts/CurrentUserContext";
 
 import { SocketProvider } from "@/shared/contexts/SocketContext";
+import { CallProvider } from "@/shared/contexts/CallContext";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +43,8 @@ const appShellMatchers = [
   "/connect",
   "/social",
   "/chats",
+  "/communities",
+  "/communities/create",
   "/profile",
   "/explore",
   "/activity",
@@ -90,6 +96,9 @@ const AppLayout = () => {
       <Route path="/create-activity" element={<ProtectedRoute> <CreateActivityScreen/> </ProtectedRoute>}/>
       <Route path="/virtual-world" element={<ProtectedRoute> <VirtualWorldScreen/> </ProtectedRoute>}/>
       <Route path="/admin-reports" element={<ProtectedRoute requireAdmin> <AdminReportsScreen/> </ProtectedRoute>}/>
+      <Route path="/communities" element={<ProtectedRoute> <CommunitiesScreen/> </ProtectedRoute>}/>
+      <Route path="/communities/create" element={<ProtectedRoute> <CreateCommunityScreen/> </ProtectedRoute>}/>
+      <Route path="/communities/:id" element={<ProtectedRoute> <CommunityDetailScreen/> </ProtectedRoute>}/>
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -118,9 +127,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <CurrentUserProvider>
-          <SocketProvider>
-            <AppLayout />
-          </SocketProvider>
+          <CallProvider>
+            <SocketProvider>
+              <AppLayout />
+            </SocketProvider>
+          </CallProvider>
         </CurrentUserProvider>
       </BrowserRouter>
     </TooltipProvider>
