@@ -49,9 +49,9 @@ export default function LandingPage() {
                     <ChevronDown size={20} className="animate-bounce" />
                 </motion.div>
             </div>
-            <section id="what-is" className="relative flex items-center overflow-hidden min-h-screen">
+            <section id="what-is" className="relative overflow-hidden">
                 <Aurora className="absolute inset-0 z-0" />
-                <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 py-16">
+                <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-10 py-20 sm:py-28 md:py-36">
                     <motion.div
                         variants={fadeUp}
                         initial="hidden"
@@ -67,7 +67,7 @@ export default function LandingPage() {
                     </motion.div>
 
                     <motion.p
-                        className="text-gray-600 text-base sm:text-lg leading-relaxed mb-8"
+                        className="text-gray-600 text-base sm:text-lg leading-loose mb-8"
                         variants={fadeUp}
                         initial="hidden"
                         whileInView="visible"
@@ -81,7 +81,7 @@ export default function LandingPage() {
                     </motion.p>
 
                     <motion.p
-                        className="border-l-4 border-[#C87C65] pl-5 text-base sm:text-xl font-semibold text-gray-800 leading-relaxed"
+                        className="border-l-4 border-[#C87C65] pl-5 text-base sm:text-lg font-semibold text-gray-800 leading-loose"
                         variants={fadeUp}
                         initial="hidden"
                         whileInView="visible"

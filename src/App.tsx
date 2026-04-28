@@ -111,7 +111,7 @@ const AppLayout = () => {
     <div className="min-h-screen bg-[hsl(var(--peerly-background))] md:flex">
       <AppSidebar />
       <div className="flex min-h-screen flex-1 flex-col">
-        <main className="flex-1 pb-24 md:pb-0">{appRoutes}</main>
+        <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">{appRoutes}</main>
         <div className="md:hidden">
           <BottomNav />
         </div>
