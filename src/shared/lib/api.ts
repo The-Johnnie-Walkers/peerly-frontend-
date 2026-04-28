@@ -2,6 +2,7 @@ const USER_MGMT_URL = 'https://peerly-user-management-cdduhkfehcb8aag2.canadacen
 const AUTH_MGMT_URL = 'https://peerly-authentication-management-gfddasemeyhudxe3.canadacentral-01.azurewebsites.net';
 const ACTIVITIES_MGMT_URL = 'https://peerly-activities-management-ffg3d6emc7c8gver.canadacentral-01.azurewebsites.net';
 const CONNECTIONS_MGMT_URL = 'https://peerly-connections-management-gucyf0bdf7bbehdh.canadacentral-01.azurewebsites.net';
+export const REALTIME_MGMT_URL = 'https://peerly-realtime-app-cgb0evegcadka3fu.brazilsouth-01.azurewebsites.net';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
