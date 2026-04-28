@@ -3,11 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Send, Calendar, Phone, Video, Search, User, Users, Loader2 } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
-import { cn } from '@/shared/lib/utils';
-import { useLocation } from 'react-router-dom';
 import { useCall } from '../hooks/useCall';
 import { CallModal } from '../components/CallModal';
 import { authService } from '@/features/auth/services/auth.service';
+import { useChatSocket } from '../hooks/useChatSocket';
+import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
+import { useQuery } from '@tanstack/react-query';
+import { connectionsService, communitiesService } from '@/features/connections/services/connections.service';
+import { ConnectionStatus, Community } from '@/features/connections/types';
+import { userService, UserProfile } from '@/features/users/services/user.service';
 
 type ChatContact = {
   id: string;
@@ -42,13 +46,9 @@ const ChatView = ({
     authService.getToken() ?? '',
   );
 
-  // Efecto para manejar navegación desde otras pantallas (ej: ConnectionsScreen)
-  useEffect(() => {
-    const state = location.state as { studentId?: string } | null;
-    if (state?.studentId) {
-      handleSelectStudent(state.studentId);
-    }
-  }, [location.state]);
+  const roomId = contact.type === 'community'
+    ? contact.id
+    : [currentUserId, contact.id].sort().join('_');
 
   const { messages, sendMessage, isConnected, isLoading } = useChatSocket(roomId, currentUserName);
 
@@ -67,9 +67,8 @@ const ChatView = ({
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  if (selectedConnectionId && connection) {
-    return (
-      <>
+  return (
+    <>
       <CallModal
         callState={callState}
         callType={callType}
@@ -85,7 +84,7 @@ const ChatView = ({
           <header className="flex-shrink-0 px-4 sm:px-6 py-3 flex items-center gap-3 bg-peerly-surface/95 backdrop-blur-md border-b border-border/80 sticky top-0 z-10">
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setSelectedConnectionId(null)}
+              onClick={onBack}
               className="p-2.5 rounded-xl bg-muted/90 hover:bg-muted text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Volver a conversaciones"
             >
@@ -93,17 +92,17 @@ const ChatView = ({
             </motion.button>
             <button
               type="button"
-              onClick={() => navigate(`/profile/${connection.student.id}`)}
+              onClick={() => navigate(`/profile/${contact.id}`)}
               className="flex-1 flex items-center gap-3 min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl p-1 -m-1"
             >
               <div className="relative flex-shrink-0">
                 <SafeRemoteImage
-                  src={connection.student.photo}
-                  alt={connection.student.name}
+                  src={contact.photo}
+                  alt={contact.name}
                   fallback="pastel-icon"
                   className="w-11 h-11 rounded-full object-cover border border-border/80"
                 />
-                {connection.student.isOnline && (
+                {contact.isOnline && (
                   <span
                     className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-success ring-2 ring-peerly-surface"
                     aria-hidden
@@ -111,9 +110,9 @@ const ChatView = ({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-sans font-bold text-base text-foreground truncate">{connection.student.name}</p>
+                <p className="font-sans font-bold text-base text-foreground truncate">{contact.name}</p>
                 <p className="text-xs font-normal text-muted-foreground">
-                  {connection.student.isOnline ? (
+                  {contact.isOnline ? (
                     <span className="text-success">En línea</span>
                   ) : (
                     'Desconectado'
@@ -122,110 +121,116 @@ const ChatView = ({
               </div>
             </button>
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {contact.type === 'personal' && (
+                <>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 sm:p-2.5 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Llamada de voz"
+                    onClick={() => initiateCall(contact.id, 'audio')}
+                  >
+                    <Phone size={20} />
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15"
+                    aria-label="Videollamada"
+                    onClick={() => initiateCall(contact.id, 'video')}
+                  >
+                    <Video size={20} />
+                  </motion.button>
+                </>
+              )}
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                className="p-2 sm:p-2.5 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Llamada de voz"
-                onClick={() => initiateCall(connection.student.id, 'audio')}
-              >
-                <Phone size={20} />
-              </motion.button>
-              <motion.button whileTap={{ scale: 0.95 }}
-                className="p-2 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15"
-                aria-label="Videollamada"
-                onClick={() => initiateCall(connection.student.id, 'video')}
-              >
-                <Video size={20} />
-              </motion.button>
-              <motion.button whileTap={{ scale: 0.95 }}
                 className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/15"
                 aria-label="Proponer plan"
               >
                 <Calendar size={20} />
               </motion.button>
             </div>
-          )}
-        </header>
+          </header>
 
-        {/* Mensajes */}
-        <div className="flex-1 overflow-y-auto min-h-0 bg-muted/40 p-4 pb-6">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-full py-16">
-              <Loader2 size={28} className="animate-spin text-primary" />
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-16 text-center text-muted-foreground">
-              <p className="text-sm">No hay mensajes aún.</p>
-              <p className="text-xs mt-1">¡Sé el primero en escribir! 🐾</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {messages.map(msg => {
-                const isMe = msg.senderId === currentUserId;
-                return (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm ${
-                      isMe
-                        ? 'bg-primary text-primary-foreground rounded-br-md'
-                        : 'bg-card border border-border/80 rounded-bl-md'
-                    }`}>
-                      {/* Nombre del remitente en chats de comunidad */}
-                      {contact.type === 'community' && !isMe && (
-                        <p className="text-[10px] font-bold text-primary mb-1">{msg.senderName}</p>
-                      )}
-                      <p className="text-sm leading-relaxed break-words">{msg.text}</p>
-                      <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <p className={`text-xs ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                          {formatTime(msg.timestamp)}
-                        </p>
-                        {isMe && (
-                          <span className={`text-[10px] ${msg.read ? 'text-primary-foreground/70' : 'text-primary-foreground/40'}`}>
-                            {msg.read ? '✓✓' : '✓'}
-                          </span>
+          {/* Mensajes */}
+          <div className="flex-1 overflow-y-auto min-h-0 bg-muted/40 p-4 pb-6">
+            {isLoading ? (
+              <div className="flex justify-center items-center h-full py-16">
+                <Loader2 size={28} className="animate-spin text-primary" />
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full py-16 text-center text-muted-foreground">
+                <p className="text-sm">No hay mensajes aún.</p>
+                <p className="text-xs mt-1">¡Sé el primero en escribir! 🐾</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map(msg => {
+                  const isMe = msg.senderId === currentUserId;
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm ${
+                        isMe
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-card border border-border/80 rounded-bl-md'
+                      }`}>
+                        {/* Nombre del remitente en chats de comunidad */}
+                        {contact.type === 'community' && !isMe && (
+                          <p className="text-[10px] font-bold text-primary mb-1">{msg.senderName}</p>
                         )}
+                        <p className="text-sm leading-relaxed break-words">{msg.text}</p>
+                        <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <p className={`text-xs ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                            {formatTime(msg.timestamp)}
+                          </p>
+                          {isMe && (
+                            <span className={`text-[10px] ${msg.read ? 'text-primary-foreground/70' : 'text-primary-foreground/40'}`}>
+                              {msg.read ? '✓✓' : '✓'}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-
-        {/* Input */}
-        <div className="flex-shrink-0 p-4 bg-card/98 border-t border-border/80">
-          <div className="flex gap-2 items-end">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              className="flex-1 min-h-[44px] px-4 py-3 rounded-2xl bg-muted/50 border border-border/90 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 text-sm"
-              placeholder="Escribe un mensaje..."
-              disabled={!isConnected}
-            />
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleSend}
-              disabled={!input.trim() || !isConnected}
-              className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md disabled:opacity-50"
-            >
-              <Send size={20} />
-            </motion.button>
+                    </motion.div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
           </div>
-          {!isConnected && (
-            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
-              <Loader2 size={12} className="animate-spin" /> Conectando al chat...
-            </p>
-          )}
+
+          {/* Input */}
+          <div className="flex-shrink-0 p-4 bg-card/98 border-t border-border/80">
+            <div className="flex gap-2 items-end">
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                className="flex-1 min-h-[44px] px-4 py-3 rounded-2xl bg-muted/50 border border-border/90 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 text-sm"
+                placeholder="Escribe un mensaje..."
+                disabled={!isConnected}
+              />
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSend}
+                disabled={!input.trim() || !isConnected}
+                className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md disabled:opacity-50"
+              >
+                <Send size={20} />
+              </motion.button>
+            </div>
+            {!isConnected && (
+              <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
+                <Loader2 size={12} className="animate-spin" /> Conectando al chat...
+              </p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -326,21 +331,7 @@ const ChatsScreen = () => {
   }
 
   return (
-    <>
-    <CallModal
-      callState={callState}
-      callType={callType}
-      incomingCall={incomingCall}
-      remoteStream={remoteStream}
-      localStreamRef={localStreamRef}
-      onAccept={acceptCall}
-      onReject={rejectCall}
-      onEnd={endCall}
-    />
-    <div
-      className="min-h-svh flex flex-col font-sans"
-      style={{ backgroundColor: cream }}
-    >
+    <div className="min-h-svh flex flex-col font-sans">
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
         <header className="px-6 pt-8 pb-4 flex flex-col gap-4">
           <div className="flex justify-between items-center">
@@ -469,7 +460,6 @@ const ChatsScreen = () => {
         </main>
       </div>
     </div>
-    </>
   );
 };
 
