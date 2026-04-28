@@ -52,7 +52,7 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    
+
     try {
       const response = await fetch(url, config);
 
@@ -64,7 +64,7 @@ class ApiClient {
 
       const textResponse = await response.text();
       return JSON.parse(textResponse) as T;
-      
+
     } catch (error) {
       throw error;
     }
@@ -93,7 +93,7 @@ class ApiClient {
     }
 
     const url = endpoint.startsWith('/') ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
-    
+
     try {
       const response = await fetch(url, config);
 
@@ -101,7 +101,7 @@ class ApiClient {
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
         throw new Error(error.message || `Request failed with status ${response.status}`);
       }
-      
+
     } catch (error) {
       throw error;
     }

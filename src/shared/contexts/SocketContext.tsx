@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { io, Socket } from 'socket.io-client';
 import { authService } from '@/features/auth/services/auth.service';
 import { ClientToServerEvents, ServerToClientEvents } from '@/features/virtual-world/types/realtime.types';
+import { REALTIME_MGMT_URL } from '@/shared/lib/api';
 
 interface SocketContextType {
   socket: Socket<ServerToClientEvents, ClientToServerEvents> | null;
@@ -12,7 +13,7 @@ const SocketContext = createContext<SocketContextType>({ socket: null, isConnect
 
 export const useSocket = () => useContext(SocketContext);
 
-const SOCKET_BASE_URL = import.meta.env.VITE_REALTIME_URL || 'http://localhost:3004';
+const SOCKET_BASE_URL = import.meta.env.VITE_REALTIME_URL || REALTIME_MGMT_URL;
 const SOCKET_NAMESPACE = '/map';
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

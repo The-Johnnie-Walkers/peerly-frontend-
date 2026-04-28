@@ -9,8 +9,9 @@ import {
   ReturnToVirtualWorldPayload,
   isValidSnapshot,
 } from '../types/football-duel.types';
+import { REALTIME_MGMT_URL } from '@/shared/lib/api';
 
-const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || 'http://localhost:3001';
+const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || REALTIME_MGMT_URL;
 const EMIT_THROTTLE_MS = 16; // ~60 fps
 
 interface UseFootballSocketOptions {
@@ -45,6 +46,8 @@ export function useFootballSocket({
   useEffect(() => {
     const token = authService.getToken();
 
+    console.log('[useFootballSocket] Connecting to /football-duel with matchId:', matchId);
+
     const socket = io(`${REALTIME_URL}/football-duel`, {
       auth: { token },
       transports: ['websocket'],
@@ -53,13 +56,18 @@ export function useFootballSocket({
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log('[useFootballSocket] Connected, joining match:', matchId);
       setIsConnected(true);
       socket.emit('joinMatch', { matchId });
     });
 
-    socket.on('disconnect', () => setIsConnected(false));
+    socket.on('disconnect', () => {
+      console.log('[useFootballSocket] Disconnected');
+      setIsConnected(false);
+    });
 
     socket.on('matchState', (state: FootballDuelState) => {
+      console.log('[useFootballSocket] Received matchState:', state);
       setMatchState(state);
     });
 
@@ -72,22 +80,27 @@ export function useFootballSocket({
     });
 
     socket.on('goalScored', (payload: { scorerId: string; score: Record<string, number> }) => {
+      console.log('[useFootballSocket] Goal scored:', payload);
       onGoalScored?.(payload);
     });
 
     socket.on('matchEnded', (payload: MatchEndedPayload) => {
+      console.log('[useFootballSocket] Match ended:', payload);
       onMatchEnded?.(payload);
     });
 
     socket.on('returnToVirtualWorld', (payload: ReturnToVirtualWorldPayload) => {
+      console.log('[useFootballSocket] Return to virtual world:', payload);
       onReturnToVirtualWorld?.(payload);
     });
 
     socket.on('matchNotFound', ({ matchId: id }: { matchId: string }) => {
+      console.error('[useFootballSocket] Match not found:', id);
       onMatchNotFound?.(id);
     });
 
     return () => {
+      console.log('[useFootballSocket] Disconnecting socket');
       socket.disconnect();
       socketRef.current = null;
     };

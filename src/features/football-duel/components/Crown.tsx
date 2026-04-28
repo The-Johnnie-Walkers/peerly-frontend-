@@ -9,7 +9,7 @@ import { AVATAR_RADIUS } from '../types/football-duel.types';
  * @param y    - Centre Y of the avatar
  */
 export function drawCrown(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  const crownY = y - AVATAR_RADIUS - 15; // top of the crown
+  const crownY = y - AVATAR_RADIUS - 20; // top of the crown — sits above the name label
   const w = 22;  // total width
   const h = 12;  // total height
 
