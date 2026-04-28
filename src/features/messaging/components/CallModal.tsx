@@ -25,12 +25,15 @@ export function CallModal({
   onEnd,
 }: Props) {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Conectar el stream remoto al elemento <video>
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+    }
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
@@ -110,6 +113,7 @@ export function CallModal({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
+                  <audio ref={remoteAudioRef} autoPlay playsInline />
                   <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center text-7xl">
                     🎙️
                   </div>
