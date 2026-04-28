@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Calendar, Phone, Video, MessageSquarePlus, Search, X, User } from 'lucide-react';
-import { MOCK_CONNECTIONS, MOCK_CHAT_MESSAGES, MOCK_STUDENTS, Student, Connection } from '@/shared/data/mockData';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Send, Calendar, Phone, Video, Search, User, Users, Loader2 } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { cn } from '@/shared/lib/utils';
 import { useLocation } from 'react-router-dom';
@@ -10,23 +9,30 @@ import { useCall } from '../hooks/useCall';
 import { CallModal } from '../components/CallModal';
 import { authService } from '@/features/auth/services/auth.service';
 
-const PREVIEW_MAX_CHARS = 52;
+type ChatContact = {
+  id: string;
+  name: string;
+  photo?: string;
+  isOnline: boolean;
+  lastMessage: string;
+  lastMessageTime: string;
+  type: 'personal' | 'community';
+};
 
-function truncatePreview(text: string, max = PREVIEW_MAX_CHARS) {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max).trimEnd()}…`;
-}
-
-const ChatsScreen = () => {
+// ─── Vista de chat individual ────────────────────────────────────────────────
+const ChatView = ({
+  contact,
+  currentUserId,
+  currentUserName,
+  onBack,
+}: {
+  contact: ChatContact;
+  currentUserId: string;
+  currentUserName: string;
+  onBack: () => void;
+}) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-  const [isSelectingContact, setIsSelectingContact] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState(MOCK_CHAT_MESSAGES);
-  const [activeConnections, setActiveConnections] = useState<Connection[]>(MOCK_CONNECTIONS);
+  const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const currentUser = authService.getCurrentUser();
@@ -44,38 +50,22 @@ const ChatsScreen = () => {
     }
   }, [location.state]);
 
-  const connection = activeConnections.find(c => c.id === selectedConnectionId);
+  const { messages, sendMessage, isConnected, isLoading } = useChatSocket(roomId, currentUserName);
 
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => {
-    if (selectedConnectionId) scrollToBottom();
-  }, [selectedConnectionId, messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const handleSelectStudent = (studentId: string) => {
-    const existingConn = activeConnections.find(c => c.student.id === studentId);
-    if (existingConn) {
-      setSelectedConnectionId(existingConn.id);
-    } else {
-      const student = MOCK_STUDENTS.find(s => s.id === studentId);
-      if (student) {
-        const newConn: Connection = {
-          id: `temp-${student.id}`,
-          student,
-          lastMessage: '',
-          lastMessageTime: 'Ahora',
-          unread: 0
-        };
-        setActiveConnections(prev => [newConn, ...prev]);
-        setSelectedConnectionId(newConn.id);
-      }
-    }
-    setIsSelectingContact(false);
+  const handleSend = () => {
+    if (!input.trim()) return;
+    sendMessage(input.trim());
+    setInput('');
   };
 
-  const filteredStudents = MOCK_STUDENTS.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.career.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const formatTime = (ts: string | Date) => {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
 
   if (selectedConnectionId && connection) {
     return (
@@ -140,95 +130,200 @@ const ChatsScreen = () => {
               >
                 <Phone size={20} />
               </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                className="p-2 sm:p-2.5 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <motion.button whileTap={{ scale: 0.95 }}
+                className="p-2 rounded-xl bg-accent/10 text-accent-foreground hover:bg-accent/15"
                 aria-label="Videollamada"
                 onClick={() => initiateCall(connection.student.id, 'video')}
               >
                 <Video size={20} />
               </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                className="p-2 sm:p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <motion.button whileTap={{ scale: 0.95 }}
+                className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/15"
                 aria-label="Proponer plan"
               >
                 <Calendar size={20} />
               </motion.button>
             </div>
-          </header>
+          )}
+        </header>
 
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="p-4 space-y-3 pb-6 bg-muted/40">
+        {/* Mensajes */}
+        <div className="flex-1 overflow-y-auto min-h-0 bg-muted/40 p-4 pb-6">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-full py-16">
+              <Loader2 size={28} className="animate-spin text-primary" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-16 text-center text-muted-foreground">
+              <p className="text-sm">No hay mensajes aún.</p>
+              <p className="text-xs mt-1">¡Sé el primero en escribir! 🐾</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
               {messages.map(msg => {
-                const isMe = msg.senderId === 'me';
+                const isMe = msg.senderId === currentUserId;
                 return (
                   <motion.div
                     key={msg.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2 }}
                     className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div
-                      className={`max-w-[85%] sm:max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${
-                        isMe
-                          ? 'bg-primary text-primary-foreground rounded-br-md'
-                          : 'bg-peerly-surface border border-border/80 rounded-bl-md'
-                      }`}
-                    >
+                    <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl shadow-sm ${
+                      isMe
+                        ? 'bg-primary text-primary-foreground rounded-br-md'
+                        : 'bg-card border border-border/80 rounded-bl-md'
+                    }`}>
+                      {/* Nombre del remitente en chats de comunidad */}
+                      {contact.type === 'community' && !isMe && (
+                        <p className="text-[10px] font-bold text-primary mb-1">{msg.senderName}</p>
+                      )}
                       <p className="text-sm leading-relaxed break-words">{msg.text}</p>
-                      <p className={`text-xs mt-1.5 font-normal ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                        {msg.timestamp}
-                      </p>
+                      <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <p className={`text-xs ${isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          {formatTime(msg.timestamp)}
+                        </p>
+                        {isMe && (
+                          <span className={`text-[10px] ${msg.read ? 'text-primary-foreground/70' : 'text-primary-foreground/40'}`}>
+                            {msg.read ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 );
               })}
               <div ref={messagesEndRef} />
             </div>
-          </div>
+          )}
+        </div>
 
-          <div className="flex-shrink-0 p-4 pt-3 pb-6 md:pb-4 bg-peerly-surface/98 backdrop-blur-md border-t border-border/80">
-            <div className="flex gap-2 items-end">
-              <input
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey && message.trim()) {
-                    e.preventDefault();
-                    setMessages(prev => [...prev, { id: `new-${Date.now()}`, senderId: 'me', text: message.trim(), timestamp: 'Ahora' }]);
-                    setMessage('');
-                  }
-                }}
-                className="flex-1 min-h-[44px] px-4 py-3 rounded-2xl bg-muted/50 border border-border/90 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 text-sm placeholder:text-muted-foreground transition-colors font-sans"
-                placeholder="Escribe un mensaje..."
-                aria-label="Mensaje"
-              />
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  if (message.trim()) {
-                    setMessages(prev => [...prev, { id: `new-${Date.now()}`, senderId: 'me', text: message.trim(), timestamp: 'Ahora' }]);
-                    setMessage('');
-                  }
-                }}
-                disabled={!message.trim()}
-                className="flex-shrink-0 w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md disabled:opacity-50 disabled:pointer-events-none hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Enviar mensaje"
-              >
-                <Send size={20} />
-              </motion.button>
-            </div>
+        {/* Input */}
+        <div className="flex-shrink-0 p-4 bg-card/98 border-t border-border/80">
+          <div className="flex gap-2 items-end">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              className="flex-1 min-h-[44px] px-4 py-3 rounded-2xl bg-muted/50 border border-border/90 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 text-sm"
+              placeholder="Escribe un mensaje..."
+              disabled={!isConnected}
+            />
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSend}
+              disabled={!input.trim() || !isConnected}
+              className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md disabled:opacity-50"
+            >
+              <Send size={20} />
+            </motion.button>
           </div>
+          {!isConnected && (
+            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
+              <Loader2 size={12} className="animate-spin" /> Conectando al chat...
+            </p>
+          )}
         </div>
       </div>
-      </>
+    </div>
+  );
+};
+
+// ─── Pantalla principal de chats ─────────────────────────────────────────────
+const ChatsScreen = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { userData } = useCurrentUser();
+  const [activeTab, setActiveTab] = useState<'personal' | 'communities'>('personal');
+  const [selectedContact, setSelectedContact] = useState<ChatContact | null>(null);
+  const [search, setSearch] = useState('');
+
+  // Conexiones aceptadas
+  const { data: connections = [], isLoading: loadingConnections } = useQuery({
+    queryKey: ['connections', userData?.id, 'ACCEPTED'],
+    queryFn: () => connectionsService.findAll(userData!.id, ConnectionStatus.ACCEPTED),
+    enabled: !!userData?.id,
+  });
+
+  // Comunidades donde soy miembro
+  const { data: allCommunities = [], isLoading: loadingCommunities } = useQuery<Community[]>({
+    queryKey: ['communities'],
+    queryFn: () => communitiesService.findAll(),
+    enabled: !!userData?.id,
+  });
+
+  const myCommunities = allCommunities.filter(c =>
+    userData?.id && (c.memberIds ?? []).includes(userData.id),
+  );
+
+  // Resolver perfiles de conexiones
+  const { data: connectedProfiles = [], isLoading: loadingProfiles } = useQuery<UserProfile[]>({
+    queryKey: ['connected-profiles', connections.map(c => c.id).join(',')],
+    queryFn: async () => {
+      const otherIds = connections.map(c =>
+        c.requesterId === userData!.id ? c.receiverId : c.requesterId,
+      );
+      const profiles = await Promise.all(otherIds.map(id => userService.getUserById(id)));
+      return profiles.filter((p): p is UserProfile => p !== null);
+    },
+    enabled: connections.length > 0 && !!userData?.id,
+  });
+
+  const personalContacts: ChatContact[] = connectedProfiles.map(p => ({
+    id: p.id,
+    name: `${p.name} ${p.lastname}`.trim(),
+    photo: p.profilePicURL,
+    isOnline: p.isOnline ?? false,
+    lastMessage: 'Toca para chatear',
+    lastMessageTime: '',
+    type: 'personal',
+  }));
+
+  const communityContacts: ChatContact[] = myCommunities.map(c => ({
+    id: c.id,
+    name: c.name,
+    photo: undefined,
+    isOnline: false,
+    lastMessage: `${(c.memberIds ?? []).length} miembros`,
+    lastMessageTime: '',
+    type: 'community',
+  }));
+
+  const currentList = activeTab === 'personal' ? personalContacts : communityContacts;
+  const filtered = currentList.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()),
+  );
+  const isLoading = loadingConnections || loadingProfiles || loadingCommunities;
+
+  // Navegar directo a un contacto si viene con state
+  useEffect(() => {
+    const state = location.state as { studentId?: string } | null;
+    if (state?.studentId && connectedProfiles.length > 0) {
+      const profile = connectedProfiles.find(p => p.id === state.studentId);
+      if (profile) {
+        setSelectedContact({
+          id: profile.id,
+          name: `${profile.name} ${profile.lastname}`.trim(),
+          photo: profile.profilePicURL,
+          isOnline: profile.isOnline ?? false,
+          lastMessage: '',
+          lastMessageTime: '',
+          type: 'personal',
+        });
+      }
+    }
+  }, [location.state, connectedProfiles]);
+
+  if (selectedContact && userData?.id) {
+    return (
+      <ChatView
+        contact={selectedContact}
+        currentUserId={userData.id}
+        currentUserName={`${userData.name} ${userData.lastname ?? ''}`.trim()}
+        onBack={() => setSelectedContact(null)}
+      />
     );
   }
-
-  /* ——— Lista de conversaciones (mockup alta fidelidad) ——— */
-  const cream = 'hsl(var(--peerly-background))';
 
   return (
     <>
@@ -247,159 +342,131 @@ const ChatsScreen = () => {
       style={{ backgroundColor: cream }}
     >
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        <header className="flex-shrink-0 px-5 sm:px-6 pt-5 pb-4 bg-peerly-background border-b border-border/80 flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Mensajes
-            </h1>
-            <p className="text-sm font-normal text-muted-foreground mt-1.5 leading-relaxed">
-              Propón un plan, no muerdas 🐾
-            </p>
+        <header className="px-6 pt-8 pb-4 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-display font-extrabold text-foreground">Mensajes</h1>
+              <p className="text-sm text-muted-foreground mt-1">Un espacio para hablar con quien quieres</p>
+            </div>
           </div>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsSelectingContact(true)}
-            className="p-3 bg-primary text-primary-foreground rounded-2xl shadow-lg hover:bg-primary/95 transition-colors"
-            aria-label="Nueva conversación"
-          >
-            <MessageSquarePlus size={22} />
-          </motion.button>
+
+          {/* Tabs */}
+          <div className="flex p-1 bg-muted rounded-2xl gap-1">
+            <button
+              onClick={() => setActiveTab('personal')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'personal' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              Personales
+              {personalContacts.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary text-[10px] rounded-full">
+                  {personalContacts.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('communities')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'communities' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              Comunidades
+              {communityContacts.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary text-[10px] rounded-full">
+                  {communityContacts.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Buscador */}
+          <div className="relative">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder={activeTab === 'personal' ? 'Buscar conversación...' : 'Buscar comunidad...'}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-muted border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+            />
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto pb-28 bg-peerly-background relative">
-          {/* Overlay de selección de contacto */}
-          {isSelectingContact && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute inset-0 z-50 bg-peerly-background flex flex-col"
-            >
-              <div className="p-4 border-b border-border/80 bg-peerly-surface/50 backdrop-blur-md sticky top-0">
-                <div className="flex items-center gap-3 mb-4">
-                  <button 
-                    onClick={() => setIsSelectingContact(false)}
-                    className="p-2 hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <ArrowLeft size={20} />
+        <main className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex justify-center items-center py-16">
+              <Loader2 size={32} className="animate-spin text-primary" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground px-6">
+              {activeTab === 'personal' ? (
+                <>
+                  <User size={48} className="mx-auto mb-4 opacity-10" />
+                  <p className="text-sm">Aún no tienes conexiones para chatear.</p>
+                  <button onClick={() => navigate('/connect')} className="mt-3 text-primary font-bold text-sm">
+                    Descubrir personas
                   </button>
-                  <h2 className="font-bold text-lg">Nueva conversación</h2>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Buscar amigo..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-muted/50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-primary/20 text-sm"
-                    autoFocus
-                  />
-                  {searchTerm && (
-                    <button 
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                <div className="px-2 py-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-4 mb-2">Sugerencias</p>
-                  {filteredStudents.map((student) => (
+                </>
+              ) : (
+                <>
+                  <Users size={48} className="mx-auto mb-4 opacity-10" />
+                  <p className="text-sm">No perteneces a ninguna comunidad.</p>
+                  <button onClick={() => navigate('/communities')} className="mt-3 text-primary font-bold text-sm">
+                    Explorar comunidades
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.ul
+                key={activeTab}
+                initial={{ opacity: 0, x: activeTab === 'personal' ? -10 : 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0 }}
+                className="list-none m-0 p-0"
+              >
+                {filtered.map((contact, i) => (
+                  <li key={contact.id} className="border-b border-border/60 last:border-b-0">
                     <motion.button
-                      key={student.id}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleSelectStudent(student.id)}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-peerly-surface/40 rounded-2xl transition-colors text-left"
+                      type="button"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                      whileTap={{ scale: 0.995 }}
+                      onClick={() => setSelectedContact(contact)}
+                      className="w-full pl-5 pr-4 py-4 flex gap-3.5 items-center text-left hover:bg-muted/40 transition-colors"
                     >
-                      <SafeRemoteImage
-                        src={student.photo}
-                        alt=""
-                        className="w-12 h-12 rounded-full border border-border/50"
-                      />
+                      <div className="relative flex-shrink-0">
+                        {contact.type === 'community' ? (
+                          <div className="w-[52px] h-[52px] rounded-full bg-primary/10 flex items-center justify-center border border-border/70">
+                            <Users size={22} className="text-primary" />
+                          </div>
+                        ) : (
+                          <SafeRemoteImage
+                            src={contact.photo}
+                            alt={contact.name}
+                            fallback="pastel-icon"
+                            className="w-[52px] h-[52px] rounded-full object-cover border border-border/70"
+                          />
+                        )}
+                        {contact.isOnline && (
+                          <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-success ring-2 ring-background" />
+                        )}
+                      </div>
+
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">{student.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{student.career}</p>
+                        <p className="font-bold text-base text-foreground truncate">{contact.name}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 truncate">{contact.lastMessage}</p>
                       </div>
                     </motion.button>
-                  ))}
-                  {filteredStudents.length === 0 && (
-                    <div className="py-12 text-center text-muted-foreground">
-                      <User size={40} className="mx-auto mb-3 opacity-20" />
-                      <p className="text-sm">No encontramos a nadie con ese nombre.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
+                  </li>
+                ))}
+              </motion.ul>
+            </AnimatePresence>
           )}
-
-          <ul className="list-none m-0 p-0" role="list">
-            {activeConnections.map((c, i) => {
-              const preview = truncatePreview(c.lastMessage);
-              const hasUnread = c.unread > 0;
-
-              return (
-                <li key={c.id} className="border-b border-border/90 last:border-b-0">
-                  <motion.button
-                    type="button"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04, duration: 0.25 }}
-                    whileTap={{ scale: 0.995 }}
-                    onClick={() => setSelectedConnectionId(c.id)}
-                    className="w-full pl-5 pr-4 sm:pl-6 sm:pr-5 py-4 flex gap-3.5 items-start text-left bg-transparent hover:bg-peerly-surface/40 active:bg-peerly-surface/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset transition-colors"
-                  >
-                    {/* Avatar + estado */}
-                    <div className="relative flex-shrink-0">
-                      <SafeRemoteImage
-                        src={c.student.photo}
-                        alt=""
-                        fallback="pastel-icon"
-                        className="w-[52px] h-[52px] rounded-full object-cover border border-border/70 bg-card shadow-sm"
-                      />
-                      {c.student.isOnline && (
-                        <span
-                          className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-success ring-2 ring-peerly-background"
-                          aria-label="En línea"
-                        />
-                      )}
-                    </div>
-
-                    {/* Nombre + preview (dos líneas) */}
-                    <div className="flex-1 min-w-0 pt-0.5">
-                      <p className="font-sans font-bold text-base text-foreground leading-snug">
-                        {c.student.name}
-                      </p>
-                      <p className="font-sans font-normal text-sm text-muted-foreground mt-1 leading-snug line-clamp-2">
-                        {preview}
-                      </p>
-                    </div>
-
-                    {/* Metadatos alineados: hora arriba, badge abajo */}
-                    <div className="flex-shrink-0 w-[52px] flex flex-col items-end gap-2 pt-0.5">
-                      <span className="text-xs font-normal text-muted-foreground tabular-nums leading-none">
-                        {c.lastMessageTime}
-                      </span>
-                      {hasUnread ? (
-                        <span
-                          className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-peerly-accent-strong text-primary-foreground text-xs font-semibold flex items-center justify-center shadow-sm tabular-nums"
-                          aria-label={`${c.unread} sin leer`}
-                        >
-                          {c.unread > 99 ? '99+' : c.unread}
-                        </span>
-                      ) : (
-                        <span className="h-[22px] w-[22px] flex-shrink-0" aria-hidden />
-                      )}
-                    </div>
-                  </motion.button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        </main>
       </div>
     </div>
     </>

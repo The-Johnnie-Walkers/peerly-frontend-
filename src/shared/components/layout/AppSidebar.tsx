@@ -1,4 +1,4 @@
-import { Compass, House, LogOut, MessageCircle, Orbit, PlusSquare, User, UserPlus, Users2 } from "lucide-react";
+import { Compass, House, LogOut, MessageCircle, Orbit, PlusSquare, User, UserPlus, Globe, Users2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PeerlyLogo from "@/assets/peerly-logo.png";
 import { authService } from "@/features/auth/services/auth.service";
@@ -10,6 +10,7 @@ const primaryLinks = [
   { to: "/connect", label: "Descubrir", icon: UserPlus },
   { to: "/explore", label: "Actividades", icon: PlusSquare },
   { to: "/social", label: "Red", icon: Users2 },
+  { to: "/communities", label: "Comunidades", icon: Globe },
   { to: "/chats", label: "Chats", icon: MessageCircle },
   { to: "/virtual-world", label: "Mundo virtual", icon: Orbit },
 ];

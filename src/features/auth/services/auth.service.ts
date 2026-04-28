@@ -61,6 +61,13 @@ export const authService = {
   },
 
   logout(): void {
+    // Marcar offline antes de limpiar el userId
+    const userId = localStorage.getItem('user_id');
+    if (userId) {
+      import('@/features/users/services/user.service').then(({ userService }) => {
+        userService.updatePresence(userId, false);
+      });
+    }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_id');
     localStorage.removeItem('user_name');

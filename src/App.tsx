@@ -25,6 +25,9 @@ import VirtualWorldScreen from "./features/virtual-world/pages/VirtualWorldScree
 import NotFound from "./shared/pages/NotFound";
 import LandingPage from "./features/landing/pages/LandingPage";
 import Login from "./features/auth/pages/Login";
+import CommunitiesScreen from "./features/connections/pages/CommunitiesScreen";
+import CommunityDetailScreen from "./features/connections/pages/CommunityDetailScreen";
+import CreateCommunityScreen from "./features/connections/pages/CreateCommunityScreen";
 import { ReactNode } from "react";
 import { authService } from "./features/auth/services/auth.service";
 
@@ -37,6 +40,8 @@ const appShellMatchers = [
   "/connect",
   "/social",
   "/chats",
+  "/communities",
+  "/communities/create",
   "/profile",
   "/explore",
   "/activity",
@@ -79,6 +84,9 @@ const AppLayout = () => {
       <Route path="/activity/:id/edit" element={<ProtectedRoute> <EditActivityScreen/> </ProtectedRoute>}/>
       <Route path="/create-activity" element={<ProtectedRoute> <CreateActivityScreen/> </ProtectedRoute>}/>
       <Route path="/virtual-world" element={<ProtectedRoute> <VirtualWorldScreen/> </ProtectedRoute>}/>
+      <Route path="/communities" element={<ProtectedRoute> <CommunitiesScreen/> </ProtectedRoute>}/>
+      <Route path="/communities/create" element={<ProtectedRoute> <CreateCommunityScreen/> </ProtectedRoute>}/>
+      <Route path="/communities/:id" element={<ProtectedRoute> <CommunityDetailScreen/> </ProtectedRoute>}/>
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

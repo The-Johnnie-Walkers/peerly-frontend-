@@ -7,7 +7,6 @@ import { authService } from '@/features/auth/services/auth.service';
 import { useQuery } from '@tanstack/react-query';
 import { userService, UserProfile } from '@/features/users/services/user.service';
 import { useCreateConnection } from '../hooks/useConnections';
-import { useConnections } from '../hooks/useConnections';
 import { ConnectionStatus } from '../types';
 
 // Tarjeta de swipe
@@ -125,7 +124,7 @@ const ConnectCelebration = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-50 bg-primary/95 flex flex-col items-center justify-center p-6 md:p-12 text-center text-primary-foreground"
+      className="fixed inset-0 z-50 bg-primary/95 flex flex-col items-center justify-center p-6 md:p-12 text-center text-primary-foreground"
       role="dialog"
       aria-labelledby="connect-title"
       aria-describedby="connect-desc"
@@ -177,58 +176,15 @@ const ConnectScreen = () => {
   const userId = currentUser?.id;
 
   const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ['users', 'all'],
-    queryFn: () => userService.getAllUsers(),
+    queryKey: ['users', 'discover', userId],
+    queryFn: () => userId ? userService.discoverUsers(userId) : Promise.resolve([]),
+    enabled: !!userId,
   });
 
-  // Traer todas las conexiones del usuario para excluir a quienes ya tienen relación
-  const { data: myConnections = [] } = useConnections(userId);
-
-  console.log('[ConnectScreen] My connections (all statuses):', myConnections);
-
-  const connectedUserIds = useMemo(() => {
-    const ids = new Set<string>();
-    myConnections.forEach((c) => {
-      ids.add(c.requesterId);
-      ids.add(c.receiverId);
-    });
-    return ids;
-  }, [myConnections]);
-
-  // Filtrar: excluir yo mismo, ya conectados y ya swipeados en esta sesión
-  const cards = useMemo(
-    () => {
-      console.log('[ConnectScreen] Filtering users:', {
-        totalUsers: allUsers.length,
-        userId,
-        connectedUserIds: Array.from(connectedUserIds),
-        swipedIds: Array.from(swipedIds),
-      });
-      
-      const filtered = allUsers.filter(
-        (u) => {
-          const hasId = !!u.id;
-          const notMe = u.id !== userId;
-          const notConnected = !connectedUserIds.has(u.id);
-          const notSwiped = !swipedIds.has(u.id);
-          
-          console.log(`[ConnectScreen] User ${u.username}:`, {
-            hasId,
-            notMe,
-            notConnected,
-            notSwiped,
-            passes: hasId && notMe && notConnected && notSwiped,
-          });
-          
-          return hasId && notMe && notConnected && notSwiped;
-        },
-      );
-      
-      console.log('[ConnectScreen] Filtered cards:', filtered.length);
-      return filtered;
-    },
-    [allUsers, userId, connectedUserIds, swipedIds],
-  );
+  // discoverUsers ya devuelve la lista filtrada (sin yo, sin conectados) y ordenada por compatibilidad
+  const cards = useMemo(() => {
+    return allUsers.filter(u => !swipedIds.has(u.id));
+  }, [allUsers, swipedIds]);
 
   const createConnection = useCreateConnection();
 
