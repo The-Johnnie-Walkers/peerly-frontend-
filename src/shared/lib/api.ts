@@ -2,6 +2,8 @@ const usersURL = import.meta.env.VITE_USER_MGMT_URL;
 const authURL = import.meta.env.VITE_AUTH_MGMT_URL;
 const activitiesURL = import.meta.env.VITE_ACTIVITIES_MGMT_URL;
 export const connectionsURL =  import.meta.env.VITE_CONNECTIONS_MGMT_URL;
+export const realTimeURL = import.meta.env.VITE_VIRTUAL_ENVIRONMENT_URL;
+
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
