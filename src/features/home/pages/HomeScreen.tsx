@@ -49,7 +49,7 @@ const HomeScreen = () => {
             id: u.id,
             name: `${u.name} ${u.lastname}`.trim(),
             photo: u.profilePicURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}+${encodeURIComponent(u.lastname)}&background=random`,
-            isOnline: true,
+            isOnline: u.isOnline ?? false,
           }));
         setConnectedUsers(users);
       } catch (error) {

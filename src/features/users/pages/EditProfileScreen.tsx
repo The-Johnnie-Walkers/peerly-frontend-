@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Clock, Loader2, Camera, X } from 'lucide-react';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { DAY_LABELS, TIME_OPTIONS } from '@/shared/data/mockData';
 import type { AvailabilityBlock } from '@/shared/data/mockData';
 import { PeerlyChip } from '@/shared/components/PeerlyChip';
 import { interestService, type BackendInterest } from '@/features/users/services/interest.service';
 import { userService } from '@/features/users/services/user.service';
+import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { toast } from 'sonner';
 
 const generateBlockId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -16,6 +17,8 @@ export default function EditProfileScreen() {
   const navigate = useNavigate();
   const { profile, updateProfile, userData } = useCurrentUser();
   const [bio, setBio] = useState(profile.bio);
+  const [profilePicURL, setProfilePicURL] = useState(userData?.profilePicURL ?? '');
+  const [showPicInput, setShowPicInput] = useState(false);
   // IDs de intereses seleccionados por el usuario
   const [selectedInterestIds, setSelectedInterestIds] = useState<string[]>(
     userData?.interests?.map(i => i.id) ?? profile.interests
@@ -47,12 +50,13 @@ export default function EditProfileScreen() {
 
   useEffect(() => {
     setBio(profile.bio);
+    setProfilePicURL(userData?.profilePicURL ?? '');
     setBlocks(
       profile.availability.length > 0
         ? profile.availability.map(b => ({ ...b, id: b.id ?? generateBlockId() }))
         : [{ id: generateBlockId(), day: DAY_LABELS[0], start: '08:00', end: '10:00' }]
     );
-  }, [profile.bio, profile.availability]);
+  }, [profile.bio, profile.availability, userData?.profilePicURL]);
 
   const toggleInterest = (id: string) => {
     setSelectedInterestIds(prev =>
@@ -110,13 +114,36 @@ export default function EditProfileScreen() {
         role: userData.role,
         birthDate: userData.birthDate ?? '2000-01-01',
         // Campos editables
+        profilePicURL: profilePicURL.trim() || undefined,
         description: bio.trim(),
         interests: selectedInterestIds,
-        freeTimeSchedule: blocks.map(b => ({
-          dayOfTheWeek: DAY_TO_BACKEND[b.day] ?? b.day,
-          startsAt: new Date(`1970-01-01T${b.start}:00Z`).toISOString(),
-          endsAt: new Date(`1970-01-01T${b.end}:00Z`).toISOString(),
-        })),
+        freeTimeSchedule: blocks
+          .filter(b => b.start && b.end && b.start !== '--:--' && b.end !== '--:--')
+          .map(b => {
+            // b.start puede ser "HH:mm" o ya un ISO completo — normalizamos a "HH:mm"
+            const normalizeTime = (t: string): string => {
+              if (t.includes('T')) {
+                // ISO completo → extraer HH:mm UTC
+                const d = new Date(t);
+                if (!isNaN(d.getTime())) {
+                  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+                }
+                // ISO sin Z → substring
+                return t.substring(11, 16);
+              }
+              // "HH:mm:ss" o "HH:mm"
+              return t.substring(0, 5);
+            };
+
+            const startTime = normalizeTime(b.start);
+            const endTime = normalizeTime(b.end);
+
+            return {
+              dayOfTheWeek: DAY_TO_BACKEND[b.day] ?? b.day,
+              startsAt: new Date(`1970-01-01T${startTime}:00Z`).toISOString(),
+              endsAt: new Date(`1970-01-01T${endTime}:00Z`).toISOString(),
+            };
+          }),
       });
 
       // Actualiza el contexto local
@@ -159,6 +186,55 @@ export default function EditProfileScreen() {
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-24">
+
+          {/* Foto de perfil */}
+          <section className="mb-6 flex flex-col items-center gap-3">
+            <div className="relative">
+              <SafeRemoteImage
+                src={profilePicURL || undefined}
+                alt="Foto de perfil"
+                fallback="pastel-icon"
+                className="w-24 h-24 rounded-full object-cover border-4 border-background shadow-elevated"
+              />
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowPicInput(v => !v)}
+                className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full shadow-md"
+                aria-label="Cambiar foto de perfil"
+              >
+                <Camera size={14} />
+              </motion.button>
+            </div>
+
+            {showPicInput && (
+              <div className="w-full flex gap-2 items-center">
+                <input
+                  type="url"
+                  value={profilePicURL}
+                  onChange={e => setProfilePicURL(e.target.value)}
+                  placeholder="https://ejemplo.com/mi-foto.jpg"
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-card border border-border text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                  aria-label="URL de la foto de perfil"
+                />
+                {profilePicURL && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setProfilePicURL('')}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    aria-label="Limpiar URL"
+                  >
+                    <X size={16} />
+                  </motion.button>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Pega la URL de tu foto. Debe ser una imagen pública accesible.
+            </p>
+          </section>
+
           {/* Descripción — Nielsen: label visible, reconocimiento */}
           <section className="mb-6" aria-labelledby="label-bio">
             <label id="label-bio" className="block text-sm font-display font-bold text-foreground mb-1.5">

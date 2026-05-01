@@ -10,9 +10,9 @@ import {
   ReturnPayload,
   RoomStatePayload,
 } from '../types/arena-shooter.types';
-import { REALTIME_MGMT_URL } from '@/shared/lib/api';
+import { realTimeURL } from '@/shared/lib/api';
 
-const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || REALTIME_MGMT_URL;
+const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || realTimeURL;
 const RECONNECT_TIMEOUT_MS = 10000;
 const EMIT_THROTTLE_MOVE_MS = 16;
 const EMIT_THROTTLE_SHOOT_MS = 300;

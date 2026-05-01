@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Loader2, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Edit3, Loader2, UserCheck, UserX, Flag } from 'lucide-react';
 import { userService } from '@/features/users/services/user.service';
+import { activityService } from '@/features/activities/services/activity.service';
 import type { BackendInterest } from '@/features/users/services/interest.service';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { connectionsService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
 import { useCreateConnection, useUpdateConnection } from '@/features/connections/hooks/useConnections';
+import { ReportButton } from '@/features/reports/components/ReportButton';
+import { translateProgram } from '@/shared/utils/programTranslations';
 
 // Tipo local del perfil mostrado en pantalla
 type ProfileStudent = {
@@ -23,48 +26,6 @@ type ProfileStudent = {
   availability: { day: string; start: string; end: string }[];
   isOnline: boolean;
 };
-
-// Traducción de programas académicos del backend (inglés) al español
-const PROGRAM_TRANSLATIONS: Record<string, string> = {
-  SYSTEMS_ENGINEERING: 'Ingeniería de Sistemas',
-  ELECTRICAL_ENGINEERING: 'Ingeniería Eléctrica',
-  CIVIL_ENGINEERING: 'Ingeniería Civil',
-  MECHANICAL_ENGINEERING: 'Ingeniería Mecánica',
-  INDUSTRIAL_ENGINEERING: 'Ingeniería Industrial',
-  ELECTRONIC_ENGINEERING: 'Ingeniería Electrónica',
-  BIOMEDICAL_ENGINEERING: 'Ingeniería Biomédica',
-  COMPUTER_SCIENCE: 'Ciencias de la Computación',
-  MATHEMATICS: 'Matemáticas',
-  PHYSICS: 'Física',
-  CHEMISTRY: 'Química',
-  BIOLOGY: 'Biología',
-  MEDICINE: 'Medicina',
-  LAW: 'Derecho',
-  ECONOMICS: 'Economía',
-  BUSINESS_ADMINISTRATION: 'Administración de Empresas',
-  PSYCHOLOGY: 'Psicología',
-  SOCIOLOGY: 'Sociología',
-  ARCHITECTURE: 'Arquitectura',
-  DESIGN: 'Diseño',
-  COMMUNICATION: 'Comunicación Social',
-  EDUCATION: 'Educación',
-  PHILOSOPHY: 'Filosofía',
-  HISTORY: 'Historia',
-  LITERATURE: 'Literatura',
-  ARTS: 'Artes',
-  NURSING: 'Enfermería',
-  PHARMACY: 'Farmacia',
-  DENTISTRY: 'Odontología',
-  VETERINARY: 'Veterinaria',
-};
-
-// Traduce el código de programa o lo formatea si no está en el mapa
-const translateProgram = (program: string): string =>
-  PROGRAM_TRANSLATIONS[program] ??
-  program
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 // Traduce nombres de días del backend (inglés) a abreviaturas en español
 const DAY_TRANSLATIONS: Record<string, string> = {
@@ -117,6 +78,10 @@ const ProfileScreen = () => {
   const [student, setStudent] = useState<ProfileStudent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [isPendingConnection, setIsPendingConnection] = useState(false);
+  const [compatibilityScore, setCompatibilityScore] = useState<number | null>(null);
+  const [connectionCount, setConnectionCount] = useState<number | null>(null);
+  const [activityCount, setActivityCount] = useState<number | null>(null);
   const [connectionSent, setConnectionSent] = useState(false);
   const createConnection = useCreateConnection();
   const updateConnection = useUpdateConnection();
@@ -157,10 +122,19 @@ const ProfileScreen = () => {
               start: parseTime(f.startsAt),
               end: parseTime(f.endsAt),
             })) || [],
-            compatibility: isOwnProfile ? 100 : Math.floor(Math.random() * 21) + 80,
-            isOnline: true,
+            compatibility: isOwnProfile ? 100 : 0, // se actualiza abajo
+            isOnline: data.isOnline ?? false,
           });
-        }
+
+          // Calcular compatibilidad real desde el backend (solo para perfiles ajenos)
+          if (!isOwnProfile && currentAuthUser?.id) {
+            try {
+              const score = await userService.getCompatibility(currentAuthUser.id, data.id);
+              setCompatibilityScore(score);
+            } catch {
+              setCompatibilityScore(null);
+            }
+          }        }
       } catch (error) {
         console.error('[ProfileScreen] Error fetching profile:', error);
       } finally {
@@ -171,21 +145,50 @@ const ProfileScreen = () => {
     fetchProfile();
   }, [id, currentAuthUser?.id, isContextLoading, isOwnProfile]);
 
+  // Calcular compatibilidad — useEffect separado para evitar race condition
+  useEffect(() => {
+    if (isOwnProfile || !id || !currentAuthUser?.id) return;
+    userService.getCompatibility(currentAuthUser.id, id)
+      .then(score => setCompatibilityScore(score))
+      .catch(() => setCompatibilityScore(null));
+  }, [id, currentAuthUser?.id, isOwnProfile]);
+
+  // Cargar stats del perfil (conexiones y actividades)
+  useEffect(() => {
+    const profileUserId = id || currentAuthUser?.id;
+    if (!profileUserId) return;
+
+    // Conexiones aceptadas
+    connectionsService.findAll(profileUserId, ConnectionStatus.ACCEPTED)
+      .then(conns => setConnectionCount(conns.length))
+      .catch(() => setConnectionCount(0));
+
+    // Actividades en las que ha participado
+    activityService.getJoinedActivityIdsByUserId(profileUserId)
+      .then(ids => setActivityCount(ids.length))
+      .catch(() => setActivityCount(0));
+  }, [id, currentAuthUser?.id]);
+
   // Verificar conexión — useEffect separado para evitar race condition con currentAuthUser
   useEffect(() => {
-    if (isOwnProfile || !id || !currentAuthUser?.id || fromRequest || fromConnect) return;
+    if (isOwnProfile || !id || !currentAuthUser?.id || fromRequest) return;
 
     const checkConnection = async () => {
       try {
-        const connections = await connectionsService.findAll(currentAuthUser.id, ConnectionStatus.ACCEPTED);
-        setIsConnected(connections.some(c => c.requesterId === id || c.receiverId === id));
+        const connections = await connectionsService.findAll(currentAuthUser.id);
+        const match = connections.find(c => c.requesterId === id || c.receiverId === id);
+        if (match) {
+          setIsConnected(match.status === ConnectionStatus.ACCEPTED);
+          setIsPendingConnection(match.status === ConnectionStatus.PENDING);
+        }
       } catch {
         setIsConnected(false);
+        setIsPendingConnection(false);
       }
     };
 
     checkConnection();
-  }, [id, currentAuthUser?.id, isOwnProfile, fromRequest, fromConnect]);
+  }, [id, currentAuthUser?.id, isOwnProfile, fromRequest]);
 
   if (isContextLoading || isLoading) {
     return (
@@ -214,15 +217,26 @@ const ProfileScreen = () => {
     <div className="min-h-svh flex flex-col bg-background">
       {/* Centered column on desktop, full width on mobile */}
       <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        {/* Header */}
+        {/* Header — solo muestra botón volver en perfiles ajenos */}
         <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
-            className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
-          >
-            <ArrowLeft size={18} />
-          </motion.button>
+          <div className="flex items-center gap-2">
+            {!isOwnProfile && student && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => navigate(-1)}
+                className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
+              >
+                <ArrowLeft size={18} />
+              </motion.button>
+            )}
+          </div>
+          {!isOwnProfile && student && (
+            <ReportButton
+              userId={student.id}
+              userName={student.name}
+              userPhoto={student.photo}
+            />
+          )}
         </header>
 
         <div className="flex-1 overflow-y-auto pb-24 px-4 sm:px-6">
@@ -250,12 +264,16 @@ const ProfileScreen = () => {
             {isOwnProfile && (
               <div className="flex items-center justify-center gap-6 md:gap-8 my-4">
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">0</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">
+                    {connectionCount ?? <Loader2 size={16} className="animate-spin inline" />}
+                  </p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Conexiones</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
                 <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">0</p>
+                  <p className="font-display font-extrabold text-lg md:text-xl">
+                    {activityCount ?? <Loader2 size={16} className="animate-spin inline" />}
+                  </p>
                   <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Actividades</p>
                 </div>
                 <div className="w-px h-8 bg-border" />
@@ -269,7 +287,9 @@ const ProfileScreen = () => {
             {!isOwnProfile && (
               <div className="flex items-center justify-center gap-2 my-3">
                 <div className="bg-success/10 px-3 py-1 rounded-full">
-                  <span className="text-xs font-mono font-bold text-success">{student.compatibility}% Compatible</span>
+                  <span className="text-xs font-mono font-bold text-success">
+                    {compatibilityScore !== null ? `${compatibilityScore}% Compatible` : 'Calculando...'}
+                  </span>
                 </div>
               </div>
             )}
@@ -338,13 +358,21 @@ const ProfileScreen = () => {
               </motion.button>
             ) : (
               <div className="flex gap-3">
-                {isConnected ? (
-                  // Ya son conexiones: solo Proponer plan
+                {isConnected && !isPendingConnection ? (
+                  // Conexión ACCEPTED: solo Proponer plan
                   <motion.button
                     whileTap={{ scale: 0.96 }}
                     className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
                   >
                     Proponer plan
+                  </motion.button>
+                ) : isConnected && isPendingConnection ? (
+                  // Conexión PENDING: solicitud ya enviada, no se puede hacer nada más
+                  <motion.button
+                    disabled
+                    className="flex-1 p-4 rounded-2xl bg-muted text-muted-foreground font-display font-bold cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    ¡Solicitud enviada! 🎉
                   </motion.button>
                 ) : fromRequest && connectionId ? (
                   // Viene de /social solicitudes: Aceptar y Rechazar
@@ -379,11 +407,11 @@ const ProfileScreen = () => {
                     </motion.button>
                   </>
                 ) : fromConnect ? (
-                  // Viene de /connect: Conectar funcional + Proponer plan
+                  // Viene de /connect o /communities: Conectar funcional + Proponer plan
                   <>
                     <motion.button
                       whileTap={{ scale: 0.96 }}
-                      disabled={connectionSent || createConnection.isPending}
+                      disabled={connectionSent || isPendingConnection || createConnection.isPending}
                       onClick={() => {
                         if (!currentAuthUser?.id || !id) return;
                         createConnection.mutate(
@@ -395,7 +423,7 @@ const ProfileScreen = () => {
                     >
                       {createConnection.isPending ? (
                         <Loader2 size={18} className="animate-spin" />
-                      ) : connectionSent ? (
+                      ) : connectionSent || isPendingConnection ? (
                         '¡Solicitud enviada! 🎉'
                       ) : (
                         'Conectar 🤝'
@@ -409,14 +437,19 @@ const ProfileScreen = () => {
                     </motion.button>
                   </>
                 ) : (
-                  // Vista normal sin conexión
+                  // Vista normal: si hay solicitud pendiente mostrar estado, sino botón conectar
                   <>
                     <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => navigate('/chats')}
-                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold"
+                      whileTap={isPendingConnection ? {} : { scale: 0.96 }}
+                      disabled={isPendingConnection}
+                      onClick={() => !isPendingConnection && navigate('/chats')}
+                      className={`flex-1 p-4 rounded-2xl font-display font-bold ${
+                        isPendingConnection
+                          ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                          : 'bg-primary text-primary-foreground'
+                      }`}
                     >
-                      Conectar 🤝
+                      {isPendingConnection ? '¡Solicitud enviada! 🎉' : 'Conectar 🤝'}
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.96 }}

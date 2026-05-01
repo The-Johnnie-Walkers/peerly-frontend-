@@ -20,6 +20,8 @@ export interface UserProfile {
   status: string;
   programs: string[];
   role: string;
+  isOnline?: boolean;
+  lastTimeConnected?: string;
 }
 
 export interface UserUpdatePayload extends Omit<Partial<UserProfile>, 'interests'> {
@@ -59,6 +61,34 @@ export const userService = {
       return await userApi.request<UserProfile[]>(`${USERS_API_BASE}`);
     } catch {
       return [];
+    }
+  },
+
+  async discoverUsers(userId: string): Promise<UserProfile[]> {
+    try {
+      return await userApi.request<UserProfile[]>(`${USERS_API_BASE}/${userId}/discover`);
+    } catch {
+      return [];
+    }
+  },
+
+  async getCompatibility(userId: string, otherId: string): Promise<number> {
+    try {
+      const result = await userApi.request<{ score: number }>(`${USERS_API_BASE}/${userId}/compatibility/${otherId}`);
+      return result.score;
+    } catch {
+      return 0;
+    }
+  },
+
+  async updatePresence(userId: string, isOnline: boolean): Promise<void> {
+    try {
+      await userApi.request(`${USERS_API_BASE}/${userId}/presence`, {
+        method: 'PATCH',
+        body: { isOnline },
+      });
+    } catch {
+      // silencioso — no crítico
     }
   },
 

@@ -1,71 +1,86 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, MessageCircle, Plus, UserPlus, User } from 'lucide-react';
+import { Home, MessageCircle, UserPlus, User, Globe, ShieldAlert, Users2, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
+import { authService } from '@/features/auth/services/auth.service';
 
 const NAV_ITEMS = [
-  { path: '/home', icon: Search, label: 'Inicio' },
+  { path: '/home', icon: Home, label: 'Inicio' },
   { path: '/chats', icon: MessageCircle, label: 'Chats' },
-  { path: '/create-activity', icon: Plus, label: 'Crear', isCenter: true },
   { path: '/connect', icon: UserPlus, label: 'Descubrir' },
-  { path: '/social', icon: User, label: 'Social' },
+  { path: '/communities', icon: Globe, label: 'Comunidades' },
+  { path: '/social', icon: Users2, label: 'Social' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
+
+const itemClass = "flex flex-col items-center gap-0.5 py-1.5 px-1 min-w-[44px] rounded-xl";
+const iconClass = "flex items-center justify-center w-9 h-9 rounded-xl transition-colors";
+const labelClass = "text-[10px] font-medium leading-none";
 
 export const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { userData } = useCurrentUser();
+
+  const handleLogout = () => {
+    authService.logout();
+    navigate('/login');
+  };
 
   return (
-    <nav className="fixed bottom-0 left-0 w-full bg-[hsl(var(--peerly-surface))]/95 backdrop-blur-md border-t border-neutral-200/85 py-2.5 flex justify-center z-40 shadow-[0_-4px_24px_-12px_rgba(0,0,0,0.08)]">
-      <div className="w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 flex justify-around items-end">
-        {NAV_ITEMS.map((item) => {
-          const isActive = location.pathname === item.path;
-          const Icon = item.icon;
+    <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 shadow-[0_-2px_16px_rgba(0,0,0,0.06)] z-40 pb-[env(safe-area-inset-bottom)]">
+      <div className="flex justify-around items-center h-16 px-2 max-w-screen-xl mx-auto">
 
-          if (item.isCenter) {
-            return (
-              <motion.button
-                key={item.path}
-                type="button"
-                whileTap={{ scale: 0.92 }}
-                onClick={() => navigate(item.path)}
-                className="w-[52px] h-[52px] -mt-7 rounded-[18px] bg-primary flex items-center justify-center text-primary-foreground border-[3px] border-[hsl(var(--peerly-background))] shadow-[0_10px_28px_-6px_hsl(12_70%_48%/0.55),0_4px_12px_-4px_rgba(0,0,0,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                aria-label="Crear actividad"
-              >
-                <Icon size={26} strokeWidth={2.25} />
-              </motion.button>
-            );
-          }
-
+        {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
+          const isActive = location.pathname === path || location.pathname.startsWith(`${path}/`);
           return (
             <motion.button
-              key={item.path}
+              key={path}
               type="button"
               whileTap={{ scale: 0.94 }}
-              onClick={() => navigate(item.path)}
-              className={`relative flex flex-col items-center gap-0.5 px-1 py-1 min-w-[56px] font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-xl ${
-                isActive ? 'text-primary' : 'text-neutral-400 hover:text-neutral-600'
-              }`}
+              onClick={() => navigate(path)}
+              className={itemClass}
+              aria-label={label}
             >
-              {isActive && (
-                <span
-                  className="absolute -top-0.5 left-1/2 -translate-x-1/2 h-0.5 w-7 rounded-full bg-primary"
-                  aria-hidden
-                />
-              )}
-              <span
-                className={`flex items-center justify-center rounded-xl transition-colors ${
-                  isActive ? 'bg-primary/12 px-2 py-1' : 'px-2 py-1'
-                }`}
-              >
-                <Icon size={22} strokeWidth={isActive ? 2.25 : 2} />
+              <span className={`${iconClass} ${isActive ? 'bg-primary/10 text-primary' : 'text-gray-400'}`}>
+                <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} />
               </span>
-              <span className={`text-[10px] font-medium leading-none ${isActive ? 'text-primary' : ''}`}>
-                {item.label}
+              <span className={`${labelClass} ${isActive ? 'text-primary' : 'text-gray-400'}`}>
+                {label}
               </span>
             </motion.button>
           );
         })}
+
+        {userData?.role === 'ADMIN' && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            onClick={() => navigate('/admin-reports')}
+            className={itemClass}
+          >
+            <span className={`${iconClass} ${location.pathname === '/admin-reports' ? 'bg-destructive/10 text-destructive' : 'text-gray-400'}`}>
+              <ShieldAlert size={20} strokeWidth={location.pathname === '/admin-reports' ? 2.25 : 1.75} />
+            </span>
+            <span className={`${labelClass} ${location.pathname === '/admin-reports' ? 'text-destructive' : 'text-gray-400'}`}>
+              Reportes
+            </span>
+          </motion.button>
+        )}
+
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.94 }}
+          onClick={handleLogout}
+          className={itemClass}
+          aria-label="Cerrar sesión"
+        >
+          <span className={`${iconClass} text-gray-400 hover:text-red-500`}>
+            <LogOut size={20} strokeWidth={1.75} />
+          </span>
+          <span className={`${labelClass} text-gray-400`}>Salir</span>
+        </motion.button>
+
       </div>
     </nav>
   );

@@ -9,10 +9,10 @@ import {
   ReturnToVirtualWorldPayload,
   isValidSnapshot,
 } from '../types/football-duel.types';
-import { REALTIME_MGMT_URL } from '@/shared/lib/api';
+import { realTimeURL } from '@/shared/lib/api';
 
-const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || REALTIME_MGMT_URL;
-const EMIT_THROTTLE_MS = 16; // ~60 fps (optimized from previous value)
+const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || realTimeURL;
+const EMIT_THROTTLE_MS = 16; // ~60 fps
 
 interface UseFootballSocketOptions {
   matchId: string;
