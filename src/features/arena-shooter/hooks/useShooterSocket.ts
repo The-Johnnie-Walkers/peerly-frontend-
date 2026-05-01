@@ -105,6 +105,10 @@ export const useShooterSocket = ({
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      // Performance optimizations for shooter game
+      timeout: 20000,
+      forceNew: false,
+      upgrade: false,
     });
 
     socketRef.current = socket;

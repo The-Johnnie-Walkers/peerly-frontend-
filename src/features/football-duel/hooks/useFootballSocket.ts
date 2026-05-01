@@ -12,7 +12,7 @@ import {
 import { REALTIME_MGMT_URL } from '@/shared/lib/api';
 
 const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || REALTIME_MGMT_URL;
-const EMIT_THROTTLE_MS = 16; // ~60 fps
+const EMIT_THROTTLE_MS = 16; // ~60 fps (optimized from previous value)
 
 interface UseFootballSocketOptions {
   matchId: string;
@@ -51,6 +51,13 @@ export function useFootballSocket({
     const socket = io(`${REALTIME_URL}/football-duel`, {
       auth: { token },
       transports: ['websocket'],
+      // Performance optimizations for game
+      timeout: 20000,
+      forceNew: false,
+      upgrade: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socketRef.current = socket;

@@ -56,6 +56,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      // Performance optimizations
+      timeout: 20000, // Connection timeout
+      forceNew: false, // Reuse existing connection if possible
+      upgrade: false, // Don't upgrade from websocket to polling
     });
 
     newSocket.on('connect', () => {
