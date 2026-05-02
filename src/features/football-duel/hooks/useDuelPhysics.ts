@@ -4,8 +4,8 @@ import { PlayerInput, PLAYER_SPEED, lerp } from '../types/football-duel.types';
 
 const FIELD_W = 800;
 const FIELD_H = 500;
-const CORRECTION_FRAMES = 8; // Más frames para correcciones más suaves
-const RECONCILE_THRESHOLD = 40; // Píxeles - solo corregir drift grande
+const CORRECTION_FRAMES = 3; // Correcciones más rápidas (50ms en lugar de 133ms)
+const RECONCILE_THRESHOLD = 15; // Píxeles - corregir drift más pequeño para evitar acumulación
 
 interface Position {
   x: number;
@@ -111,8 +111,16 @@ export function useDuelPhysics({ initialX, initialY }: UseDuelPhysicsOptions): U
     const dy = serverPos.y - body.position.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
+    // Teleport if drift is massive (>100px = likely reconnection or major desync)
+    if (dist > 100) {
+      Matter.Body.setPosition(body, serverPos);
+      Matter.Body.setVelocity(body, { x: 0, y: 0 });
+      correctionRef.current = null;
+      return;
+    }
+
+    // Smooth correction for smaller drift
     if (dist > RECONCILE_THRESHOLD) {
-      // Start smooth correction over CORRECTION_FRAMES frames
       correctionRef.current = { target: serverPos, framesLeft: CORRECTION_FRAMES };
     }
   }, []);
