@@ -4,6 +4,7 @@ const activitiesURL = import.meta.env.VITE_ACTIVITIES_MGMT_URL;
 export const connectionsURL =  import.meta.env.VITE_CONNECTIONS_MGMT_URL;
 export const realTimeURL = import.meta.env.VITE_VIRTUAL_ENVIRONMENT_URL;
 const reportsURL = import.meta.env.VITE_REPORTS_SERVICE_URL;
+export const notificationsURL = import.meta.env.VITE_NOTIFICATIONS_URL || 'http://localhost:3006';
 
 
 interface RequestOptions {
@@ -143,3 +144,4 @@ export const authApi = new ApiClient(authURL);
 export const activityApi = new ApiClient(activitiesURL);
 export const connectionsApi = new ApiClient(connectionsURL);
 export const reportsApi = new ApiClient(reportsURL);
+export const notificationsApi = new ApiClient(notificationsURL);

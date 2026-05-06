@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, UserPlus, Calendar, MessageSquare } from 'lucide-react';
+import { X, Bell, UserPlus, Calendar, MessageSquare, ShieldAlert } from 'lucide-react';
 import { Notification } from '@/shared/data/mockData';
 import { SafeRemoteImage } from '../SafeRemoteImage';
 
@@ -9,6 +9,7 @@ interface NotificationPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onMarkAsRead: (id: string) => void;
+  onMarkAllAsRead?: () => void;
 }
 
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({
@@ -16,12 +17,14 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   isOpen,
   onClose,
   onMarkAsRead,
+  onMarkAllAsRead,
 }) => {
   const getIcon = (type: Notification['type']) => {
     switch (type) {
       case 'connection': return <UserPlus size={16} className="text-secondary" />;
       case 'activity': return <Calendar size={16} className="text-primary" />;
       case 'message': return <MessageSquare size={16} className="text-secondary" />;
+      case 'report': return <ShieldAlert size={16} className="text-destructive" />;
       default: return <Bell size={16} />;
     }
   };
@@ -119,11 +122,11 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
 
             {notifications.length > 0 && (
               <div className="p-3 bg-muted/10 border-t border-border text-center">
-                <button 
+                <button
                   className="text-xs font-bold text-primary hover:underline"
-                  onClick={() => console.log('Ver todas las notificaciones')}
+                  onClick={onMarkAllAsRead}
                 >
-                  Ver todas las actividades
+                  Marcar todas como leídas
                 </button>
               </div>
             )}

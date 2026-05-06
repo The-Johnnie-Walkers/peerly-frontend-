@@ -6,8 +6,8 @@ import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { userService, UserProfile } from '@/features/users/services/user.service';
 import { activityService, Activity } from '@/features/activities/services/activity.service';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
-import { MOCK_NOTIFICATIONS, Notification } from '@/shared/data/mockData';
 import { NotificationPanel } from '@/shared/components/layout/NotificationPanel';
+import { useNotifications } from '@/features/notifications/hooks/useNotifications';
 import { connectionsService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
 
@@ -22,16 +22,11 @@ const HomeScreen = () => {
   const navigate = useNavigate();
   const { userData } = useCurrentUser();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  };
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   // Cargar conexiones aceptadas
   useEffect(() => {
@@ -273,7 +268,8 @@ const HomeScreen = () => {
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
         notifications={notifications}
-        onMarkAsRead={handleMarkAsRead}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={markAllAsRead}
       />
     </div>
   );

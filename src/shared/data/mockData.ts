@@ -38,7 +38,7 @@ export type ChatMessage = {
 
 export type Notification = {
   id: string;
-  type: 'connection' | 'activity' | 'message';
+  type: 'connection' | 'activity' | 'message' | 'report';
   title: string;
   description: string;
   timestamp: string;
