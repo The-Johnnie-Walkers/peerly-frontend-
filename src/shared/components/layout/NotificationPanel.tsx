@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, UserPlus, Calendar, MessageSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Notification } from '@/shared/data/mockData';
 import { SafeRemoteImage } from '../SafeRemoteImage';
 
@@ -17,6 +18,8 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   onClose,
   onMarkAsRead,
 }) => {
+  const navigate = useNavigate();
+
   const getIcon = (type: Notification['type']) => {
     switch (type) {
       case 'connection': return <UserPlus size={16} className="text-secondary" />;
@@ -119,9 +122,9 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
 
             {notifications.length > 0 && (
               <div className="p-3 bg-muted/10 border-t border-border text-center">
-                <button 
+                <button
                   className="text-xs font-bold text-primary hover:underline"
-                  onClick={() => console.log('Ver todas las notificaciones')}
+                  onClick={() => { onClose(); navigate('/explore'); }}
                 >
                   Ver todas las actividades
                 </button>

@@ -26,6 +26,7 @@ const HomeScreen = () => {
   const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -69,6 +70,8 @@ const HomeScreen = () => {
         setActivities(all.slice(0, 8));
       } catch (error) {
         console.error('Error fetching activities:', error);
+      } finally {
+        setIsLoadingActivities(false);
       }
     };
     fetchActivities();
@@ -82,7 +85,6 @@ const HomeScreen = () => {
           {/* Header */}
           <header className="flex flex-col gap-6 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-9 lg:px-10">
             <div className="max-w-3xl">
-              <p className="text-[10px] font-mono font-bold text-primary uppercase tracking-widest">Campus Central</p>
               <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight sm:text-4xl">
                 ¡Hola, {userData?.name || 'Compañero'}!
               </h1>
@@ -134,18 +136,38 @@ const HomeScreen = () => {
 
             <div className="flex gap-6 overflow-x-auto pb-3 pl-0.5 pr-2 no-scrollbar min-h-[120px]">
               {isLoadingUsers ? (
-                <div className="flex items-center justify-center w-full">
-                  <Loader2 className="animate-spin text-primary" size={24} />
-                </div>
+                <>
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex min-w-[88px] flex-col items-center gap-3 sm:min-w-[96px] animate-pulse">
+                      <div className="h-[92px] w-[92px] rounded-full bg-muted" />
+                      <div className="h-3 w-14 rounded-full bg-muted" />
+                    </div>
+                  ))}
+                </>
               ) : connectedUsers.length === 0 ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Aún no tienes conexiones.</span>
-                  <button
+                <div className="flex flex-col items-center justify-center w-full gap-3 py-4">
+                  <div className="flex -space-x-3">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="h-12 w-12 rounded-full bg-accent border-2 border-background flex items-center justify-center"
+                        style={{ zIndex: 3 - i }}
+                      >
+                        <Users className="h-5 w-5 text-muted-foreground/50" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground">Aún no tienes conexiones</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Encuentra compañeros compatibles y empieza a conectar</p>
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => navigate('/connect')}
-                    className="text-primary font-bold hover:underline"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-display font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"
                   >
-                    ¡Descubre personas!
-                  </button>
+                    Descubrir personas
+                  </motion.button>
                 </div>
               ) : (
                 <>
@@ -213,7 +235,26 @@ const HomeScreen = () => {
             </div>
 
             <div className="flex gap-6 overflow-x-auto pb-3 pl-0.5 pr-2 no-scrollbar">
-              {activities.length === 0 ? (
+              {isLoadingActivities ? (
+                <>
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="min-w-[286px] max-w-[286px] sm:min-w-[330px] sm:max-w-[330px] rounded-[40px] border border-white/70 bg-card px-5 py-5 sm:px-6 sm:py-6 animate-pulse"
+                    >
+                      <div className="h-3 w-24 rounded-full bg-muted mb-3" />
+                      <div className="h-5 w-3/4 rounded-full bg-muted mb-2" />
+                      <div className="h-4 w-full rounded-full bg-muted mb-1" />
+                      <div className="h-4 w-2/3 rounded-full bg-muted mt-5 mb-6" />
+                      <div className="space-y-3">
+                        <div className="h-3 w-1/2 rounded-full bg-muted" />
+                        <div className="h-3 w-2/5 rounded-full bg-muted" />
+                        <div className="h-3 w-1/3 rounded-full bg-muted" />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : activities.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hay actividades disponibles.</p>
               ) : (
                 activities.map((activity, index) => (
