@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronRight, Loader2, CalendarDays, Clock3, MapPin, Users } from 'lucide-react';
+import { Bell, ChevronRight, CalendarDays, Clock3, MapPin, Users } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { userService, UserProfile } from '@/features/users/services/user.service';
 import { activityService, Activity } from '@/features/activities/services/activity.service';
