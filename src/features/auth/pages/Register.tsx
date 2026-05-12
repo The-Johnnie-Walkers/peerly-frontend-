@@ -113,6 +113,7 @@ const Register = () => {
   const emailIsValid = email.length === 0 || isInstitutionalEmail(email);
   const hasValidInterests = selectedInterests.length >= 3 && selectedInterests.length <= 5;
   const hasAtLeastOneBlock = availabilityBlocks.length > 0;
+  const blocksAreValid = availabilityBlocks.every((b) => b.end > b.start);
   const hasProfilePic = profilePicURL.trim().length > 0 && !profilePicError;
   const passwordStrength = getPasswordStrength(password);
   const passwordsMatch = confirmPassword.length === 0 || password === confirmPassword;
@@ -129,6 +130,7 @@ const Register = () => {
     semester &&
     hasValidInterests &&
     hasAtLeastOneBlock &&
+    blocksAreValid &&
     acceptedRules &&
     hasProfilePic;
 
@@ -271,7 +273,7 @@ const Register = () => {
                   {/* Foto de perfil — obligatoria */}
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-2xl bg-accent/40 border border-border">
                     {/* Avatar clickeable */}
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 ">
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -295,7 +297,7 @@ const Register = () => {
                             onError={() => setProfilePicError(true)}
                           />
                         ) : (
-                          <div className="w-full h-full bg-background border-2 border-dashed border-[hsl(var(--peerly-primary))] flex flex-col items-center justify-center gap-1 text-[hsl(var(--peerly-primary))]">
+                          <div className="w-full h-full bg-background border-2  rounded-full border-[hsl(var(--peerly-primary))] flex flex-col items-center justify-center gap-1 text-[hsl(var(--peerly-primary))]">
                             <Camera className="w-6 h-6" />
                             <span className="text-[9px] font-mono font-bold uppercase leading-none">Foto</span>
                           </div>
@@ -573,10 +575,12 @@ const Register = () => {
                     Añade bloques de tiempo en los que sueles estar libre (sin clase o para estudiar). Ej: Lun 08:00–10:00.
                   </p>
                   <div className="space-y-2">
-                    {availabilityBlocks.map((block) => (
+                    {availabilityBlocks.map((block) => {
+                      const blockInvalid = block.end <= block.start;
+                      return (
+                      <div key={block.id} className="space-y-1">
                       <div
-                        key={block.id}
-                        className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background/80 px-3 py-2"
+                        className={`flex flex-wrap items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 ${blockInvalid ? "border-destructive" : "border-border"}`}
                       >
                         <Select
                           value={block.day}
@@ -628,7 +632,14 @@ const Register = () => {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    ))}
+                      {blockInvalid && (
+                        <p className="text-[11px] text-destructive pl-3">
+                          La hora de fin debe ser posterior a la de inicio.
+                        </p>
+                      )}
+                      </div>
+                      );
+                    })}
                   </div>
                   <button
                     type="button"
