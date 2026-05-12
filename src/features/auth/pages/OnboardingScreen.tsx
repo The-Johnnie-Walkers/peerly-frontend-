@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, Mail, Shield } from 'lucide-react';
+import { Plus, Mail, Shield } from 'lucide-react';
 import { INTERESTS, DAY_LABELS, TIME_LABELS } from '@/shared/data/mockData';
 import { PeerlyChip } from '@/shared/components/PeerlyChip';
 

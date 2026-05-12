@@ -49,7 +49,7 @@ export default function LandingPage() {
                     <ChevronDown size={20} className="animate-bounce" />
                 </motion.div>
             </div>
-            <section id="what-is" className="relative overflow-hidden">
+            <section id="what-is" className="relative overflow-hidden min-h-screen flex items-center">
                 <Aurora className="absolute inset-0 z-0" />
                 <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-10 py-20 sm:py-28 md:py-36">
                     <motion.div
