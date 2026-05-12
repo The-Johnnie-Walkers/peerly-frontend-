@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { User, Mail, Lock, BookOpen, Heart, Clock, Plus, Trash2, Loader2, ChevronLeft, Eye, EyeOff, Camera, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { User, Mail, Lock, BookOpen, Heart, Clock, Plus, Trash2, Loader2, ChevronLeft, Eye, EyeOff, Camera, X, CalendarDays, AlignLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -73,8 +73,24 @@ const Register = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [birthDate, setBirthDate] = useState("");
+  const [description, setDescription] = useState("");
   const [profilePicURL, setProfilePicURL] = useState("");
   const [profilePicError, setProfilePicError] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfilePicURL(reader.result as string);
+      setProfilePicError(false);
+    };
+    reader.readAsDataURL(file);
+  };
   const [career, setCareer] = useState("");
   const [semester, setSemester] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -93,16 +109,22 @@ const Register = () => {
       setIsLoadingInterests(false);
     });
   }, []);
+
   const emailIsValid = email.length === 0 || isInstitutionalEmail(email);
   const hasValidInterests = selectedInterests.length >= 3 && selectedInterests.length <= 5;
   const hasAtLeastOneBlock = availabilityBlocks.length > 0;
   const hasProfilePic = profilePicURL.trim().length > 0 && !profilePicError;
   const passwordStrength = getPasswordStrength(password);
+  const passwordsMatch = confirmPassword.length === 0 || password === confirmPassword;
+
   const canSubmit =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
     isInstitutionalEmail(email) &&
     password.length >= 6 &&
+    password === confirmPassword &&
+    confirmPassword.length > 0 &&
+    birthDate.length > 0 &&
     career &&
     semester &&
     hasValidInterests &&
@@ -150,10 +172,8 @@ const Register = () => {
         endsAt: new Date(`1970-01-01T${b.end}:00Z`),
       }));
 
-      // Paso 1: crear cuenta en auth-service
-      const authResponse = await authService.register({ name: `${firstName} ${lastName}`, email, password });
+      await authService.register({ name: `${firstName} ${lastName}`, email, password });
 
-      // Paso 2: crear perfil en user-service
       const userResponse = await userApi.request<{ id: string }>('users', {
         method: 'POST',
         body: {
@@ -161,12 +181,12 @@ const Register = () => {
           name: firstName,
           lastname: lastName,
           email,
-          birthDate: new Date('2000-01-01'),
+          birthDate: new Date(birthDate),
           semester: parseInt(semester),
           status: 'ACTIVE',
           programs: [career],
           role: 'USER',
-          description: '',
+          description: description.trim(),
           freeTimeSchedule,
         },
       });
@@ -175,7 +195,6 @@ const Register = () => {
       localStorage.setItem('user_name', firstName);
       localStorage.setItem('user_email', email);
 
-      // Paso 3: asignar intereses, foto e info completa via PUT
       try {
         await userApi.request(`users/${userResponse.id}`, {
           method: 'PUT',
@@ -185,7 +204,7 @@ const Register = () => {
             name: firstName,
             lastname: lastName,
             email,
-            birthDate: new Date('2000-01-01'),
+            birthDate: new Date(birthDate),
             semester: parseInt(semester),
             freeTimeSchedule,
             status: 'ACTIVE',
@@ -216,14 +235,15 @@ const Register = () => {
     hidden: { opacity: 0, x: 18, scale: 0.98 },
     show: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.5, ease: "easeOut" } },
   };
+
   return (
-    <div className="min-h-screen bg-[hsl(var(--peerly-background))] flex items-stretch justify-center px-4 py-8 ">
+    <div className="min-h-screen bg-[hsl(var(--peerly-background))] flex items-stretch justify-center px-4 py-8">
       <BubbleBackground showGlow />
       <a href="/login" className="group hover:text-[hsl(var(--peerly-primary))] p-8 flex z-20 absolute top-0 left-0 transition delay-150 duration-300 ease-in-out">
         <ChevronLeft className="transition duration-300 ease-in-out group-hover:-translate-x-1" />
         Volver
       </a>
-      <div className="w-full max-w-3xl flex flex-col justify-center pt-12 pl-4 pr-4 ">
+      <div className="w-full max-w-3xl flex flex-col justify-center pt-12 px-4">
         <motion.div
           variants={fadeInRight}
           initial={reduceMotion ? "show" : "hidden"}
@@ -240,6 +260,7 @@ const Register = () => {
             </CardHeader>
             <CardContent className="pt-4">
               <form onSubmit={handleSubmit} className="space-y-8">
+
                 {/* Datos básicos */}
                 <section className="space-y-3">
                   <h3 className="text-xs font-mono font-bold tracking-widest uppercase text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-2">
@@ -249,51 +270,78 @@ const Register = () => {
 
                   {/* Foto de perfil — obligatoria */}
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-2xl bg-accent/40 border border-border">
+                    {/* Avatar clickeable */}
                     <div className="flex-shrink-0">
-                      {profilePicURL && !profilePicError ? (
-                        <img
-                          src={profilePicURL}
-                          alt="Preview foto de perfil"
-                          className="w-20 h-20 rounded-full object-cover border-4 border-[hsl(var(--peerly-primary))]/25 shadow-sm"
-                          onError={() => setProfilePicError(true)}
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full bg-background border-2 border-dashed border-[hsl(var(--peerly-primary))] flex flex-col items-center justify-center gap-1 text-[hsl(var(--peerly-primary))]">
-                          <Camera className="w-6 h-6" />
-                          <span className="text-[9px] font-mono font-bold uppercase leading-none">Foto</span>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileChange}
+                        aria-label="Seleccionar foto de perfil"
+                      />
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="relative w-20 h-20 rounded-full overflow-hidden group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--peerly-primary))] focus-visible:ring-offset-2"
+                        aria-label="Elegir foto de perfil desde tus archivos"
+                      >
+                        {profilePicURL && !profilePicError ? (
+                          <img
+                            src={profilePicURL}
+                            alt="Preview foto de perfil"
+                            className="w-full h-full object-cover"
+                            onError={() => setProfilePicError(true)}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-background border-2 border-dashed border-[hsl(var(--peerly-primary))] flex flex-col items-center justify-center gap-1 text-[hsl(var(--peerly-primary))]">
+                            <Camera className="w-6 h-6" />
+                            <span className="text-[9px] font-mono font-bold uppercase leading-none">Foto</span>
+                          </div>
+                        )}
+                        {/* Overlay al hover */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Camera className="w-6 h-6 text-white" />
                         </div>
-                      )}
+                      </motion.button>
                     </div>
+
                     <div className="flex-1 w-full space-y-2">
                       <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-1.5">
                         <Camera className="w-3.5 h-3.5 text-[hsl(var(--peerly-primary))]" />
                         Foto de perfil
                         <span className="text-destructive ml-0.5" aria-hidden="true">*</span>
                       </label>
+
+                      {/* Botón primario: elegir archivo */}
                       <div className="flex items-center gap-2">
-                        <Input
-                          type="url"
-                          value={profilePicURL}
-                          onChange={(e) => { setProfilePicURL(e.target.value); setProfilePicError(false); }}
-                          placeholder="https://ejemplo.com/mi-foto.jpg"
-                          className={`h-10 rounded-2xl bg-background/80 border-border text-sm flex-1 ${profilePicError ? "border-destructive" : ""}`}
-                          aria-describedby="pic-hint"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1 h-10 rounded-2xl border-2 border-[hsl(var(--peerly-primary))]/40 bg-[hsl(var(--peerly-primary))]/5 text-[hsl(var(--peerly-primary))] text-sm font-medium hover:bg-[hsl(var(--peerly-primary))]/10 hover:border-[hsl(var(--peerly-primary))]/70 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Camera className="w-4 h-4" />
+                          {profilePicURL ? "Cambiar foto" : "Elegir desde mis archivos"}
+                        </button>
                         {profilePicURL && (
                           <button
                             type="button"
-                            onClick={() => { setProfilePicURL(""); setProfilePicError(false); }}
+                            onClick={() => { setProfilePicURL(""); setProfilePicError(false); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                             className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            aria-label="Limpiar URL de foto"
+                            aria-label="Quitar foto"
                           >
                             <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
+
                       <p id="pic-hint" className={`text-[11px] ${profilePicError ? "text-destructive" : "text-[color:hsl(var(--peerly-text-secondary))]"}`}>
                         {profilePicError
-                          ? "La URL no es una imagen válida. Verifica el enlace."
-                          : "Pega la URL de una foto tuya. Necesaria para que tus compañeros te reconozcan."}
+                          ? "No se pudo cargar la imagen. Intenta con otro archivo."
+                          : profilePicURL
+                            ? "Foto cargada desde tu dispositivo."
+                            : "Necesaria para que tus compañeros te reconozcan."}
                       </p>
                     </div>
                   </div>
@@ -338,11 +386,20 @@ const Register = () => {
                           Usa tu correo institucional (debe ser de dominio universitario .edu).
                         </p>
                       )}
-                      {!email && (
-                        <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))]  p-2">
-                          Solo aceptamos correos verificados para mantener la comunidad segura.
-                        </p>
-                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+                        Fecha de nacimiento
+                      </label>
+                      <Input
+                        type="date"
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
+                        min={new Date(new Date().setFullYear(new Date().getFullYear() - 100)).toISOString().split("T")[0]}
+                        max={new Date().toISOString().split("T")[0]}
+                        className="h-11 rounded-2xl bg-background/80 border-border text-sm"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-1.5">
@@ -367,7 +424,7 @@ const Register = () => {
                         </button>
                       </div>
                       {password && (
-                        <div className="space-y-1 p-2">
+                        <div className="space-y-1 p-1.5">
                           <div className="flex gap-1" role="meter" aria-label={`Fortaleza: ${passwordStrength.label}`}>
                             {[1, 2, 3, 4].map((bar) => (
                               <div
@@ -376,10 +433,58 @@ const Register = () => {
                               />
                             ))}
                           </div>
-                          <p className="text-[11px] text-muted-foreground " >{passwordStrength.label}</p>
+                          <p className="text-[11px] text-muted-foreground">{passwordStrength.label}</p>
                         </div>
                       )}
                     </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                        Confirmar contraseña
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Repite tu contraseña"
+                          className={`h-11 rounded-2xl bg-background/80 border-border text-sm pr-10 ${
+                            confirmPassword && !passwordsMatch ? "border-destructive" : ""
+                          } ${confirmPassword && passwordsMatch ? "border-[hsl(var(--peerly-secondary))]" : ""}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {confirmPassword && !passwordsMatch && (
+                        <p className="text-[11px] text-destructive">Las contraseñas no coinciden.</p>
+                      )}
+                      {confirmPassword && passwordsMatch && (
+                        <p className="text-[11px] text-[hsl(var(--peerly-secondary-dark))]">Las contraseñas coinciden.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Descripción / bio */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-1.5">
+                      <AlignLeft className="w-3.5 h-3.5 text-muted-foreground" />
+                      Descripción <span className="text-muted-foreground font-normal">(opcional)</span>
+                    </label>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={3}
+                      maxLength={300}
+                      placeholder="Cuéntales a tus compañeros quién eres o qué buscas. Ej: Dev en progreso, busco partners para hackathons."
+                      className="w-full px-4 py-3 rounded-2xl bg-background/80 border border-border text-sm outline-none focus:border-[hsl(var(--peerly-primary))] focus:ring-2 focus:ring-[hsl(var(--peerly-primary))]/20 transition-colors resize-none text-foreground placeholder:text-muted-foreground"
+                    />
+                    <p className="text-[11px] text-muted-foreground text-right">{description.length}/300</p>
                   </div>
                 </section>
 
@@ -453,7 +558,7 @@ const Register = () => {
                       ))}
                     </div>
                   )}
-                  <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))] font-mono">
+                  <p className={`text-[11px] font-mono transition-colors ${hasValidInterests ? "text-[hsl(var(--peerly-secondary-dark))]" : "text-[color:hsl(var(--peerly-text-secondary))]"}`}>
                     {selectedInterests.length}/5 máximo (mínimo 3)
                   </p>
                 </section>
@@ -473,35 +578,47 @@ const Register = () => {
                         key={block.id}
                         className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background/80 px-3 py-2"
                       >
-                        <select
+                        <Select
                           value={block.day}
-                          onChange={(e) => updateAvailabilityBlock(block.id!, "day", e.target.value)}
-                          className="flex-1 min-w-[4rem] rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                          onValueChange={(val) => updateAvailabilityBlock(block.id!, "day", val)}
                         >
-                          {DAY_LABELS.map((d) => (
-                            <option key={d} value={d}>{d}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="flex-1 min-w-[4.5rem] h-9 rounded-xl bg-background border-border text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DAY_LABELS.map((d) => (
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <span className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">de</span>
-                        <select
+                        <Select
                           value={block.start}
-                          onChange={(e) => updateAvailabilityBlock(block.id!, "start", e.target.value)}
-                          className="flex-1 min-w-[4.5rem] rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                          onValueChange={(val) => updateAvailabilityBlock(block.id!, "start", val)}
                         >
-                          {TIME_OPTIONS.map((t) => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="flex-1 min-w-[5rem] h-9 rounded-xl bg-background border-border text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-52">
+                            {TIME_OPTIONS.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <span className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">a</span>
-                        <select
+                        <Select
                           value={block.end}
-                          onChange={(e) => updateAvailabilityBlock(block.id!, "end", e.target.value)}
-                          className="flex-1 min-w-[4.5rem] rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                          onValueChange={(val) => updateAvailabilityBlock(block.id!, "end", val)}
                         >
-                          {TIME_OPTIONS.map((t) => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="flex-1 min-w-[5rem] h-9 rounded-xl bg-background border-border text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-52">
+                            {TIME_OPTIONS.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <button
                           type="button"
                           onClick={() => removeAvailabilityBlock(block.id!)}
