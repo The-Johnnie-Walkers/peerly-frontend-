@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Mail, Lock, BookOpen, UserPlus, Clock, Plus, Trash2, Loader2, ChevronLeft } from "lucide-react";
+import { User, Mail, Lock, BookOpen, Heart, Clock, Plus, Trash2, Loader2, ChevronLeft, Eye, EyeOff, Camera, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -22,11 +22,30 @@ const careers = [
   { label: "Ingeniería Civil", value: "CIVIL_ENGINEERING" },
   { label: "Ingeniería Mecánica", value: "MECHANICAL_ENGINEERING" },
   { label: "Ingeniería Eléctrica", value: "ELECTRICAL_ENGINEERING" },
-  { label: "Ingeniería de Sistemas", value: "AI_ENGINEERING" },
+  { label: "Ingeniería en Inteligencia Artificial", value: "AI_ENGINEERING" },
   { label: "Administración de Empresas", value: "ENTERPRISE_ADMINISTRATION" },
   { label: "Economía", value: "ECONOMY" },
   { label: "Matemáticas", value: "MATHEMATICS" },
 ];
+
+const getPasswordStrength = (pwd: string): { level: number; label: string; colorClass: string } => {
+  if (!pwd) return { level: 0, label: "", colorClass: "" };
+  let score = 0;
+  if (pwd.length >= 6) score++;
+  if (pwd.length >= 10) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  const level = Math.min(4, score);
+  const configs = [
+    { label: "", colorClass: "" },
+    { label: "Muy débil", colorClass: "bg-destructive" },
+    { label: "Débil", colorClass: "bg-orange-400" },
+    { label: "Media", colorClass: "bg-yellow-400" },
+    { label: "Fuerte", colorClass: "bg-[hsl(var(--peerly-secondary))]" },
+  ];
+  return { level, ...configs[level] };
+};
 
 const semesters = Array.from({ length: 10 }, (_, i) => `${i + 1}`);
 
@@ -53,6 +72,9 @@ const Register = () => {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [profilePicURL, setProfilePicURL] = useState("");
+  const [profilePicError, setProfilePicError] = useState(false);
   const [career, setCareer] = useState("");
   const [semester, setSemester] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -74,6 +96,8 @@ const Register = () => {
   const emailIsValid = email.length === 0 || isInstitutionalEmail(email);
   const hasValidInterests = selectedInterests.length >= 3 && selectedInterests.length <= 5;
   const hasAtLeastOneBlock = availabilityBlocks.length > 0;
+  const hasProfilePic = profilePicURL.trim().length > 0 && !profilePicError;
+  const passwordStrength = getPasswordStrength(password);
   const canSubmit =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
@@ -83,7 +107,8 @@ const Register = () => {
     semester &&
     hasValidInterests &&
     hasAtLeastOneBlock &&
-    acceptedRules;
+    acceptedRules &&
+    hasProfilePic;
 
   const toggleInterest = (id: string) => {
     setSelectedInterests((prev) =>
@@ -150,7 +175,7 @@ const Register = () => {
       localStorage.setItem('user_name', firstName);
       localStorage.setItem('user_email', email);
 
-      // Paso 3: asignar intereses e info completa via PUT
+      // Paso 3: asignar intereses, foto e info completa via PUT
       try {
         await userApi.request(`users/${userResponse.id}`, {
           method: 'PUT',
@@ -167,6 +192,7 @@ const Register = () => {
             programs: [career],
             role: 'USER',
             description: '',
+            profilePicURL: profilePicURL.trim() || undefined,
             interests: selectedInterests.map(id => ({ id })),
           },
         });
@@ -220,6 +246,58 @@ const Register = () => {
                     <User className="w-4 h-4 text-[color:hsl(var(--peerly-primary))]" />
                     Datos básicos
                   </h3>
+
+                  {/* Foto de perfil — obligatoria */}
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-2xl bg-accent/40 border border-border">
+                    <div className="flex-shrink-0">
+                      {profilePicURL && !profilePicError ? (
+                        <img
+                          src={profilePicURL}
+                          alt="Preview foto de perfil"
+                          className="w-20 h-20 rounded-full object-cover border-4 border-[hsl(var(--peerly-primary))]/25 shadow-sm"
+                          onError={() => setProfilePicError(true)}
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full bg-background border-2 border-dashed border-[hsl(var(--peerly-primary))] flex flex-col items-center justify-center gap-1 text-[hsl(var(--peerly-primary))]">
+                          <Camera className="w-6 h-6" />
+                          <span className="text-[9px] font-mono font-bold uppercase leading-none">Foto</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 w-full space-y-2">
+                      <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-[hsl(var(--peerly-primary))]" />
+                        Foto de perfil
+                        <span className="text-destructive ml-0.5" aria-hidden="true">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="url"
+                          value={profilePicURL}
+                          onChange={(e) => { setProfilePicURL(e.target.value); setProfilePicError(false); }}
+                          placeholder="https://ejemplo.com/mi-foto.jpg"
+                          className={`h-10 rounded-2xl bg-background/80 border-border text-sm flex-1 ${profilePicError ? "border-destructive" : ""}`}
+                          aria-describedby="pic-hint"
+                        />
+                        {profilePicURL && (
+                          <button
+                            type="button"
+                            onClick={() => { setProfilePicURL(""); setProfilePicError(false); }}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            aria-label="Limpiar URL de foto"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <p id="pic-hint" className={`text-[11px] ${profilePicError ? "text-destructive" : "text-[color:hsl(var(--peerly-text-secondary))]"}`}>
+                        {profilePicError
+                          ? "La URL no es una imagen válida. Verifica el enlace."
+                          : "Pega la URL de una foto tuya. Necesaria para que tus compañeros te reconozcan."}
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-[color:hsl(var(--peerly-text-secondary))]">
@@ -253,8 +331,7 @@ const Register = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="tu.correo@universidad.edu"
-                        className={`h-11 rounded-2xl bg-background/80 border-border text-sm ${email && !emailIsValid ? "border-destructive" : ""
-                          }`}
+                        className={`h-11 rounded-2xl bg-background/80 border-border text-sm ${email && !emailIsValid ? "border-destructive" : ""}`}
                       />
                       {email && !emailIsValid && (
                         <p className="text-[11px] text-destructive">
@@ -262,7 +339,7 @@ const Register = () => {
                         </p>
                       )}
                       {!email && (
-                        <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))]">
+                        <p className="text-[11px] text-[color:hsl(var(--peerly-text-secondary))]  p-2">
                           Solo aceptamos correos verificados para mantener la comunidad segura.
                         </p>
                       )}
@@ -272,13 +349,36 @@ const Register = () => {
                         <Lock className="w-3.5 h-3.5 text-muted-foreground" />
                         Contraseña
                       </label>
-                      <Input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
-                        className="h-11 rounded-2xl bg-background/80 border-border text-sm"
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Mínimo 6 caracteres"
+                          className="h-11 rounded-2xl bg-background/80 border-border text-sm pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {password && (
+                        <div className="space-y-1 p-2">
+                          <div className="flex gap-1" role="meter" aria-label={`Fortaleza: ${passwordStrength.label}`}>
+                            {[1, 2, 3, 4].map((bar) => (
+                              <div
+                                key={bar}
+                                className={`h-1 flex-1 rounded-full transition-all duration-300 ${passwordStrength.level >= bar ? passwordStrength.colorClass : "bg-border"}`}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground " >{passwordStrength.label}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>
@@ -330,7 +430,7 @@ const Register = () => {
                 {/* Intereses */}
                 <section className="space-y-3">
                   <h3 className="text-xs font-mono font-bold tracking-widest uppercase text-[color:hsl(var(--peerly-text-secondary))] flex items-center gap-2">
-                    <UserPlus className="w-4 h-4 text-[color:hsl(var(--peerly-primary))]" />
+                    <Heart className="w-4 h-4 text-[color:hsl(var(--peerly-primary))]" />
                     Intereses comunes
                   </h3>
                   <p className="text-[12px] text-[color:hsl(var(--peerly-text-secondary))]">
@@ -458,8 +558,18 @@ const Register = () => {
                       : "bg-border text-muted-foreground cursor-not-allowed shadow-none"
                       }`}
                   >
-                    {isLoading ? "Creando cuenta..." : "Crear cuenta"}
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creando cuenta...
+                      </span>
+                    ) : "Crear cuenta"}
                   </Button>
+                  {!canSubmit && !isLoading && (firstName || lastName || email || password) && (
+                    <p className="text-[11px] text-center text-muted-foreground">
+                      Completa todos los campos requeridos: foto de perfil, datos básicos, carrera, intereses (mín. 3) y al menos una franja horaria.
+                    </p>
+                  )}
                   <p className="text-[12px] text-center text-[color:hsl(var(--peerly-text-secondary))]">
                     ¿Ya tienes cuenta?{" "}
                     <Link
