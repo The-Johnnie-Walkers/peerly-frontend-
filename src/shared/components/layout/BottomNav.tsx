@@ -28,7 +28,7 @@ export const BottomNav = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 shadow-[0_-2px_16px_rgba(0,0,0,0.06)] z-40 pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 w-full bg-card border-t border-border shadow-[0_-2px_16px_rgba(0,0,0,0.06)] z-40 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16 px-2 max-w-screen-xl mx-auto">
 
         {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
@@ -42,10 +42,10 @@ export const BottomNav = () => {
               className={itemClass}
               aria-label={label}
             >
-              <span className={`${iconClass} ${isActive ? 'bg-primary/10 text-primary' : 'text-gray-400'}`}>
+              <span className={`${iconClass} ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
                 <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} />
               </span>
-              <span className={`${labelClass} ${isActive ? 'text-primary' : 'text-gray-400'}`}>
+              <span className={`${labelClass} ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
                 {label}
               </span>
             </motion.button>
@@ -59,10 +59,10 @@ export const BottomNav = () => {
             onClick={() => navigate('/admin-reports')}
             className={itemClass}
           >
-            <span className={`${iconClass} ${location.pathname === '/admin-reports' ? 'bg-destructive/10 text-destructive' : 'text-gray-400'}`}>
+            <span className={`${iconClass} ${location.pathname === '/admin-reports' ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground'}`}>
               <ShieldAlert size={20} strokeWidth={location.pathname === '/admin-reports' ? 2.25 : 1.75} />
             </span>
-            <span className={`${labelClass} ${location.pathname === '/admin-reports' ? 'text-destructive' : 'text-gray-400'}`}>
+            <span className={`${labelClass} ${location.pathname === '/admin-reports' ? 'text-destructive' : 'text-muted-foreground'}`}>
               Reportes
             </span>
           </motion.button>
@@ -75,10 +75,10 @@ export const BottomNav = () => {
           className={itemClass}
           aria-label="Cerrar sesión"
         >
-          <span className={`${iconClass} text-gray-400 hover:text-red-500`}>
+          <span className={`${iconClass} text-muted-foreground hover:text-destructive`}>
             <LogOut size={20} strokeWidth={1.75} />
           </span>
-          <span className={`${labelClass} text-gray-400`}>Salir</span>
+          <span className={`${labelClass} text-muted-foreground`}>Salir</span>
         </motion.button>
 
       </div>

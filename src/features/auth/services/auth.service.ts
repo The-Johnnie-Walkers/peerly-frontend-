@@ -129,5 +129,12 @@ export const authService = {
       method: 'POST',
       body: { token: token, newPassword: newPasswordTrim },
     });
-  }
+  },
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    await authApi.requestVoid(`${AUTH_API_BASE}/change-password`, {
+      method: 'POST',
+      body: { userId, currentPassword: currentPassword.trim(), newPassword: newPassword.trim() },
+    });
+  },
 };

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Loader2, UserCheck, UserX, Flag } from 'lucide-react';
+import { ArrowLeft, Edit3, Loader2, UserCheck, UserX, Clock, BookOpen, Heart, AlignLeft, MessageCircle } from 'lucide-react';
 import { userService } from '@/features/users/services/user.service';
 import { activityService } from '@/features/activities/services/activity.service';
 import type { BackendInterest } from '@/features/users/services/interest.service';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
+import { PeerlyChip } from '@/shared/components/PeerlyChip';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { connectionsService } from '@/features/connections/services/connections.service';
 import { ConnectionStatus } from '@/features/connections/types';
@@ -13,7 +14,6 @@ import { useCreateConnection, useUpdateConnection } from '@/features/connections
 import { ReportButton } from '@/features/reports/components/ReportButton';
 import { translateProgram } from '@/shared/utils/programTranslations';
 
-// Tipo local del perfil mostrado en pantalla
 type ProfileStudent = {
   id: string;
   name: string;
@@ -21,51 +21,38 @@ type ProfileStudent = {
   career: string;
   semester: number;
   interests: BackendInterest[];
-  compatibility: number;
   bio: string;
   availability: { day: string; start: string; end: string }[];
   isOnline: boolean;
 };
 
-// Traduce nombres de días del backend (inglés) a abreviaturas en español
 const DAY_TRANSLATIONS: Record<string, string> = {
-  MONDAY: 'Lun',
-  TUESDAY: 'Mar',
-  WEDNESDAY: 'Miér',
-  THURSDAY: 'Jue',
-  FRIDAY: 'Vie',
-  SATURDAY: 'Sáb',
-  SUNDAY: 'Dom',
+  MONDAY: 'Lun', TUESDAY: 'Mar', WEDNESDAY: 'Miér',
+  THURSDAY: 'Jue', FRIDAY: 'Vie', SATURDAY: 'Sáb', SUNDAY: 'Dom',
 };
+const translateDay = (day: string) => DAY_TRANSLATIONS[day?.toUpperCase()] ?? day;
 
-const translateDay = (day: string): string =>
-  DAY_TRANSLATIONS[day?.toUpperCase()] ?? day;
-
-// Parsea un tiempo que puede venir como:
-// - "HH:mm:ss"          → substring(0,5)
-// - "HH:mm"             → substring(0,5)
-// - "1970-01-01T08:00:00.000Z" (ISO UTC) → extrae la hora UTC
-// - "2024-01-01T08:00:00" (ISO sin Z)   → extrae la hora local
 const parseTime = (raw: string | undefined): string => {
   if (!raw) return '--:--';
   if (raw.includes('T')) {
-    // ISO con timezone Z → parsear como UTC para no tener desfase
     if (raw.endsWith('Z') || raw.includes('+')) {
       const d = new Date(raw);
-      if (!isNaN(d.getTime())) {
-        const hh = String(d.getUTCHours()).padStart(2, '0');
-        const mm = String(d.getUTCMinutes()).padStart(2, '0');
-        return `${hh}:${mm}`;
-      }
+      if (!isNaN(d.getTime()))
+        return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
     }
-    // ISO sin timezone → tomar substring
     return raw.substring(11, 16);
   }
-  // "HH:mm:ss" o "HH:mm"
   return raw.substring(0, 5);
 };
 
-
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: (delay: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' as const, delay },
+  }),
+};
 
 const ProfileScreen = () => {
   const { id } = useParams();
@@ -86,29 +73,18 @@ const ProfileScreen = () => {
   const createConnection = useCreateConnection();
   const updateConnection = useUpdateConnection();
   const isOwnProfile = !id || id === currentAuthUser?.id;
-  console.log("[ProfileScreen] Render State:", { 
-    urlParamId: id, 
-    contextUserId: currentAuthUser?.id, 
-    isContextLoading, 
-    isOwnProfile 
-  });
 
-  // Cargar perfil
   useEffect(() => {
     if (!id && isContextLoading) return;
-
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
         const userId = id || currentAuthUser?.id || localStorage.getItem('user_id');
         if (!userId) { setIsLoading(false); return; }
-
         const data = await userService.getUserById(userId);
         if (data) {
           const fullName = data.lastname && data.lastname !== data.name && data.lastname !== data.username
-            ? `${data.name} ${data.lastname}`
-            : data.name;
-
+            ? `${data.name} ${data.lastname}` : data.name;
           setStudent({
             id: data.id,
             name: fullName,
@@ -122,30 +98,18 @@ const ProfileScreen = () => {
               start: parseTime(f.startsAt),
               end: parseTime(f.endsAt),
             })) || [],
-            compatibility: isOwnProfile ? 100 : 0, // se actualiza abajo
             isOnline: data.isOnline ?? false,
           });
-
-          // Calcular compatibilidad real desde el backend (solo para perfiles ajenos)
-          if (!isOwnProfile && currentAuthUser?.id) {
-            try {
-              const score = await userService.getCompatibility(currentAuthUser.id, data.id);
-              setCompatibilityScore(score);
-            } catch {
-              setCompatibilityScore(null);
-            }
-          }        }
+        }
       } catch (error) {
         console.error('[ProfileScreen] Error fetching profile:', error);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchProfile();
   }, [id, currentAuthUser?.id, isContextLoading, isOwnProfile]);
 
-  // Calcular compatibilidad — useEffect separado para evitar race condition
   useEffect(() => {
     if (isOwnProfile || !id || !currentAuthUser?.id) return;
     userService.getCompatibility(currentAuthUser.id, id)
@@ -153,41 +117,26 @@ const ProfileScreen = () => {
       .catch(() => setCompatibilityScore(null));
   }, [id, currentAuthUser?.id, isOwnProfile]);
 
-  // Cargar stats del perfil (conexiones y actividades)
   useEffect(() => {
     const profileUserId = id || currentAuthUser?.id;
     if (!profileUserId) return;
-
-    // Conexiones aceptadas
     connectionsService.findAll(profileUserId, ConnectionStatus.ACCEPTED)
       .then(conns => setConnectionCount(conns.length))
       .catch(() => setConnectionCount(0));
-
-    // Actividades en las que ha participado
     activityService.getJoinedActivityIdsByUserId(profileUserId)
       .then(ids => setActivityCount(ids.length))
       .catch(() => setActivityCount(0));
   }, [id, currentAuthUser?.id]);
 
-  // Verificar conexión — useEffect separado para evitar race condition con currentAuthUser
   useEffect(() => {
     if (isOwnProfile || !id || !currentAuthUser?.id || fromRequest) return;
-
-    const checkConnection = async () => {
-      try {
-        const connections = await connectionsService.findAll(currentAuthUser.id);
-        const match = connections.find(c => c.requesterId === id || c.receiverId === id);
-        if (match) {
-          setIsConnected(match.status === ConnectionStatus.ACCEPTED);
-          setIsPendingConnection(match.status === ConnectionStatus.PENDING);
-        }
-      } catch {
-        setIsConnected(false);
-        setIsPendingConnection(false);
+    connectionsService.findAll(currentAuthUser.id).then(connections => {
+      const match = connections.find(c => c.requesterId === id || c.receiverId === id);
+      if (match) {
+        setIsConnected(match.status === ConnectionStatus.ACCEPTED);
+        setIsPendingConnection(match.status === ConnectionStatus.PENDING);
       }
-    };
-
-    checkConnection();
+    }).catch(() => { });
   }, [id, currentAuthUser?.id, isOwnProfile, fromRequest]);
 
   if (isContextLoading || isLoading) {
@@ -207,262 +156,306 @@ const ProfileScreen = () => {
     );
   }
 
-  // Intereses compartidos con el usuario autenticado (solo para perfiles ajenos)
   const myInterestIds = currentAuthUser?.interests?.map(i => i.id) || [];
   const sharedInterestIds = !isOwnProfile
     ? student.interests.filter(i => myInterestIds.includes(i.id)).map(i => i.id)
     : [];
 
+  const profileCompletion = (() => {
+    let score = 0;
+    if (student.photo && !student.photo.includes('ui-avatars')) score += 25;
+    if (student.bio.trim().length > 0) score += 25;
+    if (student.interests.length >= 3) score += 25;
+    if (student.availability.length > 0) score += 25;
+    return score;
+  })();
+
+  const stats = [
+    { value: connectionCount, label: 'Conexiones' },
+    { value: activityCount, label: 'Actividades' },
+    isOwnProfile
+      ? { value: `${profileCompletion}%`, label: 'Perfil' }
+      : { value: compatibilityScore !== null ? `${compatibilityScore}%` : null, label: 'Compat.' },
+  ];
+
+  const CTAButtons = ({ stacked = false }: { stacked?: boolean }) => (
+    <div className={`flex gap-3 ${stacked ? 'flex-col' : 'justify-center'}`}>
+      {isConnected && !isPendingConnection ? (
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => navigate('/chats')}
+          className="flex-1 h-12 rounded-2xl bg-primary text-primary-foreground font-display font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+        >
+          <MessageCircle size={17} /> Mensaje
+        </motion.button>
+      ) : isConnected && isPendingConnection ? (
+        <div className="flex-1 h-12 rounded-2xl bg-muted text-muted-foreground font-display font-bold flex items-center justify-center">
+          Solicitud enviada
+        </div>
+      ) : fromRequest && connectionId ? (
+        <>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={updateConnection.isPending}
+            onClick={() => {
+              if (!currentAuthUser?.id) return;
+              updateConnection.mutate(
+                { id: connectionId, data: { status: ConnectionStatus.ACCEPTED, actorId: currentAuthUser.id } },
+                { onSuccess: () => navigate('/social') },
+              );
+            }}
+            className="flex-1 h-12 rounded-2xl bg-primary text-primary-foreground font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {updateConnection.isPending ? <Loader2 size={17} className="animate-spin" /> : <><UserCheck size={17} /> Aceptar</>}
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={updateConnection.isPending}
+            onClick={() => {
+              if (!currentAuthUser?.id) return;
+              updateConnection.mutate(
+                { id: connectionId, data: { status: ConnectionStatus.REJECTED, actorId: currentAuthUser.id } },
+                { onSuccess: () => navigate('/social') },
+              );
+            }}
+            className="flex-1 h-12 rounded-2xl bg-card border-2 border-destructive text-destructive font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {updateConnection.isPending ? <Loader2 size={17} className="animate-spin" /> : <><UserX size={17} /> Rechazar</>}
+          </motion.button>
+        </>
+      ) : fromConnect ? (
+        <>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            disabled={connectionSent || isPendingConnection || createConnection.isPending}
+            onClick={() => {
+              if (!currentAuthUser?.id || !id) return;
+              createConnection.mutate(
+                { requesterId: currentAuthUser.id, receiverId: id },
+                { onSuccess: () => setConnectionSent(true) },
+              );
+            }}
+            className="flex-1 h-12 rounded-2xl bg-primary text-primary-foreground font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {createConnection.isPending ? <Loader2 size={17} className="animate-spin" />
+              : connectionSent || isPendingConnection ? 'Solicitud enviada' : 'Conectar'}
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.97 }} className="flex-1 h-12 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold flex items-center justify-center hover:bg-primary/5 transition-colors">
+            Proponer plan
+          </motion.button>
+        </>
+      ) : (
+        <>
+          <motion.button
+            whileTap={isPendingConnection ? {} : { scale: 0.97 }}
+            disabled={isPendingConnection}
+            onClick={() => !isPendingConnection && navigate('/chats')}
+            className={`flex-1 h-12 rounded-2xl font-display font-bold flex items-center justify-center gap-2 ${isPendingConnection
+                ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                : 'bg-primary text-primary-foreground hover:opacity-90 transition-opacity'
+              }`}
+          >
+            {isPendingConnection ? 'Solicitud enviada' : <><MessageCircle size={17} /> Mensaje</>}
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.97 }} className="flex-1 h-12 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold flex items-center justify-center hover:bg-primary/5 transition-colors">
+            Proponer plan
+          </motion.button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-svh flex flex-col bg-background">
-      {/* Centered column on desktop, full width on mobile */}
-      <div className="flex-1 flex flex-col w-full max-w-2xl mx-auto">
-        {/* Header — solo muestra botón volver en perfiles ajenos */}
-        <header className="flex-shrink-0 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-2">
-            {!isOwnProfile && student && (
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => navigate(-1)}
-                className="p-2.5 bg-card/80 backdrop-blur rounded-xl"
-              >
-                <ArrowLeft size={18} />
-              </motion.button>
-            )}
-          </div>
-          {!isOwnProfile && student && (
-            <ReportButton
-              userId={student.id}
-              userName={student.name}
-              userPhoto={student.photo}
-            />
+      <div className="flex-1 flex flex-col w-full mx-auto relative">
+
+        {/* Topbar sobre el cover */}
+        <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-8 py-8">
+          {!isOwnProfile ? (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate(-1)}
+              className="p-2.5 bg-black/25 backdrop-blur-sm text-white rounded-xl"
+              aria-label="Volver"
+            >
+              <ArrowLeft size={18} />
+            </motion.button>
+          ) : <div />}
+          {isOwnProfile ? (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate('/profile/edit')}
+              className="p-2.5 bg-black/25 backdrop-blur-sm text-white rounded-xl hover:bg-black/40 transition-colors flex items-center justify-center"
+              aria-label="Editar perfil"
+            >
+              <Edit3 size={18} />
+            </motion.button>
+          ) : (
+            <ReportButton userId={student.id} userName={student.name} userPhoto={student.photo} />
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto pb-24 px-4 sm:px-6">
-          {/* Cover + Avatar — no overflow-hidden so avatar is not clipped */}
-          <div className="relative rounded-t-2xl md:rounded-2xl md:mx-0">
-            <div className="h-44 md:h-52 bg-gradient-to-br from-primary to-secondary rounded-t-2xl md:rounded-2xl" />
-            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
-              <div className="relative">
-                <SafeRemoteImage
-                  src={student.photo}
-                  alt={student.name}
-                  className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover border-4 border-background shadow-elevated"
-                />
+        <div className={`flex-1 overflow-y-auto md:pb-10 ${isOwnProfile ? 'pb-6' : 'pb-28'}`}>
+
+          {/* Cover + avatar centrado */}
+          <div className="relative">
+            <div className="h-44 md:h-28 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--peerly-primary))] via-[hsl(var(--peerly-primary-dark))] to-[hsl(var(--peerly-secondary))]" />
+              <div
+                className="absolute inset-0 opacity-25"
+                style={{
+                  backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                }}
+              />
+            </div>
+            {/* Avatar siempre centrado */}
+            <div className="absolute -bottom-14 left-1/2 -translate-x-1/2">
+              <motion.div
+                initial={{ scale: 0.75, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                className="relative"
+              >
+                <div className="rounded-full p-1 bg-background shadow-elevated items-center justify-center flex">
+                  <SafeRemoteImage
+                    src={student.photo}
+                    alt={student.name}
+                    className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover"
+                  />
+                </div>
                 {student.isOnline && (
-                  <div className="absolute bottom-1 right-1 w-4 h-4 bg-success rounded-full border-2 border-background" />
+                  <span className="absolute bottom-2 right-2 h-4 w-4 rounded-full bg-[hsl(var(--peerly-secondary))] border-2 border-background" />
                 )}
-              </div>
+              </motion.div>
             </div>
           </div>
 
-          <div className="pt-16 px-0 md:px-4 text-center">
-            <h1 className="text-2xl md:text-3xl font-display font-extrabold">{student.name}</h1>
-            <p className="text-sm md:text-base text-muted-foreground mb-1">{student.career} · {student.semester}° semestre</p>
+          {/* Nombre e info — centrado */}
+          <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0.12} className="pt-20 px-4 text-center">
+            <h1 className="font-display text-2xl md:text-3xl font-extrabold text-foreground leading-tight">
+              {student.name}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 flex items-center justify-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              {student.career} · {student.semester}° semestre
+            </p>
+          </motion.div>
 
-            {isOwnProfile && (
-              <div className="flex items-center justify-center gap-6 md:gap-8 my-4">
-                <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">
-                    {connectionCount ?? <Loader2 size={16} className="animate-spin inline" />}
-                  </p>
-                  <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Conexiones</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">
-                    {activityCount ?? <Loader2 size={16} className="animate-spin inline" />}
-                  </p>
-                  <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Actividades</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="font-display font-extrabold text-lg md:text-xl">100%</p>
-                  <p className="text-[10px] md:text-xs font-mono text-muted-foreground">Perfil</p>
-                </div>
-              </div>
-            )}
-
-            {!isOwnProfile && (
-              <div className="flex items-center justify-center gap-2 my-3">
-                <div className="bg-success/10 px-3 py-1 rounded-full">
-                  <span className="text-xs font-mono font-bold text-success">
-                    {compatibilityScore !== null ? `${compatibilityScore}% Compatible` : 'Calculando...'}
+          {/* Stats — fila simétrica de 3 */}
+          <div className="px-4 mt-5">
+            <div className="grid grid-cols-3 gap-3">
+              {stats.map(({ value, label }, i) => (
+                <motion.div
+                  key={label}
+                  variants={fadeUp}
+                  initial="hidden"
+                  animate="show"
+                  custom={0.21 + i * 0.07}
+                  className="rounded-2xl bg-card border border-border/60 shadow-sm py-4 flex flex-col items-center gap-1"
+                >
+                  <span className="font-display font-extrabold text-xl text-foreground">
+                    {value !== null && value !== undefined
+                      ? value
+                      : <Loader2 size={16} className="animate-spin text-muted-foreground" />}
                   </span>
-                </div>
-              </div>
-            )}
-
-            <p className="text-foreground/80 text-sm md:text-base mb-6 leading-relaxed max-w-xl mx-auto">{student.bio || 'Sin descripción aún.'}</p>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wide">{label}</span>
+                </motion.div>
+              ))}
+            </div>
           </div>
 
-          {/* Interests */}
-          <div className="mb-6 px-0 md:px-4">
-            <h3 className="font-display font-bold text-sm md:text-base mb-3">
-              {isOwnProfile ? 'Tus intereses' : 'Intereses'}
-            </h3>
-            {student.interests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {isOwnProfile ? 'Aún no has añadido intereses. ¡Edita tu perfil!' : 'Sin intereses definidos.'}
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {student.interests.map(interest => {
-                  const isShared = sharedInterestIds.includes(interest.id);
-                  return (
-                    <span
-                      key={interest.id}
-                      className={`px-3 py-1.5 rounded-full text-xs md:text-sm font-medium border ${
-                        isShared
-                          ? 'bg-primary/10 border-primary/30 text-primary font-bold'
-                          : 'bg-accent border-border text-accent-foreground'
-                      }`}
-                    >
-                      {isShared && '✨ '}{interest.name}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Secciones — una columna en mobile, dos iguales en desktop */}
+          <div className="px-4 mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          {/* Availability — bloques/franjas */}
-          <div className="mb-6 px-0 md:px-4">
-            <h3 className="font-display font-bold text-sm md:text-base mb-3">Disponibilidad</h3>
-            {student.availability.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin franjas definidas.</p>
-            ) : (
-              <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
-                {student.availability.map((block, i) => (
-                  <li
-                    key={i}
-                    className="px-3 py-2 rounded-xl bg-primary/10 border border-primary/20 text-sm font-mono font-medium text-foreground"
-                  >
-                    {block.day} {block.start}–{block.end}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* CTA — in flow, at bottom of page (not fixed) */}
-          <div className="pt-4 pb-12 md:px-0">
-            {isOwnProfile ? (
-              <motion.button
-                whileTap={{ scale: 0.96 }}
-                onClick={() => navigate('/profile/edit')}
-                className="w-full p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Edit3 size={18} /> Editar perfil
-              </motion.button>
-            ) : (
-              <div className="flex gap-3">
-                {isConnected && !isPendingConnection ? (
-                  // Conexión ACCEPTED: solo Proponer plan
-                  <motion.button
-                    whileTap={{ scale: 0.96 }}
-                    className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
-                  >
-                    Proponer plan
-                  </motion.button>
-                ) : isConnected && isPendingConnection ? (
-                  // Conexión PENDING: solicitud ya enviada, no se puede hacer nada más
-                  <motion.button
-                    disabled
-                    className="flex-1 p-4 rounded-2xl bg-muted text-muted-foreground font-display font-bold cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    ¡Solicitud enviada! 🎉
-                  </motion.button>
-                ) : fromRequest && connectionId ? (
-                  // Viene de /social solicitudes: Aceptar y Rechazar
-                  <>
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      disabled={updateConnection.isPending}
-                      onClick={() => {
-                        if (!currentAuthUser?.id) return;
-                        updateConnection.mutate(
-                          { id: connectionId, data: { status: ConnectionStatus.ACCEPTED, actorId: currentAuthUser.id } },
-                          { onSuccess: () => navigate('/social') },
-                        );
-                      }}
-                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
-                    >
-                      {updateConnection.isPending ? <Loader2 size={18} className="animate-spin" /> : <><UserCheck size={18} /> Aceptar</>}
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      disabled={updateConnection.isPending}
-                      onClick={() => {
-                        if (!currentAuthUser?.id) return;
-                        updateConnection.mutate(
-                          { id: connectionId, data: { status: ConnectionStatus.REJECTED, actorId: currentAuthUser.id } },
-                          { onSuccess: () => navigate('/social') },
-                        );
-                      }}
-                      className="flex-1 p-4 rounded-2xl bg-card border-2 border-destructive text-destructive font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
-                    >
-                      {updateConnection.isPending ? <Loader2 size={18} className="animate-spin" /> : <><UserX size={18} /> Rechazar</>}
-                    </motion.button>
-                  </>
-                ) : fromConnect ? (
-                  // Viene de /connect o /communities: Conectar funcional + Proponer plan
-                  <>
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      disabled={connectionSent || isPendingConnection || createConnection.isPending}
-                      onClick={() => {
-                        if (!currentAuthUser?.id || !id) return;
-                        createConnection.mutate(
-                          { requesterId: currentAuthUser.id, receiverId: id },
-                          { onSuccess: () => setConnectionSent(true) },
-                        );
-                      }}
-                      className="flex-1 p-4 rounded-2xl bg-primary text-primary-foreground font-display font-bold disabled:opacity-60 flex items-center justify-center gap-2"
-                    >
-                      {createConnection.isPending ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : connectionSent || isPendingConnection ? (
-                        '¡Solicitud enviada! 🎉'
-                      ) : (
-                        'Conectar 🤝'
-                      )}
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
-                    >
-                      Proponer plan
-                    </motion.button>
-                  </>
+            {/* Columna izquierda: bio + intereses */}
+            <div className="space-y-4">
+              <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0.38} className="rounded-2xl bg-card border border-border/60 shadow-sm p-5">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 mb-3">
+                  <AlignLeft className="w-3.5 h-3.5 text-primary" />
+                  Sobre mí
+                </h3>
+                {student.bio.trim() ? (
+                  <p className="text-sm text-foreground leading-relaxed">{student.bio}</p>
                 ) : (
-                  // Vista normal: si hay solicitud pendiente mostrar estado, sino botón conectar
-                  <>
-                    <motion.button
-                      whileTap={isPendingConnection ? {} : { scale: 0.96 }}
-                      disabled={isPendingConnection}
-                      onClick={() => !isPendingConnection && navigate('/chats')}
-                      className={`flex-1 p-4 rounded-2xl font-display font-bold ${
-                        isPendingConnection
-                          ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                          : 'bg-primary text-primary-foreground'
-                      }`}
-                    >
-                      {isPendingConnection ? '¡Solicitud enviada! 🎉' : 'Conectar 🤝'}
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
-                      className="flex-1 p-4 rounded-2xl bg-card border-2 border-primary text-primary font-display font-bold"
-                    >
-                      Proponer plan
-                    </motion.button>
-                  </>
+                  <p className="text-sm text-muted-foreground italic">
+                    {isOwnProfile ? 'Aún no has escrito una descripción. ¡Edita tu perfil!' : 'Sin descripción aún.'}
+                  </p>
                 )}
-              </div>
-            )}
+              </motion.div>
+
+              <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0.45} className="rounded-2xl bg-card border border-border/60 shadow-sm p-5">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 mb-3">
+                  <Heart className="w-3.5 h-3.5 text-primary" />
+                  {isOwnProfile ? 'Tus intereses' : 'Intereses'}
+                  {!isOwnProfile && sharedInterestIds.length > 0 && (
+                    <span className="ml-auto text-[10px] font-mono text-primary normal-case tracking-normal">
+                      {sharedInterestIds.length} en común
+                    </span>
+                  )}
+                </h3>
+                {student.interests.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    {isOwnProfile ? 'Añade intereses desde Editar perfil.' : 'Sin intereses definidos.'}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {student.interests.map(interest => (
+                      <PeerlyChip
+                        key={interest.id}
+                        label={interest.name}
+                        active={!isOwnProfile && sharedInterestIds.includes(interest.id)}
+                        onClick={() => { }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            </div>
+
+            {/* Columna derecha: disponibilidad */}
+            <div className="space-y-2">
+              <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0.38} className="rounded-2xl bg-card border border-border/60 shadow-sm p-6">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 mb-3">
+                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  Disponibilidad
+                </h3>
+                {student.availability.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    {isOwnProfile ? 'Añade franjas desde Editar perfil.' : 'Sin franjas definidas.'}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {student.availability.map((block, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent border border-border text-xs font-mono font-medium text-foreground"
+                      >
+                        <span className="font-bold text-primary">{block.day}</span>
+                        {block.start}–{block.end}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            </div>
           </div>
         </div>
+
+        {/* CTA en desktop — solo perfiles ajenos */}
+        {!isOwnProfile && (
+          <div className="hidden md:block p-4">
+            <CTAButtons stacked={false} />
+          </div>
+        )}
+
+        {/* CTA fijo al fondo — solo mobile y perfiles ajenos */}
+        {!isOwnProfile && (
+          <div className="md:hidden flex-shrink-0 px-4 pb-6 pt-3 border-t border-border/60 bg-background/95 backdrop-blur-sm">
+            <CTAButtons stacked={false} />
+          </div>
+        )}
+
       </div>
     </div>
   );
