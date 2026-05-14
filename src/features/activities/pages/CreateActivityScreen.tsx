@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -8,8 +8,8 @@ import {
   Clock3,
   LoaderCircle,
   MapPin,
-  Search,
   Users,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -68,6 +68,15 @@ const formatSchedulePreview = (startsAt: Date | null, endsAt: Date | null) => {
   return `${formatter.format(startsAt)} - ${formatter.format(endsAt)}`;
 };
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: (delay: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' as const, delay },
+  }),
+};
+
 const CreateActivityScreen = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -77,6 +86,7 @@ const CreateActivityScreen = () => {
   const [selectedLocation, setSelectedLocation] = useState<ActivityLocationPayload | null>(null);
   const [locationResults, setLocationResults] = useState<ActivityLocationPayload[]>([]);
   const [locationSearched, setLocationSearched] = useState(false);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
 
   const today = formatDateInputValue(new Date());
   const startsAt = buildLocalDateTime(form.date, form.startTime);
@@ -105,24 +115,30 @@ const CreateActivityScreen = () => {
     hasValidCapacity &&
     form.locationQuery.trim().length > 0;
 
-  const searchLocationMutation = useMutation({
-    mutationFn: async () => {
-      const query = form.locationQuery.trim();
-      if (query.length < 3) {
-        throw new Error('Escribe al menos 3 caracteres para buscar el lugar.');
+  useEffect(() => {
+    const query = form.locationQuery.trim();
+    if (selectedLocation || query.length < 3) {
+      setIsSearchingLocation(false);
+      if (query.length === 0) {
+        setLocationResults([]);
+        setLocationSearched(false);
       }
-
-      return activityService.searchLocations(query);
-    },
-    onSuccess: (locations) => {
-      setLocationResults(locations);
-      setLocationSearched(true);
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : 'No fue posible buscar lugares.';
-      toast.error(message);
-    },
-  });
+      return;
+    }
+    setIsSearchingLocation(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await activityService.searchLocations(query);
+        setLocationResults(results);
+        setLocationSearched(true);
+      } catch {
+        toast.error('No fue posible buscar lugares.');
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form.locationQuery, selectedLocation]);
 
   const createActivityMutation = useMutation({
     mutationFn: async () => {
@@ -171,12 +187,10 @@ const CreateActivityScreen = () => {
     }
   };
 
-  const handleSearchLocation = () => {
-    void searchLocationMutation.mutateAsync();
-  };
-
   const handleSelectLocation = (location: ActivityLocationPayload) => {
     setSelectedLocation(location);
+    setLocationResults([]);
+    setLocationSearched(false);
     setForm((current) => ({
       ...current,
       locationQuery: location.displayName || location.address,
@@ -209,17 +223,22 @@ const CreateActivityScreen = () => {
     void createActivityMutation.mutateAsync();
   };
 
-  const locationStatus = selectedLocation ? 'Ubicacion seleccionada' : 'Ubicacion pendiente';
   const schedulePreview = formatSchedulePreview(startsAt, endsAt);
   const activitySummary = form.name.trim() || 'Tu actividad';
   const addressSummary = selectedLocation?.displayName || form.locationQuery.trim() || 'Lugar pendiente';
   const capacitySummary = hasValidCapacity ? `${totalPlaces} cupos` : 'Cupos pendientes';
 
   return (
-    <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+    <>
+    <div className="min-h-svh bg-background px-4 py-6 sm:px-5 sm:py-5 lg:px-6 lg:py-2">
       <div className="min-h-full rounded-[28px] bg-background md:rounded-[32px] md:shadow-elevated">
-        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 py-8 pb-24 sm:px-8 sm:py-9 lg:px-10 lg:py-10 xl:px-12">
-          <header className="rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.97),rgba(246,236,227,0.9))] px-6 py-7 shadow-card sm:px-8">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 py-8 pb-40 sm:px-8 sm:py-9 lg:px-10 lg:py-10 xl:px-12 xl:pb-24">
+          <motion.header
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: 'easeOut' }}
+            className="rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.97),rgba(246,236,227,0.9))] px-6 py-7 shadow-card sm:px-8"
+          >
             <div className="flex items-start gap-4">
               <motion.button
                 type="button"
@@ -243,11 +262,11 @@ const CreateActivityScreen = () => {
                 </p>
               </div>
             </div>
-          </header>
+          </motion.header>
 
-          <form onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <form id="create-activity-form" onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
             <div className="space-y-5">
-              <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+              <motion.section variants={fadeUp} initial="hidden" animate="show" custom={0.06} className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
                 <div className="mb-5">
                   <h2 className="font-display text-2xl font-bold text-foreground">Actividad</h2>
                   <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
@@ -287,10 +306,10 @@ const CreateActivityScreen = () => {
                     </div>
                   </div>
                 </div>
-              </section>
+              </motion.section>
 
               <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-                <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+                <motion.section variants={fadeUp} initial="hidden" animate="show" custom={0.13} className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
                   <div className="mb-4">
                     <h2 className="font-display text-2xl font-bold text-foreground">Cuando sera</h2>
                     <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
@@ -346,9 +365,9 @@ const CreateActivityScreen = () => {
                   <div className={`mt-4 rounded-[22px] border px-4 py-3 ${scheduleError ? 'border-destructive/20 bg-destructive/5' : 'border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30'}`}>
                     <p className="text-sm font-medium text-foreground">{scheduleError || schedulePreview}</p>
                   </div>
-                </section>
+                </motion.section>
 
-                <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+                <motion.section variants={fadeUp} initial="hidden" animate="show" custom={0.13} className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
                   <div className="mb-4">
                     <h2 className="font-display text-2xl font-bold text-foreground">Cupos</h2>
                     <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
@@ -381,115 +400,104 @@ const CreateActivityScreen = () => {
                       {hasValidCapacity ? 'Cupos listos para publicar' : 'Minimo 2 cupos'}
                     </p>
                   </div>
-                </section>
+                </motion.section>
               </div>
 
-              <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
+              <motion.section variants={fadeUp} initial="hidden" animate="show" custom={0.20} className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-card sm:p-6">
                 <div className="mb-4">
                   <h2 className="font-display text-2xl font-bold text-foreground">Donde sera</h2>
                   <p className="mt-1 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
-                    Escribe el nombre del lugar y elige una opcion real para guardar la ubicacion exacta.
+                    Escribe el nombre del lugar y selecciona una opcion de la lista.
                   </p>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-                    <div className="space-y-2">
-                      <Label htmlFor="activity-location" className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-primary" />
-                        Lugar o punto de encuentro
-                      </Label>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="activity-location" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      Lugar o punto de encuentro
+                    </Label>
+
+                    <div className="relative">
                       <Input
                         id="activity-location"
                         value={form.locationQuery}
                         onChange={(event) => updateField('locationQuery', event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            handleSearchLocation();
-                          }
-                        }}
+                        onKeyDown={(event) => { if (event.key === 'Escape') updateField('locationQuery', ''); }}
                         placeholder="Ej: Biblioteca Virgilio Barco"
+                        className="pr-9"
+                        autoComplete="off"
                         required
                       />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {isSearchingLocation ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : form.locationQuery ? (
+                          <button
+                            type="button"
+                            onClick={() => updateField('locationQuery', '')}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label="Limpiar búsqueda"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleSearchLocation}
-                      disabled={searchLocationMutation.isPending}
-                      className="mt-0 h-11 self-end rounded-full border-border/80 bg-white px-4 lg:mt-4"
-                    >
-                      {searchLocationMutation.isPending ? (
-                        <>
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          Buscando...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="h-4 w-4" />
-                          Buscar
-                        </>
-                      )}
-                    </Button>
+                    {locationResults.length > 0 && !selectedLocation && (
+                      <div className="overflow-hidden rounded-[20px] border border-border/70 bg-background shadow-sm">
+                        <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
+                          {locationResults.map((location) => (
+                            <button
+                              key={`${location.osmType}-${location.osmId}-${location.latitude}-${location.longitude}`}
+                              type="button"
+                              onClick={() => handleSelectLocation(location)}
+                              className="flex w-full items-start gap-3 rounded-[14px] px-3 py-2.5 text-left transition-colors hover:bg-accent"
+                            >
+                              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold leading-5 text-foreground">
+                                  {location.displayName}
+                                </span>
+                                <span className="mt-0.5 block truncate text-xs leading-5 text-muted-foreground">
+                                  {location.address}
+                                </span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!selectedLocation && form.locationQuery.trim().length > 0 && form.locationQuery.trim().length < 3 && (
+                      <p className="text-xs text-muted-foreground">Escribe al menos 3 caracteres para buscar.</p>
+                    )}
                   </div>
 
-                  <div className="rounded-[22px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-3">
-                    <p className="text-sm font-medium text-foreground">{locationStatus}</p>
-                    <p className="mt-1 text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
-                      {selectedLocation
-                        ? selectedLocation.displayName
-                        : 'Elige una opcion para completar coordenadas e identificadores OSM.'}
-                    </p>
-                  </div>
+                  {selectedLocation && (
+                    <div className="rounded-[22px] border border-primary/30 bg-primary/5 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                        <p className="truncate text-sm font-medium text-foreground">{selectedLocation.displayName}</p>
+                      </div>
+                      <p className="mt-1 truncate pl-6 text-xs text-muted-foreground">{selectedLocation.address}</p>
+                    </div>
+                  )}
 
-                  {locationSearched && locationResults.length === 0 && !searchLocationMutation.isPending ? (
+                  {locationSearched && locationResults.length === 0 && !isSearchingLocation && !selectedLocation && form.locationQuery.trim().length >= 3 && (
                     <div className="rounded-[22px] border border-border/70 bg-white/70 px-4 py-4 text-center">
                       <p className="text-sm font-medium text-foreground">Sin resultados</p>
-                      <p className="mt-1 text-xs text-[color:hsl(var(--peerly-text-secondary))]">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         Intenta con un nombre diferente o más específico.
                       </p>
                     </div>
-                  ) : locationResults.length > 0 ? (
-                    <div className="grid gap-3">
-                      {locationResults.map((location) => {
-                        const isSelected =
-                          selectedLocation?.osmId === location.osmId &&
-                          selectedLocation?.osmType === location.osmType;
-
-                        return (
-                          <button
-                            key={`${location.osmType}-${location.osmId}-${location.latitude}-${location.longitude}`}
-                            type="button"
-                            onClick={() => handleSelectLocation(location)}
-                            className={`flex min-h-[76px] w-full items-start gap-3 rounded-[20px] border px-4 py-3 text-left transition-colors ${
-                              isSelected
-                                ? 'border-primary/50 bg-primary/5'
-                                : 'border-border/70 bg-background/70 hover:border-primary/30 hover:bg-white'
-                            }`}
-                          >
-                            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-primary shadow-sm">
-                              {isSelected ? <CheckCircle2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block text-sm font-semibold leading-5 text-foreground">
-                                {location.displayName}
-                              </span>
-                              <span className="mt-1 block text-xs leading-5 text-[color:hsl(var(--peerly-text-secondary))]">
-                                {location.address}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
+                  )}
                 </div>
-              </section>
+              </motion.section>
             </div>
 
-            <aside className="xl:sticky xl:top-6 xl:self-start">
+            <motion.aside variants={fadeUp} initial="hidden" animate="show" custom={0.09} className="xl:sticky xl:top-6 xl:self-start">
               <div className="rounded-[28px] border border-white/70 bg-white/88 p-5 shadow-card sm:p-6">
                 <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
                   Resumen
@@ -537,11 +545,37 @@ const CreateActivityScreen = () => {
                   </p>
                 ) : null}
               </div>
-            </aside>
+            </motion.aside>
           </form>
         </div>
       </div>
     </div>
+
+    {/* Resumen + CTA fijo en móvil (< xl) */}
+    <div className="xl:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur-sm px-4 py-4">
+      <div className="flex items-center gap-4 mb-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-mono font-bold uppercase tracking-wide text-primary truncate">
+            {activitySummary !== 'Tu actividad' ? activitySummary : 'Nueva actividad'}
+          </p>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{schedulePreview}</p>
+        </div>
+        <span className="shrink-0 text-xs font-mono text-muted-foreground">{capacitySummary}</span>
+      </div>
+      <Button
+        type="submit"
+        form="create-activity-form"
+        disabled={!isFormComplete || createActivityMutation.isPending}
+        className="w-full h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90 disabled:bg-muted disabled:text-muted-foreground"
+      >
+        {createActivityMutation.isPending ? (
+          <><LoaderCircle className="h-4 w-4 animate-spin" />Publicando...</>
+        ) : (
+          'Publicar actividad'
+        )}
+      </Button>
+    </div>
+    </>
   );
 };
 

@@ -304,7 +304,7 @@ export default function EditProfileScreen() {
 
   return (
     <div className="min-h-svh flex flex-col bg-background">
-      <div className="flex-1 flex flex-col w-full px-4 sm:px-6 py-4 mx-auto ">
+      <div className="flex-1 flex flex-col w-full px-6 sm:px-8 lg:px-10 py-4 mx-auto">
 
         <motion.header
           initial={{ opacity: 0, y: -10 }}
@@ -676,7 +676,7 @@ export default function EditProfileScreen() {
         </div>
 
         {/* Barra de guardar — siempre visible */}
-        <div className="flex-shrink-0 px-4 pb-6 pt-3 border-t border-border/60 bg-background/95 backdrop-blur-sm">
+        <div className="flex-shrink-0 pb-6 pt-3 border-t border-border/60 bg-background/95 backdrop-blur-sm">
           <motion.button
             type="button"
             whileTap={canSave ? { scale: 0.98 } : {}}

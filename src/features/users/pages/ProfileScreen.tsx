@@ -267,7 +267,7 @@ const ProfileScreen = () => {
 
   return (
     <div className="min-h-svh flex flex-col bg-background">
-      <div className="flex-1 flex flex-col w-full mx-auto relative">
+      <div className="flex-1 flex flex-col w-full mx-auto relative max-w-[1440px]">
 
         {/* Topbar sobre el cover */}
         <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-8 py-8">
@@ -332,7 +332,7 @@ const ProfileScreen = () => {
           </div>
 
           {/* Nombre e info — centrado */}
-          <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0.12} className="pt-20 px-4 text-center">
+          <motion.div variants={fadeUp} initial="hidden" animate="show" custom={0.12} className="pt-20 px-6 sm:px-8 lg:px-10 text-center">
             <h1 className="font-display text-2xl md:text-3xl font-extrabold text-foreground leading-tight">
               {student.name}
             </h1>
@@ -343,7 +343,7 @@ const ProfileScreen = () => {
           </motion.div>
 
           {/* Stats — fila simétrica de 3 */}
-          <div className="px-4 mt-5">
+          <div className="px-6 sm:px-8 lg:px-10 mt-5">
             <div className="grid grid-cols-3 gap-3">
               {stats.map(({ value, label }, i) => (
                 <motion.div
@@ -366,7 +366,7 @@ const ProfileScreen = () => {
           </div>
 
           {/* Secciones — una columna en mobile, dos iguales en desktop */}
-          <div className="px-4 mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="px-6 sm:px-8 lg:px-10 mt-5 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
 
             {/* Columna izquierda: bio + intereses */}
             <div className="space-y-4">

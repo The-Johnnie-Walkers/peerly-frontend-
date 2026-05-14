@@ -6,6 +6,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CalendarDays,
+  ChevronRight,
   Clock3,
   LoaderCircle,
   LogIn,
@@ -34,6 +35,8 @@ import {
 } from '@/shared/components/ui/alert-dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Skeleton } from '@/shared/components/ui/skeleton';
+import { useUser } from '@/features/users/hooks/useUser';
+import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('es-CO', {
   weekday: 'long',
@@ -62,6 +65,15 @@ const STATUS_STYLES: Record<NonNullable<Activity['status']>, string> = {
   IN_PROGRESS: 'bg-amber-100 text-amber-700',
   ENDED: 'bg-slate-100 text-slate-600',
   CANCELLED: 'bg-rose-100 text-rose-700',
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: (delay: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' as const, delay },
+  }),
 };
 
 const STATUS_DESCRIPTIONS: Record<NonNullable<Activity['status']>, string> = {
@@ -130,7 +142,7 @@ const DetailErrorState = ({
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/explore')}
+              onClick={() => navigate(-1)}
               className="h-11 rounded-full border-border/80 bg-white px-5"
             >
               Volver
@@ -273,6 +285,8 @@ const ActivityDetailScreen = () => {
     queryFn: () => activityService.getJoinedActivityIdsByUserId(userId!),
     enabled: Boolean(userId),
   });
+
+  const creatorQuery = useUser(activityQuery.data?.creatorId);
 
   const invalidateActivityQueries = async () => {
     await Promise.all([
@@ -457,8 +471,13 @@ const ActivityDetailScreen = () => {
 
   return (
     <DetailShell>
-      <header className="rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:px-8 sm:py-9 lg:px-10">
-        <div className="flex flex-col gap-6">
+      <motion.header
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:px-8 sm:py-9 lg:px-10"
+      >
+        <div className="flex flex-col gap-6" >
           <div className="flex items-start justify-between gap-4">
             <motion.button
               type="button"
@@ -495,10 +514,13 @@ const ActivityDetailScreen = () => {
             <SummaryCard icon={MapPin} label="Ubicacion" value={activity.locationPayload.displayName} />
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="order-2 space-y-6 lg:order-1">
+        <motion.section
+          variants={fadeUp} initial="hidden" animate="show" custom={0.14}
+          className="order-2 space-y-6 lg:order-1"
+        >
           <article className="rounded-[30px] border border-white/70 bg-white/80 px-6 py-6 shadow-card sm:px-7">
             <div className="max-w-3xl">
               <h2 className="font-display text-2xl font-bold text-foreground">Sobre la actividad</h2>
@@ -507,6 +529,26 @@ const ActivityDetailScreen = () => {
               </p>
             </div>
           </article>
+
+          {activity.locationPayload?.latitude != null && activity.locationPayload?.longitude != null && (
+            <article className="overflow-hidden rounded-[30px] border border-white/70 shadow-card">
+              <div className="border-b border-border/70 bg-white/80 px-6 py-4 sm:px-7">
+                <h2 className="flex items-center gap-2 font-display text-lg font-bold text-foreground">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  Ubicación
+                </h2>
+                <p className="mt-0.5 text-sm text-[color:hsl(var(--peerly-text-secondary))]">
+                  {activity.locationPayload.displayName}
+                </p>
+              </div>
+              <iframe
+                title="Mapa de ubicación"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(activity.locationPayload.longitude) - 0.007},${Number(activity.locationPayload.latitude) - 0.007},${Number(activity.locationPayload.longitude) + 0.007},${Number(activity.locationPayload.latitude) + 0.007}&layer=mapnik&marker=${activity.locationPayload.latitude},${activity.locationPayload.longitude}`}
+                className="w-full h-56 border-0"
+                loading="lazy"
+              />
+            </article>
+          )}
 
           <article className="rounded-[30px] border border-white/70 bg-white/72 px-6 py-6 shadow-card sm:px-7">
             <div className="flex flex-col gap-5">
@@ -543,9 +585,13 @@ const ActivityDetailScreen = () => {
               </div>
             </div>
           </article>
-        </section>
 
-        <aside className="order-1 self-start lg:order-2 lg:sticky lg:top-6">
+        </motion.section>
+
+        <motion.aside
+          variants={fadeUp} initial="hidden" animate="show" custom={0.07}
+          className="order-1 self-start lg:order-2 lg:sticky lg:top-6"
+        >
           <article className="rounded-[30px] border border-white/70 bg-white/88 px-6 py-6 shadow-card sm:px-7">
             {isOwner ? (
               <div className="flex flex-col gap-5">
@@ -571,58 +617,52 @@ const ActivityDetailScreen = () => {
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  onClick={() => navigate(`/activity/${id}/edit`)}
-                  className="h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
-                >
-                  <Pencil className="h-4 w-4" />
-                  Editar actividad
-                </Button>
+                <div className="hidden sm:flex flex-col gap-3">
+                  <Button
+                    type="button"
+                    onClick={() => navigate(`/activity/${id}/edit`)}
+                    className="h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar actividad
+                  </Button>
 
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      type="button"
-                      disabled={deleteMutation.isPending}
-                      className="h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
-                    >
-                      {deleteMutation.isPending ? (
-                        <>
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          Eliminando...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="h-4 w-4" />
-                          Eliminar actividad
-                        </>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">
-                        Eliminar actividad
-                      </AlertDialogTitle>
-                      <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                        Esta accion es permanente. Se eliminara la actividad para todos los participantes y no podra recuperarse.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">
-                        Cancelar
-                      </AlertDialogCancel>
-                      <AlertDialogAction
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type="button"
                         disabled={deleteMutation.isPending}
-                        onClick={() => { void deleteMutation.mutateAsync(); }}
-                        className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90"
+                        className="h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
                       >
-                        {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar definitivamente'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        {deleteMutation.isPending ? (
+                          <><LoaderCircle className="h-4 w-4 animate-spin" />Eliminando...</>
+                        ) : (
+                          <><Trash2 className="h-4 w-4" />Eliminar actividad</>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">
+                          Eliminar actividad
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                          Esta accion es permanente. Se eliminara la actividad para todos los participantes y no podra recuperarse.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={deleteMutation.isPending}
+                          onClick={() => { void deleteMutation.mutateAsync(); }}
+                          className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90"
+                        >
+                          {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar definitivamente'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-5">
@@ -678,86 +718,171 @@ const ActivityDetailScreen = () => {
                 ) : null}
 
                 {!joinedActivityIdsQuery.isPending && !showMembershipError ? (
-                  isJoined ? (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          disabled={isActionPending}
-                          className="h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
-                        >
-                          {leaveMutation.isPending ? (
-                            <>
-                              <LoaderCircle className="h-4 w-4 animate-spin" />
-                              Saliendo...
-                            </>
-                          ) : (
-                            <>
-                              <LogOut className="h-4 w-4" />
-                              Salir de la actividad
-                            </>
-                          )}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">
-                            Salir de la actividad
-                          </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                            Vas a liberar tu cupo en esta actividad. Si todavia quieres participar, tendras que ingresar otra vez.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">
-                            Cancelar
-                          </AlertDialogCancel>
-                          <AlertDialogAction
-                            disabled={leaveMutation.isPending}
-                            onClick={() => { void leaveMutation.mutateAsync(); }}
-                            className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90"
+                  <div className="hidden md:block">
+                    {isJoined ? (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            disabled={isActionPending}
+                            className="h-12 w-full rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15"
                           >
-                            {leaveMutation.isPending ? 'Saliendo...' : 'Confirmar salida'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  ) : (
-                    <Button
-                      type="button"
-                      disabled={primaryAction.disabled || isActionPending || !canJoin}
-                      onClick={() => { void joinMutation.mutateAsync(); }}
-                      className="h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
-                    >
-                      {joinMutation.isPending ? (
-                        <>
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          Ingresando...
-                        </>
-                      ) : (
-                        <>
-                          <LogIn className="h-4 w-4" />
-                          {primaryAction.label}
-                        </>
-                      )}
-                    </Button>
-                  )
+                            {leaveMutation.isPending ? (
+                              <><LoaderCircle className="h-4 w-4 animate-spin" />Saliendo...</>
+                            ) : (
+                              <><LogOut className="h-4 w-4" />Salir de la actividad</>
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">Salir de la actividad</AlertDialogTitle>
+                            <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                              Vas a liberar tu cupo en esta actividad. Si todavia quieres participar, tendras que ingresar otra vez.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">Cancelar</AlertDialogCancel>
+                            <AlertDialogAction disabled={leaveMutation.isPending} onClick={() => { void leaveMutation.mutateAsync(); }} className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90">
+                              {leaveMutation.isPending ? 'Saliendo...' : 'Confirmar salida'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={primaryAction.disabled || isActionPending || !canJoin}
+                        onClick={() => { void joinMutation.mutateAsync(); }}
+                        className="h-12 w-full rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
+                      >
+                        {joinMutation.isPending ? (
+                          <><LoaderCircle className="h-4 w-4 animate-spin" />Ingresando...</>
+                        ) : (
+                          <><LogIn className="h-4 w-4" />{primaryAction.label}</>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 ) : null}
 
-                <div className="rounded-[24px] border border-border/70 bg-white/70 px-4 py-4">
-                  <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
-                    Estado del sistema
+                <div className="border-t border-border/60 pt-5">
+                  <p className="mb-3 text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
+                    Organizado por
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
-                    {activityQuery.isSuccess
-                      ? 'Informacion sincronizada con el microservicio de actividades.'
-                      : 'Cargando la informacion mas reciente.'}
-                  </p>
+                  {creatorQuery.isPending ? (
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-4 w-28 rounded-full" />
+                        <Skeleton className="h-3 w-16 rounded-full" />
+                      </div>
+                    </div>
+                  ) : creatorQuery.data ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/profile/${activity.creatorId}`)}
+                      className="flex w-full items-center gap-3 rounded-[20px] border border-border/70 bg-[hsl(var(--peerly-soft-accent))]/30 px-4 py-3 text-left transition-colors hover:bg-[hsl(var(--peerly-soft-accent))]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {creatorQuery.data.profilePicURL ? (
+                        <SafeRemoteImage
+                          src={creatorQuery.data.profilePicURL}
+                          alt={`${creatorQuery.data.name} ${creatorQuery.data.lastname}`}
+                          className="h-10 w-10 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 font-display font-bold text-sm text-primary">
+                          {creatorQuery.data.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {creatorQuery.data.name} {creatorQuery.data.lastname}
+                        </p>
+                        <p className="text-xs text-[color:hsl(var(--peerly-text-secondary))]">Ver perfil</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             )}
           </article>
-        </aside>
+        </motion.aside>
+      </div>
+
+      {/* CTA fijo en móvil */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur-sm px-4 py-4">
+        {isOwner ? (
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              onClick={() => navigate(`/activity/${id}/edit`)}
+              className="flex-1 h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90"
+            >
+              <Pencil className="h-4 w-4" />
+              Editar actividad
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" disabled={deleteMutation.isPending} className="h-12 w-12 shrink-0 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15">
+                  {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">Eliminar actividad</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    Esta accion es permanente. Se eliminara la actividad para todos los participantes y no podra recuperarse.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction disabled={deleteMutation.isPending} onClick={() => { void deleteMutation.mutateAsync(); }} className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90">
+                    {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar definitivamente'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ) : !showSessionFallback && !showMembershipError && !joinedActivityIdsQuery.isPending ? (
+          isJoined ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" disabled={isActionPending} className="w-full h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive/15">
+                  {leaveMutation.isPending ? <><LoaderCircle className="h-4 w-4 animate-spin" />Saliendo...</> : <><LogOut className="h-4 w-4" />Salir de la actividad</>}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-[28px] border-white/70 bg-background p-6 sm:max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="font-display text-2xl font-bold text-foreground">Salir de la actividad</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))]">
+                    Vas a liberar tu cupo en esta actividad. Si todavia quieres participar, tendras que ingresar otra vez.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="h-11 rounded-full border-border/80 bg-white px-5">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction disabled={leaveMutation.isPending} onClick={() => { void leaveMutation.mutateAsync(); }} className="h-11 rounded-full bg-destructive text-white hover:bg-destructive/90">
+                    {leaveMutation.isPending ? 'Saliendo...' : 'Confirmar salida'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button
+              type="button"
+              disabled={primaryAction.disabled || isActionPending || !canJoin}
+              onClick={() => { void joinMutation.mutateAsync(); }}
+              className="w-full h-12 rounded-2xl bg-[hsl(var(--peerly-primary))] text-white hover:bg-[hsl(var(--peerly-primary))]/90 disabled:bg-muted disabled:text-muted-foreground"
+            >
+              {joinMutation.isPending ? (
+                <><LoaderCircle className="h-4 w-4 animate-spin" />Ingresando...</>
+              ) : (
+                <><LogIn className="h-4 w-4" />{primaryAction.label}</>
+              )}
+            </Button>
+          )
+        ) : null}
       </div>
     </DetailShell>
   );
