@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { userService, UserProfile } from '@/features/users/services/user.service';
 import { useCreateConnection } from '../hooks/useConnections';
 import { ConnectionStatus } from '../types';
+import { translateProgram } from '@/shared/utils/programTranslations';
 
 // Tarjeta de swipe
 const STACK_SCALE = [1, 0.95, 0.90];
@@ -95,7 +96,7 @@ const SwipeCard = ({
                 {displayName}
               </h2>
               <p className="text-card/90 text-sm font-medium truncate">
-                {user.programs?.[0] ?? 'Universidad'} · {user.semester}° sem
+                {user.programs?.[0] ? translateProgram(user.programs[0]) : 'Universidad'} · {user.semester}° sem
               </p>
             </div>
           </div>
@@ -269,17 +270,18 @@ const ConnectScreen = () => {
   return (
     <div className="h-svh bg-background px-4 py-2 sm:px-5 sm:py-2 lg:px-6 lg:py-2 flex flex-col">
       <div className="flex-1 min-h-0 rounded-[28px] bg-background md:rounded-[32px] md:shadow-elevated flex flex-col">
-        <div className="flex flex-col flex-1 min-h-0 mx-auto w-full max-w-[1440px] px-6 pt-5 pb-6 sm:px-8 sm:pt-6 lg:px-10 xl:px-12 2xl:px-14 gap-4">
+        <div className="flex flex-col flex-1 min-h-0 mx-auto w-full max-w-[1440px] px-6 pt-5 pb-6 sm:px-8 sm:pt-3 lg:px-10 xl:px-12 2xl:px-14 gap-4">
           <motion.header
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.28, ease: 'easeOut' }}
-            className="flex-shrink-0 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-6 py-5 shadow-card sm:px-8"
+            className="flex-shrink-0 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-6 py-3 shadow-card sm:px-8"
           >
             <p className="text-[11px] font-mono font-bold uppercase tracking-[0.22em] text-primary">Descubrir</p>
             <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight text-[color:hsl(var(--peerly-primary-dark))]">
               Conoce a tu comunidad
             </h1>
+            <p className='mt-1 max-w-2xl text-sm leading-6 text-[color:hsl(var(--peerly-text-secondary))] sm:text-[15px]'> Conoce a nuevas personas con intereses similares </p>
           </motion.header>
 
           <div className="flex flex-col flex-1 min-h-0 gap-3 w-full max-w-2xl mx-auto">
