@@ -48,6 +48,21 @@ export const useShooterSocket = ({
   onConnectionLost,
   onReconnected,
 }: UseShooterSocketProps) => {
+  // ⚠️ SHOOTER ARENA TEMPORARILY DISABLED
+  // The shooter arena module is disabled on the server due to performance issues
+  // Return mock functions to prevent connection errors
+  console.warn('[useShooterSocket] ⚠️ Shooter Arena is temporarily disabled on the server');
+  
+  return {
+    isConnected: false,
+    isReconnecting: false,
+    emitPlayerInput: () => {
+      console.warn('[useShooterSocket] Shooter Arena is disabled');
+    },
+    disconnect: () => {},
+  };
+
+  /* ORIGINAL CODE - Uncomment when shooter arena is re-enabled
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -180,4 +195,5 @@ export const useShooterSocket = ({
   }, []);
 
   return { isConnected, isReconnecting, emitPlayerInput };
+  */
 };
