@@ -224,17 +224,6 @@ const HomeScreen = () => {
                       </span>
                     </motion.button>
                   ))}
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate('/social')}
-                    className="flex min-w-[88px] flex-col items-center justify-center gap-3 text-center sm:min-w-[96px]"
-                  >
-                    <div className="flex h-[92px] w-[92px] items-center justify-center rounded-full border border-dashed border-primary/35 bg-white/75 text-primary shadow-card transition-colors hover:bg-white">
-                      <ChevronRight className="h-6 w-6" />
-                    </div>
-                    <span className="text-sm font-medium text-primary">Ver más</span>
-                  </motion.button>
                 </>
               )}
             </div>
@@ -305,13 +294,14 @@ const HomeScreen = () => {
                   return (
                     <motion.button
                       key={activity.id}
-                      type="button"
+                     type="button"
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.06 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.97 }}
                       onClick={() => navigate(`/activity/${activity.id}`)}
-                      className="min-w-[286px] max-w-[286px] rounded-[40px] border border-white/70 bg-card px-5 py-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated sm:min-w-[330px] sm:max-w-[330px] sm:px-6 sm:py-6"
+                      className="min-w-[286px] max-w-[286px] rounded-[40px] border border-white/70 bg-card px-5 py-5 text-left shadow-card transition-shadow hover:shadow-elevated sm:min-w-[330px] sm:max-w-[330px] sm:px-6 sm:py-6"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
