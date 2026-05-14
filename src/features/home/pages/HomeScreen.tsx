@@ -108,7 +108,7 @@ const HomeScreen = () => {
           {/* Header */}
           <header className="flex flex-col gap-6 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-9 lg:px-10">
             <div className="max-w-3xl">
-              <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight sm:text-4xl">
+              <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight sm:text-4xl text-[color:hsl(var(--peerly-primary-dark))]">
                 {getGreeting()}, {userData?.name || 'Compañero'}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
