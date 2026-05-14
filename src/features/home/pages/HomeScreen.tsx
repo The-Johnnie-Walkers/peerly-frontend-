@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronRight, CalendarDays, Clock3, MapPin, Users } from 'lucide-react';
+import { Bell, ChevronRight, CalendarDays, Clock3, MapPin, Users, Sparkles } from 'lucide-react';
 import { SafeRemoteImage } from '@/shared/components/SafeRemoteImage';
 import { userService, UserProfile } from '@/features/users/services/user.service';
 import { activityService, Activity } from '@/features/activities/services/activity.service';
@@ -121,6 +121,7 @@ const HomeScreen = () => {
                 onClick={() => navigate('/connect')}
                 className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-3.5 text-[13px] font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90"
               >
+                <Sparkles className="pr-2"/>
                 Descubrir personas
               </motion.button>
 
