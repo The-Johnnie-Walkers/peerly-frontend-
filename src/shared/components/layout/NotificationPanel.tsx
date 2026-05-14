@@ -119,17 +119,6 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
                 </div>
               )}
             </div>
-
-            {notifications.length > 0 && (
-              <div className="p-3 bg-muted/10 border-t border-border text-center">
-                <button
-                  className="text-xs font-bold text-primary hover:underline"
-                  onClick={() => { onClose(); navigate('/explore'); }}
-                >
-                  Ver todas las actividades
-                </button>
-              </div>
-            )}
           </motion.div>
         </>
       )}

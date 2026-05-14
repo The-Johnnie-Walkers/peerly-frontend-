@@ -18,6 +18,29 @@ type ConnectedUser = {
   isOnline: boolean;
 };
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return 'Buenos días';
+  if (hour >= 12 && hour < 18) return 'Buenas tardes';
+  return 'Buenas noches';
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  OPEN: 'Disponible',
+  FULL: 'Lleno',
+  IN_PROGRESS: 'En curso',
+  ENDED: 'Finalizada',
+  CANCELLED: 'Cancelada',
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  OPEN: 'bg-emerald-100 text-emerald-700',
+  FULL: 'bg-rose-100 text-rose-700',
+  IN_PROGRESS: 'bg-amber-100 text-amber-700',
+  ENDED: 'bg-slate-100 text-slate-600',
+  CANCELLED: 'bg-red-100 text-rose-700',
+};
+
 const HomeScreen = () => {
   const navigate = useNavigate();
   const { userData } = useCurrentUser();
@@ -78,7 +101,7 @@ const HomeScreen = () => {
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+    <div className="relative min-h-[calc(100vh-4rem)] bg-background px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
       <div className="min-h-full rounded-[28px] bg-background md:rounded-[32px] md:shadow-elevated">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-10 px-6 py-8 pb-24 sm:px-8 sm:py-9 lg:gap-12 lg:px-10 lg:py-10 xl:px-12 2xl:px-14">
 
@@ -86,7 +109,7 @@ const HomeScreen = () => {
           <header className="flex flex-col gap-6 rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,236,227,0.88))] px-7 py-8 shadow-card sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-9 lg:px-10">
             <div className="max-w-3xl">
               <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight sm:text-4xl">
-                ¡Hola, {userData?.name || 'Compañero'}!
+                {getGreeting()}, {userData?.name || 'Compañero'}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
                 Accede rápido a tus conexiones y revisa actividades cercanas.
@@ -94,9 +117,17 @@ const HomeScreen = () => {
             </div>
             <div className="flex gap-3 items-center sm:shrink-0">
               <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/connect')}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-3.5 text-[13px] font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90"
+              >
+                Descubrir personas
+              </motion.button>
+
+              <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2.5 bg-accent rounded-xl relative"
+                className="p-2.5 bg-white/80 border border-white/70 shadow-card rounded-full relative hover:bg-[#e3e3e3] transition-colors"
                 aria-label="Abrir notificaciones"
               >
                 <Bell size={20} className="text-foreground" />
@@ -105,13 +136,6 @@ const HomeScreen = () => {
                     {unreadCount}
                   </div>
                 )}
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/connect')}
-                className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-3.5 text-[13px] font-display font-semibold text-white shadow-card transition-opacity hover:opacity-90"
-              >
-                Descubrir personas
               </motion.button>
             </div>
           </header>
@@ -128,7 +152,8 @@ const HomeScreen = () => {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => navigate('/social')}
-                className="inline-flex items-center gap-1 text-sm font-display font-semibold text-primary"
+                whileHover={{ scale: 1.02}}
+                className="inline-flex items-center gap-1 text-sm font-display font-semibold text-primary shadow-card transition-opacity hover:opacity-90"
               >
                 Ver más <ChevronRight className="h-4 w-4" />
               </motion.button>
@@ -219,16 +244,17 @@ const HomeScreen = () => {
           <section className="space-y-7">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <h2 className="font-display text-2xl font-bold text-foreground">Actividades cerca</h2>
+                <h2 className="font-display text-2xl font-bold text-foreground">Actividades Disponibles</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Planes simples para unirte sin salirte de tu rutina.
+                  Planes para unirte sin salirte de tu rutina.
                 </p>
               </div>
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.02}}
                 onClick={() => navigate('/explore')}
-                className="inline-flex items-center gap-1 text-sm font-display font-semibold text-primary"
+                className="inline-flex items-center gap-1 text-sm font-display font-semibold text-primary shadow-card transition-opacity hover:opacity-90"
               >
                 Ver más <ChevronRight className="h-4 w-4" />
               </motion.button>
@@ -255,54 +281,74 @@ const HomeScreen = () => {
                   ))}
                 </>
               ) : activities.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay actividades disponibles.</p>
-              ) : (
-                activities.map((activity, index) => (
+                <div className="flex w-full flex-col items-center justify-center gap-3 rounded-[32px] border border-dashed border-primary/25 bg-white/60 px-6 py-10 text-center shadow-card">
+                  <CalendarDays className="h-8 w-8 text-primary/30" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">No hay actividades disponibles</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Crea una nueva actividad para empezar a mover la comunidad.</p>
+                  </div>
                   <motion.button
-                    key={activity.id}
                     type="button"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.06 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate(`/activity/${activity.id}`)}
-                    className="min-w-[286px] max-w-[286px] rounded-[40px] border border-white/70 bg-card px-5 py-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated sm:min-w-[330px] sm:max-w-[330px] sm:px-6 sm:py-6"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => navigate('/create-activity')}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-display font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
-                          Actividad cercana
-                        </p>
-                        <h3 className="mt-2 font-display text-lg font-bold leading-snug text-foreground">
-                          {activity.title}
-                        </h3>
-                      </div>
-                    </div>
-                    <p className="mt-5 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                      {activity.description}
-                    </p>
-                    <div className="mt-6 space-y-3.5 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-primary" />
-                        <span className="truncate">{activity.locationPayload.displayName}</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <span className="flex items-center gap-2">
-                          <CalendarDays className="h-4 w-4 text-primary" />
-                          {activity.date}
-                        </span>
-                        <span className="flex items-center gap-2">
-                          <Clock3 className="h-4 w-4 text-primary" />
-                          {activity.time}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-primary" />
-                        <span>{activity.currentAttendees.length}/{activity.maxAttendees} personas confirmadas</span>
-                      </div>
-                    </div>
+                    Crear actividad
                   </motion.button>
-                ))
+                </div>
+              ) : (
+                activities.map((activity, index) => {
+                  const status = activity.status ?? 'OPEN';
+                  const statusLabel = STATUS_LABELS[status];
+                  const statusStyle = STATUS_STYLES[status];
+
+                  return (
+                    <motion.button
+                      key={activity.id}
+                      type="button"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.06 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => navigate(`/activity/${activity.id}`)}
+                      className="min-w-[286px] max-w-[286px] rounded-[40px] border border-white/70 bg-card px-5 py-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated sm:min-w-[330px] sm:max-w-[330px] sm:px-6 sm:py-6"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className=" font-display text-lg font-bold leading-snug text-foreground">
+                            {activity.title}
+                          </h3>
+                        </div>
+                        <span className={`mt-1 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider ${statusStyle}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <p className="mt-5 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        {activity.description}
+                      </p>
+                      <div className="mt-6 space-y-3.5 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-primary" />
+                          <span className="truncate">{activity.locationPayload.displayName}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <span className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-primary" />
+                            {activity.date}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <Clock3 className="h-4 w-4 text-primary" />
+                            {activity.time}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-primary" />
+                          <span>{activity.currentAttendees.length}/{activity.maxAttendees} personas confirmadas</span>
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })
               )}
             </div>
           </section>
