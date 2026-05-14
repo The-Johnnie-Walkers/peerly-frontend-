@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, MessageCircle, UserPlus, User, Globe, ShieldAlert, Users2, LogOut } from 'lucide-react';
+import { Home, MessageCircle, Orbit, UserPlus, User, Globe, ShieldAlert, Users2, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useCurrentUser } from '@/shared/contexts/CurrentUserContext';
 import { authService } from '@/features/auth/services/auth.service';
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { path: '/connect', icon: UserPlus, label: 'Descubrir' },
   { path: '/communities', icon: Globe, label: 'Comunidades' },
   { path: '/social', icon: Users2, label: 'Social' },
+  { path: '/virtual-world', icon: Orbit, label: 'Mundo virtual' },
   { path: '/profile', icon: User, label: 'Perfil' },
 ];
 
